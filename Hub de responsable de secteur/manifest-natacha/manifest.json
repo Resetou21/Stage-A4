@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "app": {
+    "name": "Hub de natacha",
+    "slug": "1aa6f0df-7c03-4db4-af88-50349bea6aff",
+    "color": "",
+    "oauth": {
+      "redirectUri": "https://groupefacility.monday.com/ai-app-builder/auth/monday-oauth/callback",
+      "scopes": [
+        "me:read",
+        "boards:read",
+        "boards:write",
+        "workspaces:read",
+        "workspaces:write",
+        "users:read",
+        "account:read",
+        "updates:read",
+        "updates:write",
+        "tags:read",
+        "assets:read",
+        "teams:read",
+        "notifications:write",
+        "webhooks:read",
+        "webhooks:write",
+        "docs:read",
+        "docs:write"
+      ]
+    },
+    "features": [
+      {
+        "key": "627a19cf-59e6-49ce-8cf8-9b32d9d56577",
+        "type": "AppFeatureSurfaceView",
+        "name": "Hub de natacha",
+        "schemaVersion": "3",
+        "build": {
+          "url": "https://hub-de-natacha-groupefacility.v.monday.app",
+          "kind": "url"
+        },
+        "data": {
+          "name": "Hub de natacha",
+          "isMobileSupported": true
+        }
+      },
+      {
+        "relations": [
+          {
+            "type": "hosting",
+            "target": {
+              "slug": "627a19cf-59e6-49ce-8cf8-9b32d9d56577"
+            },
+            "name": "content"
+          }
+        ],
+        "key": "1aa6f0df-7c03-4db4-af88-50349bea6aff",
+        "type": "AppFeatureVibeObject",
+        "name": "Backup Hub de natacha",
+        "schemaVersion": "6",
+        "data": {
+          "name": "Backup Hub de natacha",
+          "hidden": true,
+          "iconUrl": "https://dapulse-res.cloudinary.com/image/upload/v1765710091/monday_platform/vibe-ai/monday-vibe-logo-small-png.png",
+          "hideDuplicate": true,
+          "hideSetAsTemplate": true,
+          "showSetAsHomepage": true,
+          "isMobileSupported": true,
+          "microFrontendName": "mf-ai-app-builder",
+          "microFrontendRoutingKey": "object-view"
+        }
+      }
+    ]
+  }
+}
