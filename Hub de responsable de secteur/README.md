@@ -123,18 +123,23 @@ Si un collègue ou un responsable vous demande de modifier quelque chose, voici 
 
 ### 2. Modifier les formules d'économies & stocks mini
 - **Fichier :** `src/generated/server/inventory.ts`
-- **Stock Mini :**
-  $$\text{Stock Mini} = \max\left(1, \operatorname{arrondi}\left(\frac{\text{Contrat}}{12} \times 2\right)\right)$$
-- **Avenant préconisé :**
-  $$\text{Avenant} = \min(\text{Surplus}, \operatorname{arrondi}(\text{Contrat} \times 0{,}25))$$
-- **Économies :** Le système lit prioritairement les formules Monday `formula_mm8ccrzs` (Directe) et `formula_mm8czcsd` (12 Mois). Si ces colonnes sont recalculées, le total s'ajuste immédiatement.
+- **Formules de calcul appliquées :**
+  ```text
+  Stock Mini            = max(1, Math.round((Contrat / 12) * 2))
+  Surplus (À récupérer) = max(0, Inventaire - Stock Mini)
+  Avenant préconisé     = min(Surplus, Math.round(Contrat * 0.25))
+  ```
+- **Économies financières :**
+  - **Économie directe :** Valeur financière du surplus à récupérer (`Somme des (À récupérer × Prix Unitaire HT)`).
+  - **Économie contrat (12 mois) :** Valeur financière de l'avenant (`Somme des (Avenant × Prix Unitaire HT)`).
+  - Le système lit prioritairement les formules réelles Monday `formula_mm8ccrzs` (Directe) et `formula_mm8czcsd` (12 Mois). Si ces colonnes sont recalculées, le total s'ajuste immédiatement.
 
 ### 3. Modifier les critères des alertes
 - **Fichier :** `src/generated/server/alerts.ts`
 - Vous y trouverez les conditions exactes :
   - **Alerte 3 contrôles :** Les 3 derniers contrôles (C1, C2, C3) doivent être insatisfaisants.
   - **Alerte 2 mois :** Dernier contrôle insatisfaisant datant de plus de 60 jours.
-  - **Chantiers non vus :** Dernier contrôle $\ge 11$ mois sur le groupe `topics`.
+  - **Chantiers non vus :** Dernier contrôle datant de 11 mois ou plus sur le groupe `topics`.
   - **Visites des 2 mois :** Texte d'alerte présent et case `rdv2Mois` non cochée.
 
 ### 4. Adapter le mapping des colonnes Monday
@@ -190,3 +195,4 @@ Cette commande compile le TypeScript, génère les fichiers de production avec V
 ---
 
 *Développé pour Groupe Facility — 2026*
+
