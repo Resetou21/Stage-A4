@@ -1,8 +1,50 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { InventairesConsommablesBoard, TableauCompletChantierBoard } from '@api/BoardSDK';
+import { InventairesConsommablesBoard, TableauCompletChantierBoard, clearBoardCache } from '@api/BoardSDK';
 
 const ANIMATEURS = ['Natacha THOMAS', 'Ketty PAULIN', 'Emilie TOBIE', 'Andre LEVESQUE'] as const;
+
+// Cache en mémoire partagé des IDs de chantiers pour éviter de rescanner 1 500 chantiers à chaque fonction
+interface CachedChantiers {
+  timestamp: number;
+  ids: string[];
+  siteNames: Set<string>;
+}
+const chantiersCache = new Map<string, CachedChantiers>();
+
+export function clearChantiersCache() {
+  chantiersCache.clear();
+}
+
+async function getChantierIdsForAnimateur(label: string): Promise<{ ids: string[]; siteNames: Set<string> }> {
+  const cached = chantiersCache.get(label);
+  if (cached && Date.now() - cached.timestamp < 120000) {
+    return { ids: cached.ids, siteNames: cached.siteNames };
+  }
+
+  const chantiers = new TableauCompletChantierBoard();
+  const ids: string[] = [];
+  const siteNames = new Set<string>();
+  let c: string | null | undefined = undefined;
+  try {
+    do {
+      const res: { items: { id: string; name?: string }[]; cursor?: string | null } = await chantiers
+        .items()
+        .withColumns(['animateur'])
+        .where({ animateur: label })
+        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
+        .execute();
+      for (const it of res.items) {
+        ids.push(it.id);
+        if (it.name) siteNames.add(normalize(it.name));
+      }
+      c = res.cursor;
+    } while (c);
+  } catch (_) {}
+
+  chantiersCache.set(label, { timestamp: Date.now(), ids, siteNames });
+  return { ids, siteNames };
+}
 
 const CONTRATS = [
   // Essuie-mains
@@ -114,6 +156,7 @@ export const validateInventory = createServerFn({ method: 'POST' })
         .execute(),
     ]);
     await board.item(data.itemId).archive().execute();
+    clearBoardCache();
     return { ok: true, newId: createdRealises?.id ?? null };
   });
 
@@ -197,18 +240,7 @@ export const getInventoryActions = createServerFn({ method: 'GET' })
     let columns: string[] = [];
     const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
     if (!label) return { count: 0, columns, rows: [] as Row[] };
-    const chantiers = new TableauCompletChantierBoard();
-    const ids: string[] = [];
-    let c: string | null | undefined = undefined;
-    try {
-      do {
-        const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
-          .items().withColumns(['animateur']).where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
-        ids.push(...res.items.map((i) => i.id));
-        c = res.cursor;
-      } while (c);
-    } catch (_) {}
+    const { ids } = await getChantierIdsForAnimateur(label);
 
     const board = new InventairesConsommablesBoard();
     const rows: Row[] = [];
@@ -294,18 +326,7 @@ export const getInventoryDue = createServerFn({ method: 'GET' })
   .handler(async ({ data }) => {
     const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
     if (!label) return { count: 0, sites: [] as DueSite[], order: [] as string[] };
-    const chantiers = new TableauCompletChantierBoard();
-    const ids: string[] = [];
-    let c: string | null | undefined = undefined;
-    try {
-      do {
-        const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
-          .items().withColumns(['animateur']).where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
-        ids.push(...res.items.map((i) => i.id));
-        c = res.cursor;
-      } while (c);
-    } catch (_) {}
+    const { ids } = await getChantierIdsForAnimateur(label);
 
     const board = new InventairesConsommablesBoard();
     const today = new Date();
@@ -357,17 +378,7 @@ export const getSitesCount = createServerFn({ method: 'GET' })
   .handler(async ({ data }) => {
     const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
     if (!label) return { count: 0 };
-    const ids: string[] = [];
-    let c: string | null | undefined = undefined;
-    try {
-      do {
-        const res: { items: { id: string }[]; cursor?: string | null } = await new TableauCompletChantierBoard()
-          .items().withColumns(['animateur']).where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
-        ids.push(...res.items.map((i) => i.id));
-        c = res.cursor;
-      } while (c);
-    } catch (_) {}
+    const { ids } = await getChantierIdsForAnimateur(label);
     let count = 0;
     let cur: string | null | undefined = undefined;
     const statsWhere = ids.length > 0
@@ -390,21 +401,7 @@ export const getInventory = createServerFn({ method: 'GET' })
     const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
     if (!label) return { items: [], cursor: null as string | null };
 
-    const chantiers = new TableauCompletChantierBoard();
-    const ids: string[] = [];
-    let c: string | null | undefined = undefined;
-    try {
-      do {
-        const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
-          .items()
-          .withColumns(['animateur'])
-          .where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
-          .execute();
-        ids.push(...res.items.map((i) => i.id));
-        c = res.cursor;
-      } while (c);
-    } catch (_) {}
+    const { ids } = await getChantierIdsForAnimateur(label);
 
     const keys = CONTRATS.map(([k]) => k) as ContratKey[];
     const term = normalize(data.search ?? '');
@@ -601,25 +598,7 @@ export const getAllSitesHistory = createServerFn({ method: 'GET' })
     const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
     if (!label) return { historyBySite: {} as Record<string, SiteHistoryResult> };
 
-    const chantiers = new TableauCompletChantierBoard();
-    const ids: string[] = [];
-    const siteNames = new Set<string>();
-    let c: string | null | undefined = undefined;
-    try {
-      do {
-        const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
-          .items()
-          .withColumns(['animateur'])
-          .where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
-          .execute();
-        for (const it of res.items) {
-          ids.push(it.id);
-          if (it.name) siteNames.add(normalize(it.name));
-        }
-        c = res.cursor;
-      } while (c);
-    } catch (_) {}
+    const { ids, siteNames } = await getChantierIdsForAnimateur(label);
 
     const board = new InventairesConsommablesBoard();
     const keys = [
@@ -773,25 +752,7 @@ export const getEconomies = createServerFn({ method: 'GET' })
       };
     }
 
-    const chantiers = new TableauCompletChantierBoard();
-    const ids: string[] = [];
-    const siteNames = new Set<string>();
-    let c: string | null | undefined = undefined;
-    try {
-      do {
-        const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
-          .items()
-          .withColumns(['animateur'])
-          .where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
-          .execute();
-        for (const it of res.items) {
-          ids.push(it.id);
-          if (it.name) siteNames.add(normalize(it.name));
-        }
-        c = res.cursor;
-      } while (c);
-    } catch (_) {}
+    const { ids, siteNames } = await getChantierIdsForAnimateur(label);
 
     const ecoKeys = [
       'tableauCompletChantier',

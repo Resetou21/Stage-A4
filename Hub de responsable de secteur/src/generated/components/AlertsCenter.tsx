@@ -46,21 +46,43 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
 
   return (
     <>
-      <div className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-2 overflow-x-auto px-4 py-2 sm:px-8">
-          <nav className="flex min-w-0 flex-1 gap-1" aria-label="Navigation rapide">
+      <div className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur shadow-xs">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2 sm:px-8">
+          <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar py-0.5" aria-label="Navigation rapide">
             {NAV.map((n) => (
-              <button key={n.href} type="button" onClick={() => jump(n.href)}
-                className="min-h-11 shrink-0 rounded-[var(--radius-md)] px-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground">
+              <button
+                key={n.href}
+                type="button"
+                onClick={() => jump(n.href)}
+                className="min-h-9 sm:min-h-10 shrink-0 rounded-lg px-2.5 sm:px-3 text-xs sm:text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors whitespace-nowrap"
+              >
                 {n.label}
               </button>
             ))}
           </nav>
-          <button type="button" onClick={() => setOpen(true)} disabled={!data}
-            className={cn('inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[var(--radius-md)] px-4 text-sm font-bold disabled:opacity-60',
-              total > 0 ? 'bg-[hsl(var(--brand-orange))] text-primary-foreground hover:opacity-90' : 'border border-border text-muted-foreground hover:bg-muted')}>
-            {total > 0 ? <BellRing className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-            Alertes &amp; Rappels ({data ? total : '…'})
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            disabled={!data}
+            className={cn(
+              'inline-flex min-h-9 sm:min-h-10 shrink-0 items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 sm:px-3.5 text-xs sm:text-sm font-bold transition-all disabled:opacity-60 shadow-2xs',
+              total > 0
+                ? 'bg-[hsl(var(--brand-orange))] text-white hover:opacity-90'
+                : 'border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+            aria-label="Ouvrir les alertes"
+            title="Consulter les alertes et rappels"
+          >
+            {total > 0 ? <BellRing className="h-4 w-4 shrink-0 animate-bounce" /> : <Bell className="h-4 w-4 shrink-0" />}
+            <span className="hidden sm:inline">Alertes &amp; Rappels</span>
+            <span
+              className={cn(
+                'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] sm:text-xs font-black',
+                total > 0 ? 'bg-white text-[hsl(var(--brand-orange))] shadow-xs' : 'bg-muted text-muted-foreground'
+              )}
+            >
+              {data ? total : '…'}
+            </span>
           </button>
         </div>
       </div>
