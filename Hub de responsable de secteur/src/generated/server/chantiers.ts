@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TableauCompletChantierBoard, callMondayApi } from '@api/BoardSDK';
+import { TableauCompletChantierBoard, VisitesClientsBoard, InventairesConsommablesBoard, callMondayApi } from '@api/BoardSDK';
 import { BOARD_IDS } from '@api/columnMap';
 
 function labelOf(name: string): string | null {
@@ -54,7 +54,6 @@ export const ANIMATEURS_OPTIONS = [
   'Natacha THOMAS',
   'Ketty PAULIN',
   'Emilie TOBIE',
-  'Andre LEVESQUE',
 ] as const;
 
 export type AnimateurName = (typeof ANIMATEURS_OPTIONS)[number];
@@ -216,7 +215,7 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
     'c1',
     'c2',
     'c3',
-    'dernierControle',
+    'dernierContrle',
     'dernierContrle1',
     'rsultatDernierContrle',
     'column3',
@@ -258,7 +257,7 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
         else if (it.c1 === 'Bases non respectées' || it.c1 === "Plan d'action urgent") stars = '🙁';
       }
 
-      const rawDate = it.dernierControle ?? it.dernierContrle1 ?? null;
+      const rawDate = it.dernierContrle ?? it.dernierContrle1 ?? null;
       const d = rawDate && !Number.isNaN(new Date(rawDate).getTime()) ? new Date(rawDate) : null;
 
       const toStr = (v: any) => {
@@ -298,6 +297,127 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
 
     cur = page.cursor;
   } while (cur);
+
+  // Fallback si Tableau complet chantier est bloqué sur mobile/tablette (board privé dans un autre workspace)
+  if (res.length === 0) {
+    try {
+      const norm = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const target = norm(label);
+      const chMap = new Map<string, { id: string; name: string; lastDate?: string; qual?: string }>();
+
+      // 1. Depuis Visites clients
+      const vBoard = new VisitesClientsBoard();
+      let vCur: string | null | undefined = undefined;
+      do {
+        const vPage: any = await vBoard
+          .items()
+          .withColumns(['dateVisiteClient', 'qualitDeLaPrestation', 'nomChantier', 'animateur', 'animatriceDirect'])
+          .orderBy({ column: 'dateVisiteClient', direction: 'desc' })
+          .withPagination(vCur ? { limit: 500, cursor: vCur } : { limit: 500 })
+          .execute();
+
+        for (const it of vPage.items || []) {
+          const rawDisp = (it.animateur?.displayValue ?? '').trim();
+          const names = rawDisp ? rawDisp.split(',').map(norm) : [];
+          const matchByMirror = names.includes(target);
+
+          const creatorName = (it.creator?.name || '').toLowerCase();
+          const creatorEmail = (it.creator?.email || '').toLowerCase();
+          const creatorId = String(it.creator?.id || '');
+
+          const isTargetCreator =
+            (target.includes('emilie') && (creatorId === '87318933' || creatorEmail.includes('etobie') || creatorName.includes('emilie') || creatorName.includes('émilie'))) ||
+            (target.includes('ketty') && (creatorId === '76526955' || creatorEmail.includes('kpaulin') || creatorName.includes('ketty'))) ||
+            (target.includes('natacha') && (creatorId === '87318941' || creatorEmail.includes('nthomas') || creatorName.includes('natacha'))) ||
+            (target.includes('andre') && (creatorName.includes('andre') || creatorName.includes('andré')));
+
+          const colAnim = it.animatriceDirect ? norm(String(it.animatriceDirect)) : '';
+          const matchByColAnim = colAnim ? (colAnim.includes(target) || target.includes(colAnim)) : false;
+
+          if (rawDisp) {
+            if (!matchByMirror) continue;
+          } else {
+            if (!isTargetCreator && !matchByColAnim) continue;
+          }
+
+          const linked = it.nomChantier?.linkedItems || [];
+          for (const l of linked) {
+            const chId = String(l.id);
+            const chName = String(l.name || '').trim();
+            if (!chId || !chName) continue;
+            if (!chMap.has(chId)) {
+              const dt = it.dateVisiteClient instanceof Date ? it.dateVisiteClient.toISOString().slice(0, 10) : String(it.dateVisiteClient || '');
+              chMap.set(chId, {
+                id: chId,
+                name: chName,
+                lastDate: dt || undefined,
+                qual: it.qualitDeLaPrestation || undefined,
+              });
+            }
+          }
+        }
+        vCur = vPage.cursor;
+      } while (vCur);
+
+      // 2. Depuis Inventaires consommables
+      const invBoard = new InventairesConsommablesBoard();
+      let invCur: string | null | undefined = undefined;
+      do {
+        const invPage: any = await invBoard
+          .items()
+          .withColumns(['tableauCompletChantier', 'animateur'])
+          .where({ animateur: label })
+          .withPagination(invCur ? { limit: 500, cursor: invCur } : { limit: 500 })
+          .execute();
+
+        for (const it of invPage.items || []) {
+          const linked = it.tableauCompletChantier?.linkedItems || [];
+          for (const l of linked) {
+            const chId = String(l.id);
+            const chName = String(l.name || '').trim();
+            if (!chId || !chName) continue;
+            if (!chMap.has(chId)) {
+              chMap.set(chId, { id: chId, name: chName });
+            }
+          }
+        }
+        invCur = invPage.cursor;
+      } while (invCur);
+
+      for (const [id, c] of chMap.entries()) {
+        res.push({
+          id,
+          name: c.name,
+          animateur: label,
+          code: null,
+          adresse: null,
+          codePostal: null,
+          ville: null,
+          interlocuteur: null,
+          telephone: null,
+          email: null,
+          cle: null,
+          doubleCle: null,
+          keycafe: null,
+          cahierLiaison: null,
+          c1: c.qual || null,
+          c2: null,
+          c3: null,
+          dernierControle: c.lastDate || null,
+          resultatDernierControle: c.qual || null,
+          stars: c.qual === 'Globalement bon' ? '1🌟' : c.qual ? '🙁' : null,
+          heuresMois: null,
+          activite: null,
+          sensible: false,
+          groupId: 'topics',
+          groupTitle: 'Chantiers en cours',
+        });
+      }
+      res.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    } catch (e) {
+      console.warn('[getChantiersList fallback error]:', e);
+    }
+  }
 
   return res;
 }

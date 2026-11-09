@@ -1,4 +1,5 @@
 import mondaySdk from 'monday-sdk-js';
+import { toast } from 'sonner';
 import { BOARD_IDS, COLUMN_MAP } from './columnMap';
 
 export const monday = mondaySdk();
@@ -60,7 +61,7 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
       for (let attempt = 0; attempt <= 3; attempt++) {
         try {
           const res: any = await monday.api(query, options);
-          if (res?.errors) {
+          if (res?.errors && res.errors.length > 0) {
             const isRateLimit = res.errors.some((e: any) => {
               const m = String(e?.message || '').toLowerCase();
               return m.includes('rate limit') || m.includes('complexity');
@@ -71,10 +72,23 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
               delay *= 1.5;
               continue;
             }
+            // Alerter visuellement en cas de vrai refus d'autorisation ou erreur Monday API
+            const nonRateLimit = res.errors.filter((e: any) => {
+              const m = String(e?.message || '').toLowerCase();
+              return !m.includes('rate limit') && !m.includes('complexity');
+            });
+            if (nonRateLimit.length > 0) {
+              const msg = nonRateLimit.map((e: any) => e.message || JSON.stringify(e)).join(' | ');
+              console.error('[BoardSDK Error]:', msg);
+              toast.error(`Accès Monday : ${msg}`, { id: 'monday-board-perm-err', duration: 10000 });
+            }
           }
           if (cacheKey && (!res?.errors || res.errors.length === 0)) {
-            // Cache session de 5 minutes pour un affichage instantané, invalidé automatiquement à chaque modification
-            queryCache.set(cacheKey, { expires: Date.now() + 300000, data: res });
+            // Ne pas mettre en cache un résultat vide pour éviter d'empoisonner les sessions
+            const pageData = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
+            if (!pageData || (pageData.items && pageData.items.length > 0)) {
+              queryCache.set(cacheKey, { expires: Date.now() + 300000, data: res });
+            }
           }
           return res;
         } catch (err: any) {
@@ -151,14 +165,33 @@ function parseColumnValue(cv: any): any {
 
     case 'board_relation': {
       const linked = cv.linked_items || [];
+      let ids: string[] = Array.isArray(cv.linked_item_ids) ? cv.linked_item_ids.map(String) : [];
+      if (ids.length === 0 && cv.value) {
+        try {
+          const parsed = JSON.parse(cv.value);
+          if (parsed && Array.isArray(parsed.linked_item_ids)) ids = parsed.linked_item_ids.map(String);
+        } catch (_) {}
+      }
+      if (ids.length === 0 && linked.length > 0) {
+        ids = linked.map((l: any) => String(l.id));
+      }
       return {
         linkedItems: linked.map((l: any) => ({ id: String(l.id), name: String(l.name) })),
+        linkedItemIds: ids,
       };
     }
 
     case 'mirror':
     case 'lookup': {
-      const disp = cv.display_value !== undefined && cv.display_value !== null ? cv.display_value : text;
+      let disp = cv.display_value !== undefined && cv.display_value !== null ? cv.display_value : text;
+      if (!disp && cv.value) {
+        try {
+          const parsed = JSON.parse(cv.value);
+          if (parsed) {
+            disp = parsed.display_value || parsed.text || '';
+          }
+        } catch (_) {}
+      }
       return {
         displayValue: disp !== '' ? disp : null,
       };
@@ -181,7 +214,10 @@ function parseColumnValue(cv: any): any {
     }
 
     case 'status':
-    case 'color':
+    case 'color': {
+      const lbl = cv.label || text;
+      return lbl !== '' ? lbl : null;
+    }
     case 'text':
     default: {
       return text !== '' ? text : null;
@@ -195,6 +231,13 @@ function parseItem(rawItem: any, boardId: string, neededFields: string[] = []): 
     id: String(rawItem.id),
     name: rawItem.name,
     createdAt: rawItem.created_at || null,
+    creator: rawItem.creator
+      ? {
+          id: String(rawItem.creator.id || ''),
+          name: String(rawItem.creator.name || ''),
+          email: String(rawItem.creator.email || ''),
+        }
+      : undefined,
     group: rawItem.group ? { id: rawItem.group.id, title: rawItem.group.title } : undefined,
   };
 
@@ -284,10 +327,12 @@ function matchesFilters(item: any, filters: Record<string, any>): boolean {
       continue;
     }
 
-    // Égalité simple (case-insensitive si string)
+    // Égalité simple (insensible à la casse et aux accents)
     if (typeof val === 'string' && typeof expected === 'string') {
-      if (val.trim().toLowerCase() !== expected.trim().toLowerCase()) return false;
-      continue;
+      const vNorm = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const eNorm = expected.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      if (vNorm === eNorm) continue;
+      return false;
     }
 
     if (val !== expected) {
@@ -374,29 +419,9 @@ class QueryBuilder<T = any> {
         }`
       : '';
 
-    // Optimisation serveur : filtrage natif sur TableauCompletChantier par Animateur
-    // et sur VisitesClients par date
+    // Optimisation serveur : filtrage natif sur VisitesClients par date
     let queryParams: any = undefined;
-    if (this.boardId === BOARD_IDS.TABLEAU_COMPLET_CHANTIER && this._filters.animateur) {
-      const anim = String(this._filters.animateur).toLowerCase();
-      let animIndex: number | null = null;
-      if (anim.includes('natacha')) animIndex = 0;
-      else if (anim.includes('ketty')) animIndex = 1;
-      else if (anim.includes('emilie')) animIndex = 3;
-      else if (anim.includes('andre')) animIndex = 7;
-
-      if (animIndex !== null) {
-        queryParams = {
-          rules: [
-            {
-              column_id: 'color_mkrbk3jy',
-              compare_value: [animIndex],
-              operator: 'any_of',
-            },
-          ],
-        };
-      }
-    } else if (this.boardId === BOARD_IDS.VISITES_CLIENTS && this._filters.dateVisiteClient) {
+    if (this.boardId === BOARD_IDS.VISITES_CLIENTS && this._filters.dateVisiteClient) {
       const df = this._filters.dateVisiteClient;
       const gte = typeof df === 'object' && df !== null ? df.gte || df.greater_than_or_equals : null;
       if (gte) {
@@ -422,6 +447,11 @@ class QueryBuilder<T = any> {
               id
               name
               created_at
+              creator {
+                id
+                name
+                email
+              }
               group {
                 id
                 title
@@ -431,6 +461,9 @@ class QueryBuilder<T = any> {
                 type
                 text
                 value
+                ... on StatusValue {
+                  label
+                }
                 ... on MirrorValue {
                   display_value
                 }
@@ -459,6 +492,11 @@ class QueryBuilder<T = any> {
               id
               name
               created_at
+              creator {
+                id
+                name
+                email
+              }
               group {
                 id
                 title
@@ -468,6 +506,9 @@ class QueryBuilder<T = any> {
                 type
                 text
                 value
+                ... on StatusValue {
+                  label
+                }
                 ... on MirrorValue {
                   display_value
                 }

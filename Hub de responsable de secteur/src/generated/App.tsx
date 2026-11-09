@@ -22,8 +22,21 @@ const PROFILES = {
 type ProfileKey = keyof typeof PROFILES;
 const LOGO = 'https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg';
 
+// Mapping direct et infaillible des identifiants Monday
+const USER_ID_MAP: Record<string, ProfileKey> = {
+  '87318933': 'Emilie',
+  '87318941': 'Natacha',
+  '76526955': 'Ketty',
+};
+
+// Utilisateurs administrateurs / superviseurs autorisés à basculer entre tous les secteurs
+const ADMIN_USER_IDS = ['118562356']; // Guillaume Daniel
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<ProfileKey>('Emilie');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userDetected, setUserDetected] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('Détection en cours...');
   const [ecoKey, setEcoKey] = useState(0);
   const [globalKey, setGlobalKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,28 +44,137 @@ export default function App() {
   const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
-    // Détection automatique de l'utilisateur connecté via monday SDK context ou Query.me
-    monday.get('context').then((res: any) => {
-      const user = res?.data?.user;
-      if (user?.name) {
-        const norm = String(user.name).toLowerCase();
-        if (norm.includes('ketty')) setCurrentUser('Ketty');
-        else if (norm.includes('emilie') || norm.includes('émilie')) setCurrentUser('Emilie');
-        else if (norm.includes('natacha')) setCurrentUser('Natacha');
-        else if (norm.includes('andre') || norm.includes('andré')) setCurrentUser('Andre');
+    let resolved = false;
+
+    const identifyUser = (uid: string, name: string, email: string) => {
+      if (resolved && !uid && !name && !email) return;
+
+      const normName = name.toLowerCase().trim();
+      const normEmail = email.toLowerCase().trim();
+
+      // 1. Détection Administrateur
+      if (ADMIN_USER_IDS.includes(uid) || normEmail.includes('guillaume.daniel')) {
+        setIsAdmin(true);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Admin Guillaume (${uid || normEmail})`);
+        resolved = true;
         return;
       }
-      callMondayApi('query { me { name email } }')
-        .then((apiRes) => {
-          const name = (apiRes?.data?.me?.name || apiRes?.me?.name || '').trim();
-          const norm = name.toLowerCase();
-          if (norm.includes('ketty')) setCurrentUser('Ketty');
-          else if (norm.includes('emilie') || norm.includes('émilie')) setCurrentUser('Emilie');
-          else if (norm.includes('natacha')) setCurrentUser('Natacha');
-          else if (norm.includes('andre') || norm.includes('andré')) setCurrentUser('Andre');
-        })
-        .catch(() => {});
+
+      // 2. Détection par ID Monday
+      if (uid && USER_ID_MAP[uid]) {
+        const p = USER_ID_MAP[uid];
+        setCurrentUser(p);
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: ${p} (ID: ${uid})`);
+        resolved = true;
+        return;
+      }
+
+      // 3. Détection par Email officiel
+      if (normEmail.includes('kpaulin')) {
+        setCurrentUser('Ketty');
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Ketty (${normEmail})`);
+        resolved = true;
+        return;
+      }
+      if (normEmail.includes('etobie')) {
+        setCurrentUser('Emilie');
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Emilie (${normEmail})`);
+        resolved = true;
+        return;
+      }
+      if (normEmail.includes('nthomas')) {
+        setCurrentUser('Natacha');
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Natacha (${normEmail})`);
+        resolved = true;
+        return;
+      }
+
+      // 4. Détection par Prénom / Nom dans Monday
+      if (normName.includes('ketty')) {
+        setCurrentUser('Ketty');
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Ketty (Nom: ${normName})`);
+        resolved = true;
+        return;
+      }
+      if (normName.includes('emilie') || normName.includes('émilie')) {
+        setCurrentUser('Emilie');
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Emilie (Nom: ${normName})`);
+        resolved = true;
+        return;
+      }
+      if (normName.includes('natacha')) {
+        setCurrentUser('Natacha');
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Natacha (Nom: ${normName})`);
+        resolved = true;
+        return;
+      }
+      if (normName.includes('andre') || normName.includes('andré')) {
+        setCurrentUser('Andre');
+        setIsAdmin(false);
+        setUserDetected(true);
+        setDebugInfo(`Connecté: Andre (Nom: ${normName})`);
+        resolved = true;
+        return;
+      }
+
+      // Par défaut
+      setDebugInfo(`Utilisateur non reconnu: UID=${uid || '?'}, Nom=${name || '?'}, Email=${email || '?'}`);
+      setUserDetected(true);
+    };
+
+    // Écoute temps-réel du contexte Monday SDK
+    const unsubscribe = monday.listen('context', (res: any) => {
+      const user = res?.data?.user;
+      const uid = String(user?.id || res?.data?.userId || '');
+      if (uid) {
+        identifyUser(uid, user?.name || '', user?.email || '');
+      }
+    });
+
+    // Requête contextuelle immédiate
+    monday.get('context').then((res: any) => {
+      const user = res?.data?.user;
+      const uid = String(user?.id || res?.data?.userId || '');
+      if (uid) {
+        identifyUser(uid, user?.name || '', user?.email || '');
+      }
     }).catch(() => {});
+
+    // Requête GraphQL de secours pour identifier le profil connecté
+    callMondayApi('query { me { id name email } }')
+      .then((apiRes) => {
+        const me = apiRes?.data?.me || apiRes?.me;
+        if (me) {
+          identifyUser(String(me.id || ''), me.name || '', me.email || '');
+        } else {
+          setUserDetected(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('[App] Erreur me query fallback:', err);
+        setUserDetected(true);
+      });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        try { (unsubscribe as any)(); } catch {}
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -77,6 +199,17 @@ export default function App() {
   const fullName = PROFILES[currentUser].fullName;
   const initials = PROFILES[currentUser].initials;
 
+  if (!userDetected) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <RotateCcw className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-semibold text-muted-foreground">Identification de votre profil...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div key={globalKey} className="relative min-h-screen overflow-x-clip bg-background text-foreground">
       <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rotate-12 rounded-[40%] bg-primary/80" />
@@ -93,36 +226,37 @@ export default function App() {
               <p className="text-xs font-semibold text-primary/80">Hub Responsable de secteur</p>
             </div>
 
-            {/* Sélecteur de profil rapide pour tester ou pour l'administrateur */}
-            <div className="hidden sm:flex items-center gap-1 ml-4 border-l border-border pl-4">
-              {(['Natacha', 'Emilie', 'Ketty'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setCurrentUser(p)}
-                  className={cn(
-                    'rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all',
-                    currentUser === p
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                  title={`Voir la vue de ${p}`}
-                >
-                  {p}
-                </button>
-              ))}
+            {/* Sélecteur de profil et règles : visible STRICTEMENT ET UNIQUEMENT pour l'administrateur */}
+            {isAdmin && (
+              <div className="flex items-center gap-1 ml-2 border-l border-border pl-2 sm:pl-3">
+                {(['Natacha', 'Emilie', 'Ketty'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setCurrentUser(p)}
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-semibold transition-all',
+                      currentUser === p
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                    title={`Voir la vue de ${p}`}
+                  >
+                    {p}
+                  </button>
+                ))}
 
-              {/* Bouton Règles & Filtres pour le développeur / admin */}
-              <button
-                type="button"
-                onClick={() => setRulesOpen(true)}
-                className="ml-2 inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                title="Détail technique des filtres et calculs Monday"
-              >
-                <HelpCircle className="h-3 w-3" />
-                <span>Règles &amp; Filtres</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setRulesOpen(true)}
+                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                  title="Détail technique des filtres et calculs Monday"
+                >
+                  <HelpCircle className="h-3 w-3" />
+                  <span className="hidden sm:inline">Règles</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -140,6 +274,12 @@ export default function App() {
           </div>
         </div>
       </header>
+      <div className="bg-muted/70 border-b border-border/50 px-4 py-1.5 text-center text-[11px] font-mono text-muted-foreground flex items-center justify-center gap-2 flex-wrap">
+        <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span>Profil actif : <strong className="text-foreground">{fullName}</strong></span>
+        <span>•</span>
+        <span>{debugInfo}</span>
+      </div>
       <AlertsCenter firstName={hubName} />
 
       <main className="relative mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12">

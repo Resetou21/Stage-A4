@@ -52,6 +52,7 @@ export const COLUMN_MAP: Record<string, Record<string, ColumnMeta>> = {
     qualitDeLaPrestation: { id: 'status', title: 'Qualité de la prestation👀', type: 'status' },
     nomChantier: { id: 'board_relation_mktd1vha', title: 'NOM CHANTIER', type: 'board_relation' },
     animateur: { id: 'lookup_mkvgpaca', title: 'Animateur', type: 'mirror' },
+    animatriceDirect: { id: 'color_mkvvxc1d', title: 'Animatrice', type: 'status' },
   },
 
   [BOARD_IDS.SUBITEMS_VISITES_CLIENTS]: {
@@ -70,6 +71,7 @@ export const COLUMN_MAP: Record<string, Record<string, ColumnMeta>> = {
 
   [BOARD_IDS.INVENTAIRES_CONSOMMABLES]: {
     tableauCompletChantier: { id: 'board_relation_mm82mpb7', title: 'Tableau complet chantier', type: 'board_relation' },
+    animateur: { id: 'lookup_mm823rxr', title: 'Animateur', type: 'mirror' },
     fournisseur: { id: 'lookup_mm86k78e', title: 'Fournisseur', type: 'mirror' },
     codeChantierFournisseur: { id: 'text_mm84x47n', title: 'Code Chantier Fournisseur', type: 'text' },
     familleDeProduits: { id: 'dropdown_mm86pdrz', title: 'Famille de produits', type: 'dropdown' },

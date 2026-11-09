@@ -13,252 +13,322 @@ const labelOf = (firstName: string) => ANIMATEURS.find((a) => a.toLowerCase().st
 const BON = 'Globalement bon';
 const DAY = 86400000;
 const iso = (d: Date | null | undefined) => (d && !Number.isNaN(new Date(d).getTime()) ? new Date(d).toISOString() : null);
+const norm = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
-/* ---------- Visites clients (Mode Éclair : Graphiques, KPI 344 & Satisfaction en 1s) ---------- */
+export interface PlanActionItem {
+  id: string;
+  action: string;
+  statut: string | null;
+  categorie: string;
+}
+
+export interface PlanItem {
+  id: string;
+  chantier: string;
+  action: string;
+  statut: string | null;
+  categorie: string;
+  dateVisite: string | null;
+  groupTitle: string;
+  groupId: string;
+  actions: PlanActionItem[];
+}
+
+export interface VisitItem {
+  id: string;
+  chantier: string;
+  date: string | null;
+  qualite: string | null;
+}
+
+/* ---------- 1. Visites clients Overview (Rapide : KPI 279/385, Graphique & Jauges en ~3s) ---------- */
 export const getVisitsOverview = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
-    type Visit = { id: string; chantier: string; date: string | null; qualite: string | null };
     const empty = {
       year: new Date().getFullYear(),
       monthly: Array(12).fill(0) as number[],
       yearCount: 0,
       satTotal: null as number | null,
       satMonth: null as number | null,
-      recent: [] as Visit[],
+      recent: [] as VisitItem[],
     };
     const label = labelOf(data.firstName);
     if (!label) return empty;
+
+    const target = norm(label);
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
     const res = { ...empty, year };
     let bonAll = 0, ratedAll = 0, bonMonth = 0, ratedMonth = 0;
-    const board = new VisitesClientsBoard();
-    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    const target = norm(label);
+
     const from = `${year}-01-01`;
     const to = `${year}-12-31`;
     const today = now.toISOString().slice(0, 10);
-    const t0 = new Date(`${today}T00:00:00.000Z`);
-    const dow = (t0.getUTCDay() + 6) % 7; // 0 = lundi
-    const lastMonday = new Date(t0.getTime() - (dow + 7) * DAY).toISOString().slice(0, 10);
+    const t0Date = new Date(`${today}T00:00:00.000Z`);
+    const dow = (t0Date.getUTCDay() + 6) % 7;
+    const lastMonday = new Date(t0Date.getTime() - (dow + 7) * DAY).toISOString().slice(0, 10);
+    const recent: VisitItem[] = [];
 
-    // Requête ultra-rapide par blocs de 500 SANS sous-éléments : équivalent direct du widget Monday (1 à 2s)
-    let cur: string | null | undefined = undefined;
+    let cur: string | null = null;
     do {
-      const page: {
-        items: Array<{ id: string; name: string; dateVisiteClient?: Date | null; qualitDeLaPrestation?: string | null; nomChantier?: { linkedItems?: { name: string }[] } | null; animateur?: { displayValue?: string | null } | null }>;
-        cursor?: string | null;
-      } = await board
-        .items()
-        .withColumns(['dateVisiteClient', 'qualitDeLaPrestation', 'nomChantier', 'animateur'])
-        .where({ dateVisiteClient: { gte: from } })
-        .orderBy({ column: 'dateVisiteClient', direction: 'desc' })
-        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
-        .execute();
-
-      for (const it of page.items) {
-        const names = (it.animateur?.displayValue ?? '').split(',').map(norm);
-        if (!names.includes(target)) continue;
-        const d = it.dateVisiteClient ? new Date(it.dateVisiteClient) : null;
-        const ok = d && !Number.isNaN(d.getTime()) ? d : null;
-        const chantier = it.nomChantier?.linkedItems?.map((l) => l.name).join(', ') || it.name;
-        const q = it.qualitDeLaPrestation ?? null;
-        const v: Visit = { id: it.id, chantier, date: iso(ok), qualite: q };
-
-        // Semaine dernière + cette semaine
-        if (ok) {
-          const day = ok.toISOString().slice(0, 10);
-          if (day >= lastMonday && day <= today) res.recent.push(v);
-        }
-
-        // Visites de l'année
-        const iso10 = ok ? ok.toISOString().slice(0, 10) : '';
-        if (iso10 && iso10 >= from && iso10 <= to) {
-          const m = Number(iso10.slice(5, 7)) - 1;
-          res.monthly[m]! += 1;
-          res.yearCount++;
-          if (q) {
-            ratedAll++; if (q === BON) bonAll++;
-            if (m === month) { ratedMonth++; if (q === BON) bonMonth++; }
-          }
-        }
-      }
-      cur = page.cursor;
-    } while (cur);
-
-    res.satTotal = ratedAll ? (bonAll / ratedAll) * 100 : null;
-    res.satMonth = ratedMonth ? (bonMonth / ratedMonth) * 100 : null;
-    return res;
-  });
-
-/* ---------- Plans d'actions des visites (Chargés en arrière-plan sans bloquer les graphiques) ---------- */
-export const getVisitsPlans = createServerFn({ method: 'GET' })
-  .validator(z.object({ firstName: z.string().min(1) }))
-  .handler(async ({ data }) => {
-    type PlanAction = { id: string; action: string; statut: string | null; categorie: string };
-    type Plan = {
-      id: string;
-      chantier: string;
-      action: string;
-      statut: string | null;
-      categorie: string;
-      dateVisite: string | null;
-      groupTitle: string;
-      groupId: string;
-      actions: PlanAction[];
-    };
-    const empty = { plansOpen: [] as Plan[], plansClosedYear: 0 };
-    const label = labelOf(data.firstName);
-    if (!label) return empty;
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-    const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const norm = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    const target = norm(label);
-
-    // 1. Récupérer directement les sous-éléments ouverts depuis le tableau sous-éléments (1978388826)
-    // Au lieu de parcourir les 1700 visites clientes du tableau parent (18 secondes), on cible les ~20 actions ouvertes en 1 requête (< 400ms)
-    const qOpenSubs = `
-      query GetOpenSubitems($queryParams: ItemsQuery) {
-        boards(ids: [1978388826]) {
-          items_page(limit: 500, query_params: $queryParams) {
-            items {
-              id
-              name
-              parent_item { id name }
-              column_values(ids: ["color_mkv1tk6f", "text_mkrhcpzc", "dropdown_mkv1j4z1"]) {
+      const qInit = `
+        query GetVisitsFastInit {
+          boards(ids: [1977798116]) {
+            items_page(limit: 500, query_params: {
+              rules: [{ column_id: "date_mkrcgy18", compare_value: ["${from}"], operator: greater_than_or_equals }]
+            }) {
+              cursor
+              items {
                 id
-                text
+                name
+                date: column_values(ids: ["date_mkrcgy18"]) { text }
+                anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
+                chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
               }
             }
           }
         }
-      }
-    `;
-
-    const resOpen = await callMondayApi(qOpenSubs, {
-      variables: {
-        queryParams: {
-          rules: [
-            { column_id: 'color_mkv1tk6f', compare_value: [0, 2, 5], operator: 'any_of' },
-          ],
-        },
-      },
-    });
-
-    const rawSubs: any[] = resOpen?.data?.boards?.[0]?.items_page?.items || resOpen?.boards?.[0]?.items_page?.items || [];
-    const parentIds = Array.from(new Set(rawSubs.map((s) => s.parent_item?.id).filter(Boolean)));
-
-    const plansOpen: Plan[] = [];
-    if (parentIds.length > 0) {
-      const qParents = `
-        query GetParentVisits($ids: [ID!]) {
+      `;
+      const qCursor = `
+        query GetVisitsFastCursor($cursor: String!) {
           boards(ids: [1977798116]) {
-            items_page(query_params: { ids: $ids }) {
+            items_page(limit: 500, cursor: $cursor) {
+              cursor
               items {
                 id
                 name
-                group { id title }
-                column_values(ids: ["date_mkrcgy18", "board_relation_mktd1vha", "lookup_mkvgpaca"]) {
-                  id
-                  text
-                  value
-                  ... on MirrorValue { display_value }
-                  ... on BoardRelationValue {
-                    linked_items { id name }
-                  }
-                }
+                date: column_values(ids: ["date_mkrcgy18"]) { text }
+                anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
+                chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
               }
             }
           }
         }
       `;
 
-      const resParents = await callMondayApi(qParents, { variables: { ids: parentIds } });
-      const parents: any[] = resParents?.data?.boards?.[0]?.items_page?.items || resParents?.boards?.[0]?.items_page?.items || [];
+      const apiRes: any = cur
+        ? await callMondayApi(qCursor, { variables: { cursor: cur } })
+        : await callMondayApi(qInit);
 
-      const parentMap = new Map<string, { parent: any; chantier: string; dateVisite: string | null }>();
-      for (const p of parents) {
-        const cvMap = new Map<string, any>((p.column_values || []).map((c: any) => [c.id, c]));
-        const animVal = cvMap.get('lookup_mkvgpaca')?.display_value || cvMap.get('lookup_mkvgpaca')?.text || '';
-        const anims = animVal.split(',').map(norm);
-        if (anims.includes(target)) {
-          const chantier = cvMap.get('board_relation_mktd1vha')?.linked_items?.map((l: any) => l.name).join(', ') || p.name;
-          const dateVisite = cvMap.get('date_mkrcgy18')?.text || null;
-          parentMap.set(String(p.id), { parent: p, chantier, dateVisite });
-        }
-      }
+      const page = apiRes?.data?.boards?.[0]?.items_page ?? apiRes?.boards?.[0]?.items_page;
+      if (!page) break;
 
-      const subsByParent = new Map<string, PlanAction[]>();
-      for (const s of rawSubs) {
-        const pid = String(s.parent_item?.id || '');
-        if (!pid || !parentMap.has(pid)) continue;
-        const cvMap = new Map<string, any>((s.column_values || []).map((c: any) => [c.id, c]));
-        const arr = subsByParent.get(pid) || [];
-        arr.push({
-          id: String(s.id),
-          action: (cvMap.get('text_mkrhcpzc')?.text || s.name || '').trim(),
-          statut: cvMap.get('color_mkv1tk6f')?.text || null,
-          categorie: cvMap.get('dropdown_mkv1j4z1')?.text || '',
-        });
-        subsByParent.set(pid, arr);
-      }
+      for (const it of page.items || []) {
+        const animCv = it.anim?.[0];
+        const rawDisp = (animCv?.display_value || animCv?.text || '').trim();
+        const names = rawDisp ? rawDisp.split(',').map(norm) : [];
+        if (!names.includes(target)) continue;
 
-      for (const [pid, actions] of subsByParent.entries()) {
-        const pInfo = parentMap.get(pid)!;
-        plansOpen.push({
-          id: pid,
-          chantier: pInfo.chantier,
-          action: actions.map((a) => a.action).filter(Boolean).join(' • '),
-          statut: actions.length === 1 ? actions[0].statut : actions.some((a) => a.statut === 'En cours') ? 'En cours' : actions[0].statut,
-          categorie: Array.from(new Set(actions.map((a) => a.categorie).filter(Boolean))).join(', '),
-          dateVisite: pInfo.dateVisite,
-          groupTitle: pInfo.parent.group?.title || 'Visites clients',
-          groupId: pInfo.parent.group?.id || 'topics',
-          actions,
-        });
-      }
-    }
+        const dtStr = it.date?.[0]?.text || '';
+        const qStr = it.qual?.[0]?.label || it.qual?.[0]?.text || null;
+        const chCv = it.chantier?.[0];
+        const chantier = (chCv?.display_value || chCv?.text || '').trim() || it.name;
 
-    // 2. Compter les actions clôturées dans le mois courant
-    const qClosed = `
-      query GetClosedThisMonth($queryParams: ItemsQuery) {
-        boards(ids: [1978388826]) {
-          items_page(limit: 50, query_params: $queryParams) {
-            items {
-              id
+        if (dtStr) {
+          if (dtStr >= lastMonday && dtStr <= today) {
+            recent.push({ id: it.id, chantier, date: dtStr, qualite: qStr });
+          }
+          if (dtStr >= from && dtStr <= to) {
+            const m = parseInt(dtStr.slice(5, 7), 10) - 1;
+            res.monthly[m]! += 1;
+            res.yearCount++;
+            if (qStr) {
+              ratedAll++;
+              if (qStr === BON) bonAll++;
+              if (m === month) {
+                ratedMonth++;
+                if (qStr === BON) bonMonth++;
+              }
             }
           }
         }
       }
-    `;
 
-    let plansClosedYear = 0;
-    try {
-      const resClosed = await callMondayApi(qClosed, {
-        variables: {
-          queryParams: {
-            rules: [
-              { column_id: 'color_mkv1tk6f', compare_value: [1], operator: 'any_of' },
-              { column_id: 'date_mkwrr950', compare_value: [monthStart], operator: 'greater_than_or_equals' },
-            ],
-          },
-        },
-      });
-      const closedSubs = resClosed?.data?.boards?.[0]?.items_page?.items || resClosed?.boards?.[0]?.items_page?.items || [];
-      plansClosedYear = closedSubs.length;
-    } catch (e) {
-      console.warn('Erreur comptage plans fermés:', e);
-    }
+      cur = page.cursor;
+    } while (cur);
 
-    return { plansOpen, plansClosedYear };
+    res.recent = recent;
+    res.satTotal = ratedAll ? (bonAll / ratedAll) * 100 : null;
+    res.satMonth = ratedMonth ? (bonMonth / ratedMonth) * 100 : null;
+    return res;
   });
 
-/* ---------- Visites clients (Fonction combinée complète) ---------- */
+/* ---------- 2. Plans d'actions des visites (22 chantiers, chargé directement et en parallèle) ---------- */
+export const getVisitsPlans = createServerFn({ method: 'GET' })
+  .validator(z.object({ firstName: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const empty = { plansOpen: [] as PlanItem[], plansClosedYear: 0 };
+    const label = labelOf(data.firstName);
+    if (!label) return empty;
+
+    const target = norm(label);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+
+    // 1. Récupérer les sous-éléments ouverts (Non fait & non abandonné)
+    const pOpen = (async () => {
+      let cur: string | null = null;
+      const openItems: any[] = [];
+      do {
+        const q = `
+          query GetOpenSubs($cursor: String) {
+            boards(ids: [1978388826]) {
+              items_page(limit: 500, cursor: $cursor) {
+                cursor
+                items {
+                  id
+                  name
+                  parent_item {
+                    id
+                    name
+                    group { id title }
+                    column_values(ids: ["lookup_mkvgpaca", "date_mkrcgy18", "board_relation_mktd1vha"]) {
+                      id
+                      text
+                      ... on MirrorValue { display_value }
+                      ... on BoardRelationValue { display_value }
+                    }
+                  }
+                  column_values(ids: ["color_mkv1tk6f", "text_mkrhcpzc", "date_mkwrr950", "dropdown_mkv1j4z1"]) {
+                    id
+                    text
+                    ... on StatusValue { label }
+                  }
+                }
+              }
+            }
+          }
+        `;
+        const res: any = await callMondayApi(q, { variables: { cursor: cur } });
+        const page = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
+        if (!page) break;
+        for (const it of page.items || []) {
+          const cvSt = it.column_values?.find((c: any) => c.id === 'color_mkv1tk6f');
+          const st = (cvSt?.label || cvSt?.text || '').trim().toLowerCase();
+          // Exclure Fait, Validé, Sans objet et Abandonné
+          if (st && st !== 'fait' && st !== 'validé' && st !== 'valide' && st !== 'sans objet' && !st.includes('abandon')) {
+            openItems.push(it);
+          }
+        }
+        cur = page.cursor;
+      } while (cur);
+      return openItems;
+    })();
+
+    // 2. Compter les actions clôturées dans le mois
+    const pClosed = (async () => {
+      try {
+        const qClosed = `
+          query GetClosedSubs {
+            boards(ids: [1978388826]) {
+              items_page(limit: 500, query_params: {
+                rules: [
+                  { column_id: "date_mkwrr950", compare_value: ["${monthStart}"], operator: greater_than_or_equals }
+                ]
+              }) {
+                items {
+                  id
+                  parent_item {
+                    column_values(ids: ["lookup_mkvgpaca"]) {
+                      ... on MirrorValue { display_value }
+                      text
+                    }
+                  }
+                  column_values(ids: ["color_mkv1tk6f"]) {
+                    text
+                    ... on StatusValue { label }
+                  }
+                }
+              }
+            }
+          }
+        `;
+        const res: any = await callMondayApi(qClosed);
+        const items = res?.data?.boards?.[0]?.items_page?.items || res?.boards?.[0]?.items_page?.items || [];
+        let count = 0;
+        for (const it of items) {
+          const animCv = it.parent_item?.column_values?.find((c: any) => c.id === 'lookup_mkvgpaca');
+          const anim = (animCv?.display_value || animCv?.text || '').toLowerCase();
+          if (!anim.includes(target)) continue;
+          const cvSt = it.column_values?.find((c: any) => c.id === 'color_mkv1tk6f');
+          const st = (cvSt?.label || cvSt?.text || '').trim().toLowerCase();
+          if (st === 'fait') count++;
+        }
+        return count;
+      } catch (_) {
+        return 0;
+      }
+    })();
+
+    const [rawSubs, closedCount] = await Promise.all([pOpen, pClosed]);
+
+    // Regrouper par visite parente / chantier
+    const plansByParent = new Map<string, any>();
+    for (const s of rawSubs) {
+      const parent = s.parent_item;
+      if (!parent) continue;
+      const animCv = parent.column_values?.find((c: any) => c.id === 'lookup_mkvgpaca');
+      const anim = (animCv?.display_value || animCv?.text || '').toLowerCase();
+      if (!anim.includes(target)) continue;
+
+      const pid = String(parent.id);
+      const cvAction = s.column_values?.find((c: any) => c.id === 'text_mkrhcpzc');
+      const cvStatut = s.column_values?.find((c: any) => c.id === 'color_mkv1tk6f');
+      const cvCat = s.column_values?.find((c: any) => c.id === 'dropdown_mkv1j4z1');
+      const rawAct = (cvAction?.text || '').trim();
+      const rawName = (s.name || '').trim();
+      const actText = rawAct && rawAct.toLowerCase() !== 'incoming form answer'
+        ? rawAct
+        : (rawName && rawName.toLowerCase() !== 'incoming form answer' ? rawName : '—');
+      const stText = cvStatut?.label || cvStatut?.text || null;
+      const catText = cvCat?.text || '';
+
+      const chCv = parent.column_values?.find((c: any) => c.id === 'board_relation_mktd1vha');
+      const chName = (chCv?.display_value || chCv?.text || '').trim() || parent.name;
+      const pDate = parent.column_values?.find((c: any) => c.id === 'date_mkrcgy18')?.text || null;
+
+      if (!plansByParent.has(pid)) {
+        plansByParent.set(pid, {
+          id: pid,
+          chantier: chName,
+          dateVisite: pDate,
+          groupTitle: parent.group?.title || 'Visites clients',
+          groupId: parent.group?.id || 'topics',
+          actions: [] as PlanActionItem[],
+        });
+      }
+
+      plansByParent.get(pid).actions.push({
+        id: String(s.id),
+        action: actText,
+        statut: stText,
+        categorie: catText,
+      });
+    }
+
+    const plansOpen: PlanItem[] = [];
+    for (const p of plansByParent.values()) {
+      plansOpen.push({
+        ...p,
+        action: p.actions.map((a: PlanActionItem) => a.action).filter(Boolean).join(' • '),
+        statut: p.actions.length === 1 ? p.actions[0].statut : p.actions.some((a: PlanActionItem) => a.statut === 'En cours') ? 'En cours' : p.actions[0].statut,
+        categorie: Array.from(new Set(p.actions.map((a: PlanActionItem) => a.categorie).filter(Boolean))).join(', '),
+      });
+    }
+
+    return {
+      plansOpen,
+      plansClosedYear: closedCount,
+    };
+  });
+
+/* ---------- 3. Visites clients Dashboard (Fonction combinée complète) ---------- */
 export const getVisitsDashboard = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
@@ -273,7 +343,7 @@ export const getVisitsDashboard = createServerFn({ method: 'GET' })
     };
   });
 
-/* ---------- Qualité des chantiers (Tableau complet chantier) ---------- */
+/* ---------- 4. Qualité des chantiers (Tableau complet chantier) ---------- */
 export const getChantierQuality = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
@@ -284,70 +354,145 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
     const elevenMonthsAgo = new Date(); elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
     const board = new TableauCompletChantierBoard();
     let cur: string | null | undefined = undefined;
-    do {
-      const page = await board
-        .items()
-        .withColumns(['c1', 'c2', 'c3', 'rsultatDernierContrle', 'dernierContrle', 'dernierContrle1', 'column3', 'column2', 'column1', 'column', 'alerte2', 'alerte3'])
-        .where({ animateur: label, group: 'topics' })
-        .orderBy({ column: 'name', direction: 'asc' })
-        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
-        .execute();
-      for (const it of page.items) {
-        const raw = it.dernierContrle ?? it.dernierContrle1 ?? null;
-        const d = raw && !Number.isNaN(new Date(raw).getTime()) ? new Date(raw) : null;
-        const q: Q = { id: it.id, chantier: it.name, date: iso(d), resultat: it.rsultatDernierContrle ?? it.c1 ?? null };
-        const ctrl = [it.c1, it.c2, it.c3].filter((c): c is NonNullable<typeof c> => !!c);
-        // Cartes niveau client : colonne 3🌟 / 2🌟 / 1🌟 / 🙁 = 1 (groupe « Liste des chantiers en cours »)
-        const f = [it.column3, it.column2, it.column1, it.column].map((v) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(String(v).replace(',', '.'))));
-        if (f.some((v) => v !== null)) {
-          if (f[0] === 1) out.stars.s3++;
-          if (f[1] === 1) out.stars.s2++;
-          if (f[2] === 1) out.stars.s1++;
-          if (f[3] === 1) out.stars.s0++;
-        } else {
-          // Secours si monday ne transmet pas les formules : reproduction exacte des formules Monday
-          // 3🌟 = C1 bon AND C2 bon AND C3 bon
-          // 2🌟 = C1 bon AND C2 bon (et non 3🌟)
-          // 1🌟 = C1 bon (et non 2🌟 ni 3🌟)
-          // 🙁 = C1 'Bases non respectées' ou 'Plan d'action urgent'
-          const c1Bon = it.c1 === BON;
-          const c2Bon = it.c2 === BON;
-          const c3Bon = it.c3 === BON;
+    let itemsFound = 0;
 
-          if (c1Bon && c2Bon && c3Bon) {
-            out.stars.s3++;
-          } else if (c1Bon && c2Bon) {
-            out.stars.s2++;
-          } else if (c1Bon) {
-            out.stars.s1++;
-          } else if (it.c1 === 'Bases non respectées' || it.c1 === "Plan d'action urgent") {
-            out.stars.s0++;
+    try {
+      do {
+        const page = await board
+          .items()
+          .withColumns(['c1', 'c2', 'c3', 'rsultatDernierContrle', 'dernierContrle', 'dernierContrle1', 'column3', 'column2', 'column1', 'column', 'alerte2', 'alerte3'])
+          .where({ animateur: label, group: 'topics' })
+          .orderBy({ column: 'name', direction: 'asc' })
+          .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
+          .execute();
+
+        itemsFound += (page.items || []).length;
+
+        for (const it of page.items || []) {
+          const raw = it.dernierContrle ?? it.dernierContrle1 ?? null;
+          const d = raw && !Number.isNaN(new Date(raw).getTime()) ? new Date(raw) : null;
+          const q: Q = { id: it.id, chantier: it.name, date: iso(d), resultat: it.rsultatDernierContrle ?? it.c1 ?? null };
+          const f = [it.column3, it.column2, it.column1, it.column].map((v) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(String(v).replace(',', '.'))));
+          if (f.some((v) => v !== null)) {
+            if (f[0] === 1) out.stars.s3++;
+            if (f[1] === 1) out.stars.s2++;
+            if (f[2] === 1) out.stars.s1++;
+            if (f[3] === 1) out.stars.s0++;
+          } else {
+            const c1Bon = it.c1 === BON;
+            const c2Bon = it.c2 === BON;
+            const c3Bon = it.c3 === BON;
+
+            if (c1Bon && c2Bon && c3Bon) {
+              out.stars.s3++;
+            } else if (c1Bon && c2Bon) {
+              out.stars.s2++;
+            } else if (c1Bon) {
+              out.stars.s1++;
+            } else if (it.c1 === 'Bases non respectées' || it.c1 === "Plan d'action urgent") {
+              out.stars.s0++;
+            }
           }
+
+          const fnum = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return v === null || v === undefined || String(v).trim() === "" || !Number.isFinite(n) ? null : n; };
+          const a2 = fnum(it.alerte2);
+          const a3 = fnum(it.alerte3);
+          const twoMonthsAgo = new Date();
+          twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+
+          const isBad = (c: unknown) => c === 'Bases non respectées' || c === "Plan d'action urgent";
+          const has3Bad = isBad(it.c1) && isBad(it.c2) && isBad(it.c3);
+          const isClientInsatisfait3 = (a2 !== null && a2 > 0) || has3Bad;
+
+          if (isClientInsatisfait3) out.insatisfaits.push(q);
+
+          const isDernierControleBad = isBad(it.c1) || (Boolean(it.rsultatDernierContrle) && it.rsultatDernierContrle !== BON);
+          if (a3 === 1 || (isDernierControleBad && d && d.getTime() <= twoMonthsAgo.getTime())) {
+            out.controle2Mois.push(q);
+          }
+          if (d && d.getTime() <= elevenMonthsAgo.getTime()) out.nonVus11Mois.push(q);
         }
-        // Alertes qualité : formules monday « Alerte 2 » (> 0) et « Alerte 3 » (= 1)
-        const fnum = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return v === null || v === undefined || String(v).trim() === "" || !Number.isFinite(n) ? null : n; };
-        const a2 = fnum(it.alerte2);
-        const a3 = fnum(it.alerte3);
-        const twoMonthsAgo = new Date();
-        twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+        cur = page.cursor;
+      } while (cur);
+    } catch (e) {
+      console.warn('Erreur lecture TableauCompletChantierBoard:', e);
+    }
 
-        const isBad = (c: unknown) => c === 'Bases non respectées' || c === "Plan d'action urgent";
-        // Alerte 2 : Clients insatisfaits (3 contrôles de suite non satisfaisants = C1, C2 et C3 mauvais)
-        const has3Bad = isBad(it.c1) && isBad(it.c2) && isBad(it.c3);
-        const isClientInsatisfait3 = (a2 !== null && a2 > 0) || has3Bad;
+    // Fallback de secours si Tableau complet chantier renvoie 0 items
+    if (itemsFound === 0) {
+      try {
+        const normTarget = norm(label);
+        const vBoard = new VisitesClientsBoard();
+        const visitsByChantier = new Map<string, Array<{ date: string; qual: string | null }>>();
+        let vCur: string | null | undefined = undefined;
 
-        if (isClientInsatisfait3) out.insatisfaits.push(q);
+        do {
+          const vPage: any = await vBoard
+            .items()
+            .withColumns(['dateVisiteClient', 'qualitDeLaPrestation', 'nomChantier', 'animateur', 'animatriceDirect'])
+            .orderBy({ column: 'dateVisiteClient', direction: 'desc' })
+            .withPagination(vCur ? { limit: 500, cursor: vCur } : { limit: 500 })
+            .execute();
 
-        // Alerte 3 : Dernier contrôle non satisfaisant (> 2 mois sans nouvelle vérification)
-        const isDernierControleBad = isBad(it.c1) || (Boolean(it.rsultatDernierContrle) && it.rsultatDernierContrle !== BON);
-        if (a3 === 1 || (isDernierControleBad && d && d.getTime() <= twoMonthsAgo.getTime())) {
-          out.controle2Mois.push(q);
+          for (const it of vPage.items || []) {
+            const rawDisp = it.animateur?.displayValue ?? '';
+            const names = rawDisp ? rawDisp.split(',').map(norm) : [];
+            const matchByMirror = names.includes(normTarget);
+
+            let match = false;
+            if (rawDisp) {
+              match = matchByMirror;
+            } else {
+              const creatorName = (it.creator?.name || '').toLowerCase();
+              const creatorEmail = (it.creator?.email || '').toLowerCase();
+              const creatorId = String(it.creator?.id || '');
+
+              const isTargetCreator =
+                (normTarget.includes('emilie') && (creatorId === '87318933' || creatorEmail.includes('etobie') || creatorName.includes('emilie') || creatorName.includes('émilie'))) ||
+                (normTarget.includes('ketty') && (creatorId === '76526955' || creatorEmail.includes('kpaulin') || creatorName.includes('ketty'))) ||
+                (normTarget.includes('natacha') && (creatorId === '87318941' || creatorEmail.includes('nthomas') || creatorName.includes('natacha'))) ||
+                (normTarget.includes('andre') && (creatorName.includes('andre') || creatorName.includes('andré')));
+
+              const colAnim = it.animatriceDirect ? norm(String(it.animatriceDirect)) : '';
+              const matchByColAnim = colAnim ? (colAnim.includes(normTarget) || normTarget.includes(colAnim)) : false;
+
+              match = isTargetCreator || matchByColAnim;
+            }
+
+            if (!match) continue;
+
+            const cName = it.nomChantier?.linkedItems?.[0]?.name || it.name;
+            const d = it.dateVisiteClient ? new Date(it.dateVisiteClient) : null;
+            const isoStr = d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : '';
+            if (!isoStr) continue;
+
+            const arr = visitsByChantier.get(cName) || [];
+            arr.push({ date: isoStr, qual: it.qualitDeLaPrestation ?? null });
+            visitsByChantier.set(cName, arr);
+          }
+          vCur = vPage.cursor;
+        } while (vCur);
+
+        for (const list of visitsByChantier.values()) {
+          list.sort((a, b) => b.date.localeCompare(a.date));
+          const c1 = list[0]?.qual;
+          const c2 = list[1]?.qual;
+          const c3 = list[2]?.qual;
+
+          const c1Bon = c1 === BON;
+          const c2Bon = c2 === BON;
+          const c3Bon = c3 === BON;
+
+          if (c1Bon && c2Bon && c3Bon) out.stars.s3++;
+          else if (c1Bon && c2Bon) out.stars.s2++;
+          else if (c1Bon) out.stars.s1++;
+          else if (c1 === 'Bases non respectées' || c1 === "Plan d'action urgent") out.stars.s0++;
         }
-        // Dernier contrôle datant de plus de 11 mois
-        if (d && d.getTime() <= elevenMonthsAgo.getTime()) out.nonVus11Mois.push(q);
+      } catch (err) {
+        console.warn('Erreur fallback qualité chantiers:', err);
       }
-      cur = page.cursor;
-    } while (cur);
+    }
+
     return out;
   });
 

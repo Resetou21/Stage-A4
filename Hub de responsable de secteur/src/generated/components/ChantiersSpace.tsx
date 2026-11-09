@@ -308,6 +308,14 @@ export default function ChantiersSpace({ firstName }: { firstName: string }) {
             <div key={i} className="h-14 w-full animate-pulse rounded-xl bg-card border border-border" />
           ))}
         </div>
+      ) : chantiers.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-amber-500/40 p-8 text-center bg-amber-500/5">
+          <Building2 className="mx-auto h-8 w-8 text-amber-500 opacity-80" />
+          <p className="mt-2 text-sm font-bold text-foreground">Aucun chantier chargé pour {firstName}</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+            Si vous utilisez ce widget sur un tableau de bord Monday, assurez-vous que le <strong>Tableau complet chantier</strong> est bien coché dans <strong>« Tableaux connectés »</strong> tout en haut du tableau de bord.
+          </p>
+        </div>
       ) : filteredChantiers.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-12 text-center bg-card/50">
           <Building2 className="mx-auto h-8 w-8 text-muted-foreground opacity-50" />

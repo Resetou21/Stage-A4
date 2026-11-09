@@ -7,7 +7,7 @@
     "dev": "vite",
     "tunnel": "mapps tunnel:create -p 5173",
     "build": "tsc -b && vite build",
-    "deploy": "tsc -b && vite build && npx @mondaycom/apps-cli code:push -d dist -i 19582956 -c -z eu -f",
+    "deploy": "tsc -b && vite build && npx @mondaycom/apps-cli code:push -d dist -i 19760498 -c -z eu -f",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -200,26 +200,31 @@ export const getInventoryActions = createServerFn({ method: 'GET' })
     const chantiers = new TableauCompletChantierBoard();
     const ids: string[] = [];
     let c: string | null | undefined = undefined;
-    do {
-      const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
-        .items().withColumns(['animateur']).where({ animateur: label })
-        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
-      ids.push(...res.items.map((i) => i.id));
-      c = res.cursor;
-    } while (c);
-    if (ids.length === 0) return { count: 0, columns, rows: [] as Row[] };
+    try {
+      do {
+        const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
+          .items().withColumns(['animateur']).where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
+        ids.push(...res.items.map((i) => i.id));
+        c = res.cursor;
+      } while (c);
+    } catch (_) {}
 
     const board = new InventairesConsommablesBoard();
     const rows: Row[] = [];
     const latest = new Map<string, { t: number; it: Record<string, unknown> }>();
     let cur: string | null | undefined = undefined;
+    const invWhere = ids.length > 0
+      ? { tableauCompletChantier: { itemIds: ids }, group: 'group_mm8adwxm' }
+      : { animateur: label, group: 'group_mm8adwxm' };
+
     do {
       const res: {
         items: Array<{ id: string; name: string; dateInventaireActuel?: Date | string | null; tableauCompletChantier?: { linkedItems?: { id: string; name: string }[] } | null }>;
         cursor?: string | null;
       } = await board
-        .items().withColumns(['tableauCompletChantier', 'dateInventaireActuel', 'rcuprationRalise', 'avenantRalis', ...([...ACTION_COLS.map(([, r]) => r), ...CONTRATS.map(([k]) => k), ...INVENTAIRES] as any[])])
-        .where({ tableauCompletChantier: { itemIds: ids }, group: 'group_mm8adwxm' })
+        .items().withColumns(['tableauCompletChantier', 'animateur', 'dateInventaireActuel', 'rcuprationRalise', 'avenantRalis', ...([...ACTION_COLS.map(([, r]) => r), ...CONTRATS.map(([k]) => k), ...INVENTAIRES] as any[])])
+        .where(invWhere)
         .orderBy({ column: 'name', direction: 'asc' })
         .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
       for (const it of res.items) {
@@ -292,14 +297,15 @@ export const getInventoryDue = createServerFn({ method: 'GET' })
     const chantiers = new TableauCompletChantierBoard();
     const ids: string[] = [];
     let c: string | null | undefined = undefined;
-    do {
-      const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
-        .items().withColumns(['animateur']).where({ animateur: label })
-        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
-      ids.push(...res.items.map((i) => i.id));
-      c = res.cursor;
-    } while (c);
-    if (ids.length === 0) return { count: 0, sites: [] as DueSite[], order: [] as string[] };
+    try {
+      do {
+        const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
+          .items().withColumns(['animateur']).where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
+        ids.push(...res.items.map((i) => i.id));
+        c = res.cursor;
+      } while (c);
+    } catch (_) {}
 
     const board = new InventairesConsommablesBoard();
     const today = new Date();
@@ -307,13 +313,17 @@ export const getInventoryDue = createServerFn({ method: 'GET' })
     const sites: DueSite[] = [];
     const keys = [...CONTRATS.map(([k]) => k), ...INVENTAIRES] as (ContratKey | InvKey)[];
     let cur: string | null | undefined = undefined;
+    const dueWhere = ids.length > 0
+      ? { tableauCompletChantier: { itemIds: ids }, group: 'topics' }
+      : { animateur: label, group: 'topics' };
+
     do {
       const res: {
         items: Array<{ id: string; name: string; dateInventaireActuel?: Date | null; inventaireValidOk?: boolean | null; tableauCompletChantier?: { linkedItems?: { name: string }[] } | null }>;
         cursor?: string | null;
       } = await board
-        .items().withColumns(['dateInventaireActuel', 'tableauCompletChantier', 'inventaireValidOk', ...keys])
-        .where({ tableauCompletChantier: { itemIds: ids }, group: 'topics' })
+        .items().withColumns(['dateInventaireActuel', 'tableauCompletChantier', 'animateur', 'inventaireValidOk', ...keys])
+        .where(dueWhere)
         .orderBy({ column: 'name', direction: 'asc' })
         .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
       for (const it of res.items) {
@@ -349,20 +359,24 @@ export const getSitesCount = createServerFn({ method: 'GET' })
     if (!label) return { count: 0 };
     const ids: string[] = [];
     let c: string | null | undefined = undefined;
-    do {
-      const res: { items: { id: string }[]; cursor?: string | null } = await new TableauCompletChantierBoard()
-        .items().withColumns(['animateur']).where({ animateur: label })
-        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
-      ids.push(...res.items.map((i) => i.id));
-      c = res.cursor;
-    } while (c);
-    if (ids.length === 0) return { count: 0 };
+    try {
+      do {
+        const res: { items: { id: string }[]; cursor?: string | null } = await new TableauCompletChantierBoard()
+          .items().withColumns(['animateur']).where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
+        ids.push(...res.items.map((i) => i.id));
+        c = res.cursor;
+      } while (c);
+    } catch (_) {}
     let count = 0;
     let cur: string | null | undefined = undefined;
+    const statsWhere = ids.length > 0
+      ? { tableauCompletChantier: { itemIds: ids }, group: 'topics' }
+      : { animateur: label, group: 'topics' };
     do {
       const res: { items: { id: string }[]; cursor?: string | null } = await new InventairesConsommablesBoard()
-        .items().withColumns(['tableauCompletChantier'])
-        .where({ tableauCompletChantier: { itemIds: ids }, group: 'topics' })
+        .items().withColumns(['tableauCompletChantier', 'animateur'])
+        .where(statsWhere)
         .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
       count += res.items.length;
       cur = res.cursor;
@@ -379,29 +393,32 @@ export const getInventory = createServerFn({ method: 'GET' })
     const chantiers = new TableauCompletChantierBoard();
     const ids: string[] = [];
     let c: string | null | undefined = undefined;
-    do {
-      const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
-        .items()
-        .withColumns(['animateur'])
-        .where({ animateur: label })
-        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
-        .execute();
-      ids.push(...res.items.map((i) => i.id));
-      c = res.cursor;
-    } while (c);
-
-    if (ids.length === 0) return { items: [], cursor: null as string | null };
+    try {
+      do {
+        const res: { items: { id: string }[]; cursor?: string | null } = await chantiers
+          .items()
+          .withColumns(['animateur'])
+          .where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
+          .execute();
+        ids.push(...res.items.map((i) => i.id));
+        c = res.cursor;
+      } while (c);
+    } catch (_) {}
 
     const keys = CONTRATS.map(([k]) => k) as ContratKey[];
     const term = normalize(data.search ?? '');
     const board = new InventairesConsommablesBoard();
     const allRawItems: any[] = [];
     let cur: string | null | undefined = undefined;
+    const invWhere = ids.length > 0
+      ? { tableauCompletChantier: { itemIds: ids }, group: 'topics' }
+      : { animateur: label, group: 'topics' };
     do {
       const page = await board
         .items()
-        .withColumns(['dateInventaireActuel', 'fournisseur', 'tableauCompletChantier', ...keys])
-        .where({ tableauCompletChantier: { itemIds: ids }, group: 'topics' })
+        .withColumns(['dateInventaireActuel', 'fournisseur', 'animateur', 'tableauCompletChantier', ...keys])
+        .where(invWhere)
         .orderBy({ column: 'name', direction: 'asc' })
         .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
         .execute();
@@ -588,21 +605,21 @@ export const getAllSitesHistory = createServerFn({ method: 'GET' })
     const ids: string[] = [];
     const siteNames = new Set<string>();
     let c: string | null | undefined = undefined;
-    do {
-      const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
-        .items()
-        .withColumns(['animateur'])
-        .where({ animateur: label })
-        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
-        .execute();
-      for (const it of res.items) {
-        ids.push(it.id);
-        if (it.name) siteNames.add(normalize(it.name));
-      }
-      c = res.cursor;
-    } while (c);
-
-    if (ids.length === 0) return { historyBySite: {} as Record<string, SiteHistoryResult> };
+    try {
+      do {
+        const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
+          .items()
+          .withColumns(['animateur'])
+          .where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
+          .execute();
+        for (const it of res.items) {
+          ids.push(it.id);
+          if (it.name) siteNames.add(normalize(it.name));
+        }
+        c = res.cursor;
+      } while (c);
+    } catch (_) {}
 
     const board = new InventairesConsommablesBoard();
     const keys = [
@@ -610,6 +627,7 @@ export const getAllSitesHistory = createServerFn({ method: 'GET' })
       'rcuprationRalise',
       'avenantRalis',
       'tableauCompletChantier',
+      'animateur',
       ...CONTRATS.map(([k]) => k),
       ...INVENTAIRES,
       ...ACTION_COLS.map(([, r]) => r),
@@ -624,11 +642,14 @@ export const getAllSitesHistory = createServerFn({ method: 'GET' })
     };
 
     let cur: string | null | undefined = undefined;
+    const histWhere = ids.length > 0
+      ? { tableauCompletChantier: { itemIds: ids }, group: 'group_mm8adwxm' }
+      : { animateur: label, group: 'group_mm8adwxm' };
     do {
       const res: { items: any[]; cursor?: string | null } = await board
         .items()
         .withColumns(keys)
-        .where({ tableauCompletChantier: { itemIds: ids }, group: 'group_mm8adwxm' })
+        .where(histWhere)
         .orderBy({ column: 'dateInventaireActuel', direction: 'desc' })
         .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
         .execute();
@@ -756,38 +777,25 @@ export const getEconomies = createServerFn({ method: 'GET' })
     const ids: string[] = [];
     const siteNames = new Set<string>();
     let c: string | null | undefined = undefined;
-    do {
-      const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
-        .items()
-        .withColumns(['animateur'])
-        .where({ animateur: label })
-        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
-        .execute();
-      for (const it of res.items) {
-        ids.push(it.id);
-        if (it.name) siteNames.add(normalize(it.name));
-      }
-      c = res.cursor;
-    } while (c);
-
-    if (ids.length === 0) {
-      return {
-        cumulDirecte: 0,
-        cumulDouzeMois: 0,
-        dernierDirecte: 0,
-        dernierDouzeMois: 0,
-        directe: 0,
-        douzeMois: 0,
-        year: new Date().getFullYear(),
-        passagesCount: 0,
-        sitesDernier: [] as EcoSite[],
-        sitesCumul: [] as EcoSite[],
-        sites: [] as EcoSite[],
-      };
-    }
+    try {
+      do {
+        const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
+          .items()
+          .withColumns(['animateur'])
+          .where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
+          .execute();
+        for (const it of res.items) {
+          ids.push(it.id);
+          if (it.name) siteNames.add(normalize(it.name));
+        }
+        c = res.cursor;
+      } while (c);
+    } catch (_) {}
 
     const ecoKeys = [
       'tableauCompletChantier',
+      'animateur',
       'dateInventaireActuel',
       'economieDirecte',
       'economie12Mois',
@@ -800,11 +808,14 @@ export const getEconomies = createServerFn({ method: 'GET' })
     // Récupération de tous les inventaires réalisés
     const allRealises: any[] = [];
     let cur: string | null | undefined = undefined;
+    const ecoWhere = ids.length > 0
+      ? { group: 'group_mm8adwxm' }
+      : { animateur: label, group: 'group_mm8adwxm' };
     do {
       const res: { items: Array<Record<string, unknown>>; cursor?: string | null } = await new InventairesConsommablesBoard()
         .items()
         .withColumns(ecoKeys)
-        .where({ group: 'group_mm8adwxm' })
+        .where(ecoWhere)
         .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
         .execute() as unknown as { items: Array<Record<string, unknown>>; cursor?: string | null };
       allRealises.push(...res.items);
@@ -818,12 +829,14 @@ export const getEconomies = createServerFn({ method: 'GET' })
       const linkedIds = link?.linkedItems?.map((l) => String(l.id)) || [];
       const linkedNames = link?.linkedItems?.map((l) => normalize(l.name)) || [];
       const itNormName = normalize(String(it.name ?? '').replace(/^🆕\s*/i, ''));
+      const itAnim = normalize(String((it as any).animateur?.displayValue || (it as any).animateur || ''));
 
       const belongs =
-        linkedIds.some((id) => ids.includes(id)) ||
-        linkedNames.some((n) => siteNames.has(n)) ||
-        siteNames.has(itNormName) ||
-        Array.from(siteNames).some((sn) => (itNormName && sn.includes(itNormName)) || (itNormName && itNormName.includes(sn)));
+        (ids.length > 0 && linkedIds.some((id) => ids.includes(id))) ||
+        (siteNames.size > 0 && linkedNames.some((n) => siteNames.has(n))) ||
+        (siteNames.size > 0 && siteNames.has(itNormName)) ||
+        (siteNames.size > 0 && Array.from(siteNames).some((sn) => (itNormName && sn.includes(itNormName)) || (itNormName && itNormName.includes(sn)))) ||
+        (itAnim && itAnim.includes(normalize(label)));
 
       if (belongs) {
         matchedItems.push(it);

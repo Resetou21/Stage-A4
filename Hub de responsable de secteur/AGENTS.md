@@ -27,7 +27,7 @@ Il est chargé automatiquement à chaque session et pour chaque agent intervenan
 | Hub | Dossier Local | App ID Monday | Version ID CDN | URL de Production Live |
 | :--- | :--- | :--- | :--- | :--- |
 | **Hub Natacha** | `Backup-Hub-de-natacha-code` | `12441148` | `19427524` | `https://v...monday.app` |
-| **Hub Emilie** | `Backup-Hub-de-natacha-code` | `12538620` | `19582956` | `https://v0bbcba90af3a1c6c09e97d68dd2eeca8.cdn2.monday.app` |
+| **Hub Emilie** | `Backup-Hub-de-natacha-code` | `12538620` | `19760498` | `https://v...monday.app` |
 | **Hub Ketty** | `Hub-de-ketty-code` | `12546485` | `19528952` | `https://v052f360b49faafe8845d5464a0539108.cdn2.monday.app` |
 
 *Note déploiement : Sur Windows, toujours exécuter `npm run deploy` avec `BypassSandbox: true` pour accéder au réseau et aux serveurs Monday CDN.*
@@ -164,4 +164,25 @@ Si l'utilisateur indique vouloir créer un **nouveau hub complètement différen
 3. **Mise à jour de la mémoire du projet (`AGENTS.md` / `GEMINI.md`)** :
    * Conserver la Section 1 (Sécurité) et la Section 6.
    * Remplacer les Sections 2, 3 et 4 par la cartographie des nouveaux tableaux, nouveaux champs et nouvelles règles métiers demandées par l'utilisateur.
+
+---
+
+## 7. Cartographie & Architecture Maintenance & Parc Machines (ERP-Monday)
+
+| Composant | Tableau Monday | Board ID | Colonnes Clés & Nouveautés |
+| :--- | :--- | :--- | :--- |
+| **Tableau 1** | **Liste des machines** | `5106585240` | `boolean_mm8tv8zy` (Maintenance préventive), `color_mm8t3v6z` (Fréquence), 12 mois (`boolean_mm8tw6vh` à `boolean_mm8t4bz2`), `numeric_mm8v97ja` (Heures compteur dernier relevé) |
+| **Tableau 2** | **Référentiel - Points de contrôle** | `5107261391` | Groupes par type : `group_mm8td794` (Autolaveuse), `group_mm8tcssq` (Monobrosse), `group_mm8t56kz` (Aspirateur), `group_mm8tket6` (Haute pression), `group_mm8tkaq1` (Chariot/Manutention) |
+| **Tableau 3** | **Fiche de Contrôle** | `5107262948` | `date_mm8txw52` (Date), `color_mm8tmqfc` (État général : Vert/Orange/Rouge), `dropdown_mm8ty165` (Catégorie intervention), `color_mm8thp7f` (Propreté : Propre/Sale), `color_mm8t1swv` (Entretien : Entretenue/Négligée), `color_mm8tqegk` (Fiche site : Oui/Non), `numeric_mm8tg9cz` (Temps passé), `numeric_mm8v3mw` (Heures compteur), `color_mm8tnjtd` (Bavettes/Suceurs), `color_mm8t6n09` (Brosses), `color_mm8tkhav` (Filtres/Cuves), `color_mm8tbmpe` (Batteries/Câbles), `color_mm8vmnff` (Roues & Roulettes), `color_mm8v31da` (Flexibles/Lances/Buses), `color_mm8vkxty` (Commandes & Mécanique), `long_text_mm8tjqkm` (Détail anomalies) |
+| **Tableau 4** | **Réparation machines** | `5106693291` | `board_relation_mm8gc4mh` (Lien machine), `color_mm8gs7c7` (Type: Curative), `date_mm8g4vq6` (Date), `color_mm8vp2nd` (Statut de suivi : 'À traiter', 'En attente de devis', 'En cours de réparation', 'Réparée'), `text_mm8vhwst` (Description panne / Action) |
+
+### Flux d'Automatisation Contrôle Technique ➔ Réparations
+Lors de la validation d'une fiche de contrôle dans le Hub :
+1. Si un ou plusieurs points sont **Non Conformes (NC)** :
+   * Création automatique d'un ticket d'intervention curative dans le **Tableau 4 (Réparations machines)**.
+   * `Statut de suivi` initialisé à **« À traiter »**.
+   * Insertion de la description détaillée et des actions à mener saisies par le technicien dans `Description panne / Action` (`text_mm8vhwst`).
+   * Publication automatique d'un compte-rendu HTML formaté dans le fil d'activité / discussion de l'élément Monday.
+2. Si le cadran horaire est renseigné : mise à jour simultanée des heures dans la fiche de contrôle ET dans la colonne `Heures compteur (dernier relevé)` de la machine.
+
 

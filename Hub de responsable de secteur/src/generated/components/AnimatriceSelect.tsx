@@ -78,8 +78,10 @@ export default function AnimatriceSelect({
 
   const currentMeta = getMeta(value || 'Non assigné');
 
-  // S'assurer que si la valeur actuelle n'est pas dans la liste par défaut, elle est tout de même affichée
-  const allOptions = Array.from(new Set([...options, ...(value ? [value] : [])]));
+  // Seules les animatrices actives sont proposées au choix (André Levesque est retiré de la sélection)
+  const allOptions = Array.from(
+    new Set(options.filter((opt) => !opt.toLowerCase().includes('andre')))
+  );
 
   const handleSelect = (anim: string) => {
     onChange(anim);

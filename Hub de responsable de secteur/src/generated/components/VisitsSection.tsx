@@ -24,20 +24,21 @@ export default function VisitsSection({ firstName }: { firstName: string }) {
 
   useEffect(() => {
     let active = true;
-    // 1. Mode Éclair : chargement ultra-rapide des graphiques, KPI 344 et jauges en ~1s (comme le widget Monday)
+
+    // 1. Visites clients (KPI 279, graphique et jauges en mode éclair)
     getVisitsOverview({ data: { firstName } })
       .then((r) => { if (active) setOverview(r ?? null); })
       .catch((e) => { console.error(e); if (active) setError('Impossible de charger les visites clients.'); });
 
-    // 2. Chargement de la qualité des chantiers (étoiles)
+    // 2. Qualité des chantiers (étoiles)
     getChantierQuality({ data: { firstName } })
       .then((r) => { if (active) setQuality(r ?? null); })
       .catch((e) => console.error(e));
 
-    // 3. Chargement différé des plans d'actions (avec sous-éléments) en arrière-plan sans bloquer les graphiques
+    // 3. Plans d'actions (22 chantiers en parallèle)
     getVisitsPlans({ data: { firstName } })
       .then((r) => { if (active) setPlans(r ?? null); })
-      .catch((e) => console.error('Erreur plans d\'actions:', e));
+      .catch((e) => console.error(e));
 
     return () => { active = false; };
   }, [firstName]);
