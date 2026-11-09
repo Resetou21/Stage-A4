@@ -184,11 +184,6 @@ export interface ChantierItem {
   dernierControle: string | null;
   resultatDernierControle: string | null;
   stars: '3🌟' | '2🌟' | '1🌟' | '🙁' | null;
-  alerte2?: number | null;
-  alerte3?: number | null;
-  texteDalerteAnimatrice1?: string | null;
-  datePrvRdvDes2Mois?: string | null;
-  rdv2Mois?: boolean;
   heuresMois: number | null;
   activite: string | null;
   sensible: boolean;
@@ -240,11 +235,6 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
     'column2',
     'column1',
     'column',
-    'alerte2',
-    'alerte3',
-    'texteDalerteAnimatrice1',
-    'datePrvRdvDes2Mois',
-    'rdv2Mois',
     'heuresMois',
     'activite',
     'sensible',
@@ -310,11 +300,6 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
         dernierControle: d ? d.toISOString().slice(0, 10) : null,
         resultatDernierControle: toStr(it.rsultatDernierContrle ?? it.c1),
         stars,
-        alerte2: typeof it.alerte2 === 'number' ? it.alerte2 : (it.alerte2 ? Number(String(it.alerte2).replace(',', '.')) : null),
-        alerte3: typeof it.alerte3 === 'number' ? it.alerte3 : (it.alerte3 ? Number(String(it.alerte3).replace(',', '.')) : null),
-        texteDalerteAnimatrice1: toStr(it.texteDalerteAnimatrice1),
-        datePrvRdvDes2Mois: it.datePrvRdvDes2Mois ? String(it.datePrvRdvDes2Mois) : null,
-        rdv2Mois: it.rdv2Mois === true,
         heuresMois: typeof it.heuresMois === 'number' ? it.heuresMois : null,
         activite: toStr(it.activite),
         sensible: Boolean(it.sensible),
