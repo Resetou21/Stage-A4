@@ -85,10 +85,8 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
                 name
                 date: column_values(ids: ["date_mkrcgy18"]) { text }
                 anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
-                animDirect: column_values(ids: ["color_mkvvxc1d"]) { text ... on StatusValue { label } }
                 qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
                 chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
-                creator { id name email }
               }
             }
           }
@@ -104,10 +102,8 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
                 name
                 date: column_values(ids: ["date_mkrcgy18"]) { text }
                 anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
-                animDirect: column_values(ids: ["color_mkvvxc1d"]) { text ... on StatusValue { label } }
                 qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
                 chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
-                creator { id name email }
               }
             }
           }
@@ -125,20 +121,7 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
         const animCv = it.anim?.[0];
         const rawDisp = (animCv?.display_value || animCv?.text || '').trim();
         const names = rawDisp ? rawDisp.split(',').map(norm) : [];
-
-        const directCv = it.animDirect?.[0];
-        const directAnim = norm(directCv?.label || directCv?.text || '');
-
-        const cEmail = norm(it.creator?.email || '');
-        const cId = String(it.creator?.id || '');
-
-        const isCreator =
-          (data.firstName.toLowerCase().startsWith('emilie') && (cEmail.includes('etobie') || cId === '87318933')) ||
-          (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
-          (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
-
-        const match = names.includes(target) || directAnim.includes(target) || isCreator;
-        if (!match) continue;
+        if (!names.includes(target)) continue;
 
         const dtStr = it.date?.[0]?.text || '';
         const qStr = it.qual?.[0]?.label || it.qual?.[0]?.text || null;
@@ -205,14 +188,12 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
                     id
                     name
                     group { id title }
-                    column_values(ids: ["lookup_mkvgpaca", "color_mkvvxc1d", "date_mkrcgy18", "board_relation_mktd1vha"]) {
+                    column_values(ids: ["lookup_mkvgpaca", "date_mkrcgy18", "board_relation_mktd1vha"]) {
                       id
                       text
                       ... on MirrorValue { display_value }
-                      ... on StatusValue { label }
                       ... on BoardRelationValue { display_value }
                     }
-                    creator { id name email }
                   }
                   column_values(ids: ["color_mkv1tk6f", "text_mkrhcpzc", "date_mkwrr950", "dropdown_mkv1j4z1"]) {
                     id
@@ -254,13 +235,10 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
                 items {
                   id
                   parent_item {
-                    column_values(ids: ["lookup_mkvgpaca", "color_mkvvxc1d"]) {
-                      id
-                      text
+                    column_values(ids: ["lookup_mkvgpaca"]) {
                       ... on MirrorValue { display_value }
-                      ... on StatusValue { label }
+                      text
                     }
-                    creator { id email }
                   }
                   column_values(ids: ["color_mkv1tk6f"]) {
                     text
@@ -277,17 +255,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         for (const it of items) {
           const animCv = it.parent_item?.column_values?.find((c: any) => c.id === 'lookup_mkvgpaca');
           const anim = (animCv?.display_value || animCv?.text || '').toLowerCase();
-          const directCv = it.parent_item?.column_values?.find((c: any) => c.id === 'color_mkvvxc1d');
-          const directAnim = (directCv?.label || directCv?.text || '').toLowerCase();
-          const cEmail = (it.parent_item?.creator?.email || '').toLowerCase();
-          const cId = String(it.parent_item?.creator?.id || '');
-
-          const isCreator =
-            (data.firstName.toLowerCase().startsWith('emilie') && (cEmail.includes('etobie') || cId === '87318933')) ||
-            (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
-            (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
-
-          if (!anim.includes(target) && !directAnim.includes(target) && !isCreator) continue;
+          if (!anim.includes(target)) continue;
           const cvSt = it.column_values?.find((c: any) => c.id === 'color_mkv1tk6f');
           const st = (cvSt?.label || cvSt?.text || '').trim().toLowerCase();
           if (st === 'fait') count++;
@@ -307,17 +275,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
       if (!parent) continue;
       const animCv = parent.column_values?.find((c: any) => c.id === 'lookup_mkvgpaca');
       const anim = (animCv?.display_value || animCv?.text || '').toLowerCase();
-      const directCv = parent.column_values?.find((c: any) => c.id === 'color_mkvvxc1d');
-      const directAnim = (directCv?.label || directCv?.text || '').toLowerCase();
-      const cEmail = (parent.creator?.email || '').toLowerCase();
-      const cId = String(parent.creator?.id || '');
-
-      const isCreator =
-        (data.firstName.toLowerCase().startsWith('emilie') && (cEmail.includes('etobie') || cId === '87318933')) ||
-        (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
-        (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
-
-      if (!anim.includes(target) && !directAnim.includes(target) && !isCreator) continue;
+      if (!anim.includes(target)) continue;
 
       const pid = String(parent.id);
       const cvAction = s.column_values?.find((c: any) => c.id === 'text_mkrhcpzc');

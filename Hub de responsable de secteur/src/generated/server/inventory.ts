@@ -608,8 +608,11 @@ export const getAllSitesHistory = createServerFn({ method: 'GET' })
     try {
       do {
         const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
-          .items().withColumns(['animateur']).where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
+          .items()
+          .withColumns(['animateur'])
+          .where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
+          .execute();
         for (const it of res.items) {
           ids.push(it.id);
           if (it.name) siteNames.add(normalize(it.name));
@@ -777,8 +780,11 @@ export const getEconomies = createServerFn({ method: 'GET' })
     try {
       do {
         const res: { items: { id: string; name: string }[]; cursor?: string | null } = await chantiers
-          .items().withColumns(['animateur']).where({ animateur: label })
-          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 }).execute();
+          .items()
+          .withColumns(['animateur'])
+          .where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
+          .execute();
         for (const it of res.items) {
           ids.push(it.id);
           if (it.name) siteNames.add(normalize(it.name));

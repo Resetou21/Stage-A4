@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TableauCompletChantierBoard, VisitesClientsBoard, InventairesConsommablesBoard, callMondayApi, registerCacheClearCallback } from '@api/BoardSDK';
+import { TableauCompletChantierBoard, VisitesClientsBoard, InventairesConsommablesBoard, callMondayApi } from '@api/BoardSDK';
 import { BOARD_IDS } from '@api/columnMap';
 
 function labelOf(name: string): string | null {
@@ -191,20 +191,7 @@ export interface ChantierItem {
   groupTitle: string;
 }
 
-const chantiersCache = new Map<string, { time: number; data: ChantierItem[] }>();
-
-export function clearChantiersCache() {
-  chantiersCache.clear();
-}
-registerCacheClearCallback(clearChantiersCache);
-
 export async function getChantiersList({ data }: { data: { firstName: string } }): Promise<ChantierItem[]> {
-  const normKey = data.firstName.toLowerCase().trim();
-  const cached = chantiersCache.get(normKey);
-  if (cached && Date.now() - cached.time < 300000) {
-    return cached.data;
-  }
-
   const label = labelOf(data.firstName);
   if (!label) return [];
 
@@ -432,9 +419,6 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
     }
   }
 
-  if (res.length > 0) {
-    chantiersCache.set(normKey, { time: Date.now(), data: res });
-  }
   return res;
 }
 

@@ -10,18 +10,10 @@ const waitQueue: Array<() => void> = [];
 
 const inFlightRequests = new Map<string, Promise<any>>();
 const queryCache = new Map<string, { expires: number; data: any }>();
-const onClearCallbacks: Array<() => void> = [];
-
-export function registerCacheClearCallback(fn: () => void) {
-  onClearCallbacks.push(fn);
-}
 
 export function clearBoardCache() {
   queryCache.clear();
   inFlightRequests.clear();
-  onClearCallbacks.forEach((fn) => {
-    try { fn(); } catch (_) {}
-  });
 }
 
 function acquireSlot(): Promise<void> {
