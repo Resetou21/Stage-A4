@@ -31,6 +31,7 @@ Il est chargé automatiquement à chaque session et pour chaque agent intervenan
 | **Hub Ketty** | `Hub-de-ketty-code` | `12546485` | `19528952` | `https://v052f360b49faafe8845d5464a0539108.cdn2.monday.app` |
 
 *Note déploiement : Sur Windows, toujours exécuter `npm run deploy` avec `BypassSandbox: true` pour accéder au réseau et aux serveurs Monday CDN.*
+*Règle d'or Espaces de travail : Dans Monday Administration -> Gestion des applications -> [Nom du Hub] -> Gestion des applications, TOUJOURS cocher « Tous les espaces de travail ». Si l'app est restreinte à un espace spécifique (ex: Animatrices), Monday bloque silencieusement les requêtes cross-workspaces (ex: Enchantement client) pour tous les utilisateurs autres que le développeur créateur.*
 
 ---
 
