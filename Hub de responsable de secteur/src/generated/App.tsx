@@ -30,7 +30,7 @@ const USER_ID_MAP: Record<string, ProfileKey> = {
 };
 
 // Utilisateurs administrateurs / superviseurs autorisés à basculer entre tous les secteurs
-const ADMIN_USER_IDS = ['118562356']; // Guillaume Daniel
+const ADMIN_USER_IDS = ['118562356', '76526870']; // Guillaume Daniel, Laurent GUILLOU
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<ProfileKey>('Emilie');
@@ -52,11 +52,17 @@ export default function App() {
       const normName = name.toLowerCase().trim();
       const normEmail = email.toLowerCase().trim();
 
-      // 1. Détection Administrateur
-      if (ADMIN_USER_IDS.includes(uid) || normEmail.includes('guillaume.daniel')) {
+      // 1. Détection Administrateur / Superviseur
+      if (
+        ADMIN_USER_IDS.includes(uid) ||
+        normEmail.includes('guillaume.daniel') ||
+        normEmail.includes('lguillou') ||
+        normName.includes('laurent guillou')
+      ) {
         setIsAdmin(true);
         setUserDetected(true);
-        setDebugInfo(`Connecté: Admin Guillaume (${uid || normEmail})`);
+        const displayName = normName.includes('laurent') ? 'Admin Laurent GUILLOU' : 'Admin Guillaume';
+        setDebugInfo(`Connecté: ${displayName} (${uid || normEmail})`);
         resolved = true;
         return;
       }

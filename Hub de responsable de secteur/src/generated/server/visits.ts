@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { getChantiersList } from './chantiers';
 import {
   CommunicationViaLesAnimatricesBoard,
   TableauCompletChantierBoard,
@@ -85,8 +86,10 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
                 name
                 date: column_values(ids: ["date_mkrcgy18"]) { text }
                 anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                animDirect: column_values(ids: ["color_mkvvxc1d"]) { text ... on StatusValue { label } }
                 qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
                 chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+                creator { id name email }
               }
             }
           }
@@ -102,8 +105,10 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
                 name
                 date: column_values(ids: ["date_mkrcgy18"]) { text }
                 anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                animDirect: column_values(ids: ["color_mkvvxc1d"]) { text ... on StatusValue { label } }
                 qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
                 chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+                creator { id name email }
               }
             }
           }
@@ -121,7 +126,20 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
         const animCv = it.anim?.[0];
         const rawDisp = (animCv?.display_value || animCv?.text || '').trim();
         const names = rawDisp ? rawDisp.split(',').map(norm) : [];
-        if (!names.includes(target)) continue;
+
+        const directCv = it.animDirect?.[0];
+        const directAnim = norm(directCv?.label || directCv?.text || '');
+
+        const cEmail = norm(it.creator?.email || '');
+        const cId = String(it.creator?.id || '');
+
+        const isCreator =
+          (data.firstName.toLowerCase().startsWith('emilie') && (cEmail.includes('etobie') || cId === '87318933')) ||
+          (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
+          (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
+
+        const match = names.includes(target) || directAnim.includes(target) || isCreator;
+        if (!match) continue;
 
         const dtStr = it.date?.[0]?.text || '';
         const qStr = it.qual?.[0]?.label || it.qual?.[0]?.text || null;
@@ -188,12 +206,14 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
                     id
                     name
                     group { id title }
-                    column_values(ids: ["lookup_mkvgpaca", "date_mkrcgy18", "board_relation_mktd1vha"]) {
+                    column_values(ids: ["lookup_mkvgpaca", "color_mkvvxc1d", "date_mkrcgy18", "board_relation_mktd1vha"]) {
                       id
                       text
                       ... on MirrorValue { display_value }
+                      ... on StatusValue { label }
                       ... on BoardRelationValue { display_value }
                     }
+                    creator { id name email }
                   }
                   column_values(ids: ["color_mkv1tk6f", "text_mkrhcpzc", "date_mkwrr950", "dropdown_mkv1j4z1"]) {
                     id
@@ -235,10 +255,13 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
                 items {
                   id
                   parent_item {
-                    column_values(ids: ["lookup_mkvgpaca"]) {
-                      ... on MirrorValue { display_value }
+                    column_values(ids: ["lookup_mkvgpaca", "color_mkvvxc1d"]) {
+                      id
                       text
+                      ... on MirrorValue { display_value }
+                      ... on StatusValue { label }
                     }
+                    creator { id email }
                   }
                   column_values(ids: ["color_mkv1tk6f"]) {
                     text
@@ -255,7 +278,17 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         for (const it of items) {
           const animCv = it.parent_item?.column_values?.find((c: any) => c.id === 'lookup_mkvgpaca');
           const anim = (animCv?.display_value || animCv?.text || '').toLowerCase();
-          if (!anim.includes(target)) continue;
+          const directCv = it.parent_item?.column_values?.find((c: any) => c.id === 'color_mkvvxc1d');
+          const directAnim = (directCv?.label || directCv?.text || '').toLowerCase();
+          const cEmail = (it.parent_item?.creator?.email || '').toLowerCase();
+          const cId = String(it.parent_item?.creator?.id || '');
+
+          const isCreator =
+            (data.firstName.toLowerCase().startsWith('emilie') && (cEmail.includes('etobie') || cId === '87318933')) ||
+            (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
+            (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
+
+          if (!anim.includes(target) && !directAnim.includes(target) && !isCreator) continue;
           const cvSt = it.column_values?.find((c: any) => c.id === 'color_mkv1tk6f');
           const st = (cvSt?.label || cvSt?.text || '').trim().toLowerCase();
           if (st === 'fait') count++;
@@ -275,7 +308,17 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
       if (!parent) continue;
       const animCv = parent.column_values?.find((c: any) => c.id === 'lookup_mkvgpaca');
       const anim = (animCv?.display_value || animCv?.text || '').toLowerCase();
-      if (!anim.includes(target)) continue;
+      const directCv = parent.column_values?.find((c: any) => c.id === 'color_mkvvxc1d');
+      const directAnim = (directCv?.label || directCv?.text || '').toLowerCase();
+      const cEmail = (parent.creator?.email || '').toLowerCase();
+      const cId = String(parent.creator?.id || '');
+
+      const isCreator =
+        (data.firstName.toLowerCase().startsWith('emilie') && (cEmail.includes('etobie') || cId === '87318933')) ||
+        (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
+        (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
+
+      if (!anim.includes(target) && !directAnim.includes(target) && !isCreator) continue;
 
       const pid = String(parent.id);
       const cvAction = s.column_values?.find((c: any) => c.id === 'text_mkrhcpzc');
@@ -351,75 +394,44 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
     const out = { stars: { s3: 0, s2: 0, s1: 0, s0: 0 }, insatisfaits: [] as Q[], controle2Mois: [] as Q[], nonVus11Mois: [] as Q[] };
     const label = labelOf(data.firstName);
     if (!label) return out;
+
     const elevenMonthsAgo = new Date(); elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
-    const board = new TableauCompletChantierBoard();
-    let cur: string | null | undefined = undefined;
-    let itemsFound = 0;
+    const twoMonthsAgo = new Date(); twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
     try {
-      do {
-        const page = await board
-          .items()
-          .withColumns(['c1', 'c2', 'c3', 'rsultatDernierContrle', 'dernierContrle', 'dernierContrle1', 'column3', 'column2', 'column1', 'column', 'alerte2', 'alerte3'])
-          .where({ animateur: label, group: 'topics' })
-          .orderBy({ column: 'name', direction: 'asc' })
-          .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
-          .execute();
+      const list = await getChantiersList({ data: { firstName: data.firstName } });
+      if (list && list.length > 0) {
+        for (const it of list) {
+          if (it.stars === '3🌟') out.stars.s3++;
+          else if (it.stars === '2🌟') out.stars.s2++;
+          else if (it.stars === '1🌟') out.stars.s1++;
+          else if (it.stars === '🙁') out.stars.s0++;
 
-        itemsFound += (page.items || []).length;
-
-        for (const it of page.items || []) {
-          const raw = it.dernierContrle ?? it.dernierContrle1 ?? null;
+          const raw = it.dernierControle;
           const d = raw && !Number.isNaN(new Date(raw).getTime()) ? new Date(raw) : null;
-          const q: Q = { id: it.id, chantier: it.name, date: iso(d), resultat: it.rsultatDernierContrle ?? it.c1 ?? null };
-          const f = [it.column3, it.column2, it.column1, it.column].map((v) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(String(v).replace(',', '.'))));
-          if (f.some((v) => v !== null)) {
-            if (f[0] === 1) out.stars.s3++;
-            if (f[1] === 1) out.stars.s2++;
-            if (f[2] === 1) out.stars.s1++;
-            if (f[3] === 1) out.stars.s0++;
-          } else {
-            const c1Bon = it.c1 === BON;
-            const c2Bon = it.c2 === BON;
-            const c3Bon = it.c3 === BON;
-
-            if (c1Bon && c2Bon && c3Bon) {
-              out.stars.s3++;
-            } else if (c1Bon && c2Bon) {
-              out.stars.s2++;
-            } else if (c1Bon) {
-              out.stars.s1++;
-            } else if (it.c1 === 'Bases non respectées' || it.c1 === "Plan d'action urgent") {
-              out.stars.s0++;
-            }
-          }
-
-          const fnum = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return v === null || v === undefined || String(v).trim() === "" || !Number.isFinite(n) ? null : n; };
-          const a2 = fnum(it.alerte2);
-          const a3 = fnum(it.alerte3);
-          const twoMonthsAgo = new Date();
-          twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+          const q: Q = { id: it.id, chantier: it.name, date: iso(d), resultat: it.resultatDernierControle ?? it.c1 ?? null };
 
           const isBad = (c: unknown) => c === 'Bases non respectées' || c === "Plan d'action urgent";
           const has3Bad = isBad(it.c1) && isBad(it.c2) && isBad(it.c3);
+          const a2 = typeof it.alerte2 === 'number' ? it.alerte2 : null;
+          const a3 = typeof it.alerte3 === 'number' ? it.alerte3 : null;
           const isClientInsatisfait3 = (a2 !== null && a2 > 0) || has3Bad;
-
           if (isClientInsatisfait3) out.insatisfaits.push(q);
 
-          const isDernierControleBad = isBad(it.c1) || (Boolean(it.rsultatDernierContrle) && it.rsultatDernierContrle !== BON);
+          const isDernierControleBad = isBad(it.c1) || (Boolean(it.resultatDernierControle) && it.resultatDernierControle !== BON);
           if (a3 === 1 || (isDernierControleBad && d && d.getTime() <= twoMonthsAgo.getTime())) {
             out.controle2Mois.push(q);
           }
           if (d && d.getTime() <= elevenMonthsAgo.getTime()) out.nonVus11Mois.push(q);
         }
-        cur = page.cursor;
-      } while (cur);
+        return out;
+      }
     } catch (e) {
-      console.warn('Erreur lecture TableauCompletChantierBoard:', e);
+      console.warn('Erreur calcul qualité chantiers:', e);
     }
 
     // Fallback de secours si Tableau complet chantier renvoie 0 items
-    if (itemsFound === 0) {
+    if (out.stars.s3 === 0 && out.stars.s2 === 0 && out.stars.s1 === 0 && out.stars.s0 === 0) {
       try {
         const normTarget = norm(label);
         const vBoard = new VisitesClientsBoard();
