@@ -138,17 +138,7 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
           (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
           (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
 
-        // Priorité 1 : Colonne miroir (authoritative = 279 pile pour Emilie)
-        // Priorité 2 : Colonne directe Animatrice si miroir non résolu sur mobile
-        // Priorité 3 : Créateur uniquement si ni miroir ni colonne directe ne sont présents
-        let match = false;
-        if (names.length > 0) {
-          match = names.includes(target);
-        } else if (directAnim) {
-          match = directAnim.includes(target);
-        } else {
-          match = isCreator;
-        }
+        const match = names.includes(target) || directAnim.includes(target) || isCreator;
         if (!match) continue;
 
         const dtStr = it.date?.[0]?.text || '';
@@ -298,15 +288,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
             (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
             (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
 
-          let mClosed = false;
-          if (anim) {
-            mClosed = anim.includes(target);
-          } else if (directAnim) {
-            mClosed = directAnim.includes(target);
-          } else {
-            mClosed = isCreator;
-          }
-          if (!mClosed) continue;
+          if (!anim.includes(target) && !directAnim.includes(target) && !isCreator) continue;
           const cvSt = it.column_values?.find((c: any) => c.id === 'color_mkv1tk6f');
           const st = (cvSt?.label || cvSt?.text || '').trim().toLowerCase();
           if (st === 'fait') count++;
@@ -336,15 +318,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         (data.firstName.toLowerCase().startsWith('natacha') && (cEmail.includes('nthomas') || cId === '87318941')) ||
         (data.firstName.toLowerCase().startsWith('ketty') && (cEmail.includes('kpaulin') || cId === '76526955'));
 
-      let mOpen = false;
-      if (anim) {
-        mOpen = anim.includes(target);
-      } else if (directAnim) {
-        mOpen = directAnim.includes(target);
-      } else {
-        mOpen = isCreator;
-      }
-      if (!mOpen) continue;
+      if (!anim.includes(target) && !directAnim.includes(target) && !isCreator) continue;
 
       const pid = String(parent.id);
       const cvAction = s.column_values?.find((c: any) => c.id === 'text_mkrhcpzc');
