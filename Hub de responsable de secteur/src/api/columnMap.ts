@@ -29,6 +29,7 @@ export const COLUMN_MAP: Record<string, Record<string, ColumnMeta>> = {
     column2: { id: 'formula_mkzzk0qv', title: '2🌟', type: 'formula' },
     column1: { id: 'formula_mkzzxqe8', title: '1🌟', type: 'formula' },
     column: { id: 'formula_mkzzevbg', title: '🙁', type: 'formula' },
+    calExtractDates: { id: 'text_mkx19mqq', title: 'Cal extract dates', type: 'text' },
     // Candidats pour texteDalerteAnimatrice1: text_mkzbnbe9 (texte renseigné) vs formula_mkzbfgx0 (formule)
     texteDalerteAnimatrice1: { id: 'text_mkzbnbe9', title: "🅰️Texte d'alerte animatrice", type: 'text' },
     codeChantier: { id: 'text_mm2kscgb', title: 'Code Chantier', type: 'text' },

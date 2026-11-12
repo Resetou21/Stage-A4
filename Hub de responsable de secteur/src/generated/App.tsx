@@ -10,6 +10,9 @@ import ChantiersSpace from '@generated/components/ChantiersSpace';
 import QuickFormsSection from '@generated/components/QuickFormsSection';
 import DevRulesModal from '@generated/components/DevRulesModal';
 import { callMondayApi, clearBoardCache, monday } from '@api/BoardSDK';
+import { clearChantiersListCache } from '@generated/server/chantiers';
+import { clearVisitsOverviewCache } from '@generated/server/visits';
+import { clearInventoryCaches } from '@generated/server/inventory';
 import { cn } from '@lib/utils';
 
 const PROFILES = {
@@ -195,6 +198,9 @@ export default function App() {
   const handleManualRefresh = () => {
     setRefreshing(true);
     clearBoardCache();
+    clearChantiersListCache();
+    clearVisitsOverviewCache();
+    clearInventoryCaches();
     setGlobalKey((k) => k + 1);
     setEcoKey((k) => k + 1);
     toast.success('Données rafraîchies');
@@ -280,12 +286,6 @@ export default function App() {
           </div>
         </div>
       </header>
-      <div className="bg-muted/70 border-b border-border/50 px-4 py-1.5 text-center text-[11px] font-mono text-muted-foreground flex items-center justify-center gap-2 flex-wrap">
-        <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span>Profil actif : <strong className="text-foreground">{fullName}</strong></span>
-        <span>•</span>
-        <span>{debugInfo}</span>
-      </div>
       <AlertsCenter firstName={hubName} />
 
       <main className="relative mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12">

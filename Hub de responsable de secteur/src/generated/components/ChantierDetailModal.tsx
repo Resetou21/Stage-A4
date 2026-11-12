@@ -37,8 +37,42 @@ import {
   DEFAULT_VILLES_OPTIONS,
   DEFAULT_ACTIVITES_OPTIONS,
   fetchStatusColumnLabels,
-  type ChantierItem 
+  getChantierVisitsHistory,
+  type ChantierItem,
+  type ChantierVisitHistoryItem
 } from '@generated/server/chantiers';
+
+function splitMulti(val: string | null | undefined): string[] {
+  if (!val) return [];
+  return val
+    .split(/[,;/]|\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+interface ContactEditItem {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+}
+
+function initEditContacts(c: ChantierItem): ContactEditItem[] {
+  const names = splitMulti(c.interlocuteur);
+  const phones = splitMulti(c.telephone);
+  const emails = splitMulti(c.email);
+  const count = Math.max(names.length, phones.length, emails.length, 1);
+  const list: ContactEditItem[] = [];
+  for (let i = 0; i < count; i++) {
+    list.push({
+      id: `c-${i}-${Math.random().toString(36).slice(2, 7)}`,
+      name: names[i] || '',
+      phone: phones[i] || '',
+      email: emails[i] || '',
+    });
+  }
+  return list;
+}
 
 interface ChantierDetailModalProps {
   chantier: ChantierItem | null;
@@ -57,6 +91,10 @@ export default function ChantierDetailModal({
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [visitsHistory, setVisitsHistory] = useState<ChantierVisitHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isVisitsExpanded, setIsVisitsExpanded] = useState(false);
+  const [editContacts, setEditContacts] = useState<ContactEditItem[]>(() => initEditContacts(chantier));
 
   // Listes des étiquettes disponibles
   const [availableVilles, setAvailableVilles] = useState<string[]>([...DEFAULT_VILLES_OPTIONS]);
@@ -121,7 +159,9 @@ export default function ChantierDetailModal({
         activite: chantier.activite || '',
         sensible: Boolean(chantier.sensible),
       });
+      setEditContacts(initEditContacts(chantier));
       setIsEditing(false);
+      setIsVisitsExpanded(false);
 
       // S'assurer que la ville/activité actuelle est dans la liste des options
       if (chantier.ville) {
@@ -137,9 +177,31 @@ export default function ChantierDetailModal({
     }
   }, [chantier, open]);
 
-  const handleOpenMondayCard = () => {
+  // Chargement de l'historique des contrôles qualité du chantier (3 derniers)
+  useEffect(() => {
+    if (open && chantier?.id) {
+      setLoadingHistory(true);
+      getChantierVisitsHistory({ data: { chantierId: chantier.id } })
+        .then((res) => {
+          setVisitsHistory(res.visits || []);
+        })
+        .catch((err) => {
+          console.error('Erreur chargement historique visites:', err);
+          setVisitsHistory([]);
+        })
+        .finally(() => {
+          setLoadingHistory(false);
+        });
+    } else {
+      setVisitsHistory([]);
+    }
+  }, [open, chantier?.id]);
+
+  const handleOpenMondayCard = async () => {
     try {
-      monday.execute('openItemCard', { itemId: chantier.id });
+      if (chantier?.id) {
+        await monday.execute('openItemCard', { itemId: chantier.id });
+      }
     } catch (e) {
       console.error(e);
       toast.error('Impossible d\'ouvrir la fiche Monday');
@@ -147,8 +209,18 @@ export default function ChantierDetailModal({
   };
 
   const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copié dans le presse-papiers`);
+    if (!text) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(text)
+          .then(() => toast.success(`${label} copié dans le presse-papiers`))
+          .catch(() => toast.info(`${label} : ${text}`));
+      } else {
+        toast.info(`${label} : ${text}`);
+      }
+    } catch {
+      toast.info(`${label} : ${text}`);
+    }
   };
 
   const handleCancel = () => {
@@ -171,6 +243,7 @@ export default function ChantierDetailModal({
         activite: chantier.activite || '',
         sensible: Boolean(chantier.sensible),
       });
+      setEditContacts(initEditContacts(chantier));
     }
     setIsEditing(false);
   };
@@ -185,6 +258,11 @@ export default function ChantierDetailModal({
 
       const finalVille = formData.ville.trim();
       const finalActivite = formData.activite.trim();
+
+      // Traitement structuré des contacts édités
+      const finalInterlocuteur = editContacts.map((c) => c.name.trim()).filter(Boolean).join(', ');
+      const finalTelephone = editContacts.map((c) => c.phone.trim()).filter(Boolean).join(', ');
+      const finalEmail = editContacts.map((c) => c.email.trim()).filter(Boolean).join(', ');
 
       // Diffing : n'envoyer à Monday que les champs qui ont réellement été modifiés
       const patch: any = { itemId: chantier.id };
@@ -207,14 +285,14 @@ export default function ChantierDetailModal({
       if (finalVille !== (chantier.ville || '')) {
         patch.ville = finalVille;
       }
-      if (formData.interlocuteur.trim() !== (chantier.interlocuteur || '')) {
-        patch.interlocuteur = formData.interlocuteur.trim();
+      if (finalInterlocuteur !== (chantier.interlocuteur || '')) {
+        patch.interlocuteur = finalInterlocuteur;
       }
-      if (formData.telephone.trim() !== (chantier.telephone || '')) {
-        patch.telephone = formData.telephone.trim();
+      if (finalTelephone !== (chantier.telephone || '')) {
+        patch.telephone = finalTelephone;
       }
-      if (formData.email.trim() !== (chantier.email || '')) {
-        patch.email = formData.email.trim();
+      if (finalEmail !== (chantier.email || '')) {
+        patch.email = finalEmail;
       }
       if (formData.cle.trim() !== (chantier.cle || '')) {
         patch.cle = formData.cle.trim();
@@ -242,6 +320,7 @@ export default function ChantierDetailModal({
       if (Object.keys(patch).length <= 1) {
         toast.info('Aucune modification détectée');
         setIsEditing(false);
+        setIsVisitsExpanded(false);
         setIsSaving(false);
         return;
       }
@@ -253,6 +332,14 @@ export default function ChantierDetailModal({
         setIsSaving(false);
         return;
       }
+
+      // Mise à jour locale de l'état du formulaire
+      setFormData((prev) => ({
+        ...prev,
+        interlocuteur: finalInterlocuteur,
+        telephone: finalTelephone,
+        email: finalEmail,
+      }));
 
       // Si de nouvelles étiquettes ont été créées, on les ajoute à la liste locale
       if (finalVille && !availableVilles.includes(finalVille)) {
@@ -271,9 +358,9 @@ export default function ChantierDetailModal({
         adresse: formData.adresse.trim() || null,
         codePostal: Number.isNaN(parsedCP) ? null : parsedCP,
         ville: finalVille || null,
-        interlocuteur: formData.interlocuteur.trim() || null,
-        telephone: formData.telephone.trim() || null,
-        email: formData.email.trim() || null,
+        interlocuteur: finalInterlocuteur || null,
+        telephone: finalTelephone || null,
+        email: finalEmail || null,
         cle: formData.cle.trim() || null,
         doubleCle: formData.doubleCle.trim() || null,
         keycafe: formData.keycafe.trim() || null,
@@ -307,6 +394,7 @@ export default function ChantierDetailModal({
       }
 
       setIsEditing(false);
+      setIsVisitsExpanded(false);
 
       if (onChantierUpdated) {
         onChantierUpdated(updatedChantier);
@@ -631,102 +719,274 @@ export default function ChantierDetailModal({
               </h4>
 
               {isEditing ? (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                      Interlocuteur
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.interlocuteur}
-                      onChange={(e) => setFormData({ ...formData, interlocuteur: e.target.value })}
-                      placeholder="Ex: MR LOIRET"
-                      className="w-full rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
-                    />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-muted-foreground font-medium">
+                      Gérez les différents interlocuteurs et leurs coordonnées directes :
+                    </p>
+                    <span className="text-[10px] font-bold text-primary bg-primary/10 rounded px-2 py-0.5">
+                      {editContacts.length} contact{editContacts.length > 1 ? 's' : ''}
+                    </span>
                   </div>
-                  <div>
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                      Téléphone
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.telephone}
-                      onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                      placeholder="Ex: 06 74 98 13 65"
-                      className="w-full rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
-                    />
+
+                  <div className="space-y-2.5">
+                    {editContacts.map((contact, idx) => (
+                      <div
+                        key={contact.id}
+                        className="rounded-xl border border-border bg-card p-3 shadow-2xs space-y-2.5 hover:border-primary/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[11px] font-bold text-primary">
+                              {idx + 1}
+                            </span>
+                            {idx === 0 ? 'Interlocuteur principal' : `Contact #${idx + 1}`}
+                          </span>
+                          {editContacts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setEditContacts(editContacts.filter((_, i) => i !== idx))}
+                              className="text-xs text-destructive hover:bg-destructive/10 rounded-md px-2 py-0.5 transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Supprimer ce contact"
+                            >
+                              <X className="h-3 w-3" />
+                              <span className="text-[11px] font-semibold">Supprimer</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                              Nom / Interlocuteur
+                            </label>
+                            <input
+                              type="text"
+                              value={contact.name}
+                              onChange={(e) => {
+                                const next = [...editContacts];
+                                next[idx] = { ...next[idx], name: e.target.value };
+                                setEditContacts(next);
+                              }}
+                              placeholder="Ex: MME DUPONT"
+                              className="w-full rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                              Téléphone direct
+                            </label>
+                            <input
+                              type="text"
+                              value={contact.phone}
+                              onChange={(e) => {
+                                const next = [...editContacts];
+                                next[idx] = { ...next[idx], phone: e.target.value };
+                                setEditContacts(next);
+                              }}
+                              placeholder="Ex: 06 12 34 56 78"
+                              className="w-full rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                              Email direct
+                            </label>
+                            <input
+                              type="text"
+                              value={contact.email}
+                              onChange={(e) => {
+                                const next = [...editContacts];
+                                next[idx] = { ...next[idx], email: e.target.value };
+                                setEditContacts(next);
+                              }}
+                              placeholder="Ex: contact@site.fr"
+                              className="w-full rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                      Email
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="Ex: client@facility.fr"
-                      className="w-full rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
-                    />
-                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditContacts([
+                        ...editContacts,
+                        { id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: '', phone: '', email: '' },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/90 bg-primary/10 hover:bg-primary/15 border border-primary/25 px-3 py-2 rounded-xl transition-colors cursor-pointer w-full justify-center shadow-2xs"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Ajouter un autre interlocuteur</span>
+                  </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Interlocuteur</p>
-                    <p className="text-sm font-bold text-foreground truncate" title={chantier.interlocuteur || ''}>
-                      {chantier.interlocuteur || '—'}
-                    </p>
-                  </div>
+                (() => {
+                  const names = splitMulti(chantier.interlocuteur);
+                  const phones = splitMulti(chantier.telephone);
+                  const emails = splitMulti(chantier.email);
 
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Téléphone</p>
-                    {chantier.telephone ? (
-                      <div className="flex items-center justify-between gap-1">
-                        <a
-                          href={`tel:${chantier.telephone.replace(/\s+/g, '')}`}
-                          className="text-sm font-bold text-emerald-600 hover:underline dark:text-emerald-400 truncate"
-                        >
-                          {chantier.telephone}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(chantier.telephone!, 'Téléphone')}
-                          className="text-muted-foreground hover:text-foreground p-0.5"
-                          title="Copier le numéro"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">—</p>
-                    )}
-                  </div>
+                  // Si aucune coordonnée
+                  if (names.length === 0 && phones.length === 0 && emails.length === 0) {
+                    return (
+                      <p className="text-xs text-muted-foreground italic py-2">
+                        Aucun contact ni coordonnées renseignés pour ce chantier.
+                      </p>
+                    );
+                  }
 
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Email</p>
-                    {chantier.email ? (
-                      <div className="flex items-center justify-between gap-1">
-                        <a
-                          href={`mailto:${chantier.email}`}
-                          className="text-sm font-bold text-primary hover:underline truncate"
-                          title={chantier.email}
+                  // Nombre d'interlocuteurs nominatifs identifiés
+                  const mainCount = names.length > 0 ? names.length : Math.max(phones.length, emails.length);
+
+                  const contactsList = [];
+                  for (let i = 0; i < mainCount; i++) {
+                    contactsList.push({
+                      name: names[i] || (mainCount === 1 ? 'Contact principal' : `Contact #${i + 1}`),
+                      phone: phones[i] || null,
+                      email: emails[i] || null,
+                    });
+                  }
+
+                  // Coordonnées orphelines (ex: 1 interlocuteur mais 3 emails ou 3 numéros)
+                  const extraPhones = phones.slice(mainCount);
+                  const extraEmails = emails.slice(mainCount);
+
+                  return (
+                    <div className="space-y-2.5">
+                      {contactsList.map((c, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-border bg-card p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs hover:border-primary/40 transition-colors"
                         >
-                          {chantier.email}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(chantier.email!, 'Email')}
-                          className="text-muted-foreground hover:text-foreground p-0.5"
-                          title="Copier l'email"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">—</p>
-                    )}
-                  </div>
-                </div>
+                          {/* Identité du contact */}
+                          <div className="flex items-center gap-2.5 min-w-[200px]">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-foreground">
+                                {c.name}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground uppercase font-semibold">
+                                {idx === 0 ? 'Interlocuteur principal' : `Interlocuteur #${idx + 1}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Téléphone & Email du contact */}
+                          <div className="flex flex-wrap items-center gap-2 flex-1 justify-start md:justify-end">
+                            {/* Téléphone */}
+                            {c.phone ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                <Phone className="h-3 w-3 shrink-0" />
+                                <a
+                                  href={`tel:${c.phone.replace(/\s+/g, '')}`}
+                                  className="font-mono hover:underline"
+                                  title="Appeler ce numéro"
+                                >
+                                  {c.phone}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(c.phone!, 'Téléphone')}
+                                  className="text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 p-0.5 ml-0.5 cursor-pointer"
+                                  title="Copier le numéro"
+                                >
+                                  <Copy className="h-2.5 w-2.5" />
+                                </button>
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/60 italic px-1">
+                                Pas de tél. direct
+                              </span>
+                            )}
+
+                            {/* Email */}
+                            {c.email ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-2.5 py-1 text-xs font-semibold text-primary max-w-full">
+                                <Mail className="h-3 w-3 shrink-0" />
+                                <a
+                                  href={`mailto:${c.email}`}
+                                  className="hover:underline truncate max-w-[220px]"
+                                  title={c.email}
+                                >
+                                  {c.email}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(c.email!, 'Email')}
+                                  className="text-primary hover:text-primary/70 p-0.5 ml-0.5 cursor-pointer shrink-0"
+                                  title="Copier l'email"
+                                >
+                                  <Copy className="h-2.5 w-2.5" />
+                                </button>
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/60 italic px-1">
+                                Pas d'email direct
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Emails et numéros supplémentaires (s'il y a plus d'emails/numéros que de contacts) */}
+                      {(extraEmails.length > 0 || extraPhones.length > 0) && (
+                        <div className="rounded-xl border border-dashed border-border bg-muted/20 p-3 space-y-2 mt-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Coordonnées complémentaires du site
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {extraPhones.map((ph, idx) => (
+                              <span
+                                key={`ph-${idx}`}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+                              >
+                                <Phone className="h-3 w-3 shrink-0" />
+                                <a href={`tel:${ph.replace(/\s+/g, '')}`} className="font-mono hover:underline">
+                                  {ph}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(ph, 'Téléphone')}
+                                  className="text-emerald-700 hover:text-emerald-900 p-0.5 ml-0.5 cursor-pointer"
+                                  title="Copier le numéro"
+                                >
+                                  <Copy className="h-2.5 w-2.5" />
+                                </button>
+                              </span>
+                            ))}
+
+                            {extraEmails.map((em, idx) => (
+                              <span
+                                key={`em-${idx}`}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-2.5 py-1 text-xs font-semibold text-primary max-w-full"
+                              >
+                                <Mail className="h-3 w-3 shrink-0" />
+                                <a href={`mailto:${em}`} className="hover:underline truncate max-w-[240px]">
+                                  {em}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(em, 'Email')}
+                                  className="text-primary hover:text-primary/70 p-0.5 ml-0.5 cursor-pointer shrink-0"
+                                  title="Copier l'email"
+                                >
+                                  <Copy className="h-2.5 w-2.5" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
               )}
             </div>
 
@@ -857,52 +1117,229 @@ export default function ChantierDetailModal({
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-lg border border-border bg-card p-3 text-center">
-                  <p className="text-xs font-bold uppercase text-muted-foreground mb-1">C1 (Le plus récent)</p>
-                  <span
-                    className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${
-                      chantier.c1 === 'Globalement bon'
-                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                        : chantier.c1
-                        ? 'bg-destructive/15 text-destructive'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {chantier.c1 || 'Non noté'}
-                  </span>
-                </div>
+              {/* 3 Derniers Contrôles Visuels (C1, C2, C3) avec leurs dates respectives */}
+              {(() => {
+                const v1 = visitsHistory[0];
+                const v2 = visitsHistory[1];
+                const v3 = visitsHistory[2];
 
-                <div className="rounded-lg border border-border bg-card p-3 text-center">
-                  <p className="text-xs font-bold uppercase text-muted-foreground mb-1">C2 (Avant-dernier)</p>
-                  <span
-                    className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${
-                      chantier.c2 === 'Globalement bon'
-                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                        : chantier.c2
-                        ? 'bg-destructive/15 text-destructive'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {chantier.c2 || 'Non noté'}
-                  </span>
-                </div>
+                const dateC1 = v1?.date || chantier.dernierControle || null;
+                const dateC2 = v2?.date || null;
+                const dateC3 = v3?.date || null;
 
-                <div className="rounded-lg border border-border bg-card p-3 text-center">
-                  <p className="text-xs font-bold uppercase text-muted-foreground mb-1">C3 (3ème contrôle)</p>
-                  <span
-                    className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${
-                      chantier.c3 === 'Globalement bon'
-                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                        : chantier.c3
-                        ? 'bg-destructive/15 text-destructive'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {chantier.c3 || 'Non noté'}
-                  </span>
-                </div>
-              </div>
+                const qualC1 = chantier.c1 || v1?.qualite || null;
+                const qualC2 = chantier.c2 || v2?.qualite || null;
+                const qualC3 = chantier.c3 || v3?.qualite || null;
+
+                const last3Visits = visitsHistory.slice(0, 3);
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* C1 */}
+                      <div className="rounded-xl border border-border bg-card p-3 text-center flex flex-col justify-between shadow-2xs">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                            C1 (Le plus récent)
+                          </p>
+                          <p className="text-xs font-semibold text-foreground mb-2 flex items-center justify-center gap-1">
+                            <Calendar className="h-3 w-3 text-primary shrink-0" />
+                            <span>{fmtDate(dateC1)}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <span
+                            className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
+                              qualC1 === 'Globalement bon'
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                : qualC1 === 'Bases non respectées' || qualC1 === "Plan d'action urgent"
+                                ? 'bg-destructive/15 text-destructive border border-destructive/20'
+                                : qualC1
+                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {qualC1 || 'Non noté'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* C2 */}
+                      <div className="rounded-xl border border-border bg-card p-3 text-center flex flex-col justify-between shadow-2xs">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                            C2 (Avant-dernier)
+                          </p>
+                          <p className="text-xs font-semibold text-foreground mb-2 flex items-center justify-center gap-1">
+                            <Calendar className="h-3 w-3 text-primary shrink-0" />
+                            <span>{fmtDate(dateC2)}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <span
+                            className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
+                              qualC2 === 'Globalement bon'
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                : qualC2 === 'Bases non respectées' || qualC2 === "Plan d'action urgent"
+                                ? 'bg-destructive/15 text-destructive border border-destructive/20'
+                                : qualC2
+                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {qualC2 || 'Non noté'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* C3 */}
+                      <div className="rounded-xl border border-border bg-card p-3 text-center flex flex-col justify-between shadow-2xs">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                            C3 (3ème contrôle)
+                          </p>
+                          <p className="text-xs font-semibold text-foreground mb-2 flex items-center justify-center gap-1">
+                            <Calendar className="h-3 w-3 text-primary shrink-0" />
+                            <span>{fmtDate(dateC3)}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <span
+                            className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
+                              qualC3 === 'Globalement bon'
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                : qualC3 === 'Bases non respectées' || qualC3 === "Plan d'action urgent"
+                                ? 'bg-destructive/15 text-destructive border border-destructive/20'
+                                : qualC3
+                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {qualC3 || 'Non noté'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Historique unifié des passages & contrôles sur les 12 derniers mois */}
+                    {(() => {
+                      const now = new Date();
+                      const today = now.toISOString().slice(0, 10);
+                      const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+                      // Filtrage des passages sur les 12 derniers mois
+                      const visits12M = visitsHistory.filter(
+                        (v) => v.date && v.date >= twelveMonthsAgo && v.date <= today
+                      );
+                      const fullList = visits12M.length > 0 ? visits12M : visitsHistory;
+                      const countYear = visits12M.length || chantier.visites12MoisCount || fullList.length;
+                      const visibleVisits = isVisitsExpanded ? fullList : fullList.slice(0, 3);
+
+                      return (
+                        <div className="mt-4 pt-3 border-t border-border/80">
+                          <div className="flex items-center justify-between mb-2.5">
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 text-primary" />
+                              Historique des passages &amp; contrôles (12 derniers mois)
+                            </span>
+                            <span className="text-[11px] font-extrabold text-primary bg-primary/10 border border-primary/25 px-2.5 py-0.5 rounded-full">
+                              {countYear} passage{countYear > 1 ? 's' : ''} sur l'année
+                            </span>
+                          </div>
+
+                          {loadingHistory ? (
+                            <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                              <span>Chargement de l'historique des passages...</span>
+                            </div>
+                          ) : fullList.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic py-2">
+                              Aucun passage répertorié au cours des 12 derniers mois pour ce chantier.
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {visibleVisits.map((v, idx) => (
+                                <div
+                                  key={v.id || idx}
+                                  className="flex items-center justify-between p-2 rounded-lg bg-card border border-border text-xs shadow-2xs hover:border-primary/30 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span
+                                      className={`flex h-5 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold ${
+                                        idx === 0
+                                          ? 'bg-primary/15 text-primary'
+                                          : idx < 3
+                                          ? 'bg-primary/10 text-primary'
+                                          : 'bg-muted text-muted-foreground'
+                                      }`}
+                                    >
+                                      {idx === 0 ? 'C1' : idx === 1 ? 'C2' : idx === 2 ? 'C3' : `#${idx + 1}`}
+                                    </span>
+                                    <span className="font-semibold text-foreground truncate">
+                                      {fmtDate(v.date)}
+                                    </span>
+                                    {idx === 0 && (
+                                      <span className="text-[10px] text-muted-foreground italic shrink-0">
+                                        (Dernier)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span
+                                    className={`rounded px-2 py-0.5 text-xs font-bold shrink-0 ${
+                                      v.qualite === 'Globalement bon'
+                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                        : v.qualite === 'Bases non respectées' || v.qualite === "Plan d'action urgent"
+                                        ? 'bg-destructive/15 text-destructive border border-destructive/30'
+                                        : v.qualite && v.qualite !== 'Passage calendrier'
+                                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                        : 'bg-muted text-muted-foreground border border-border'
+                                    }`}
+                                  >
+                                    {v.qualite || 'Passage effectué'}
+                                  </span>
+                                </div>
+                              ))}
+
+                              {/* Bouton liste déroulante / accordéon si plus de 3 passages */}
+                              {fullList.length > 3 && (
+                                <div className="pt-1.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsVisitsExpanded(!isVisitsExpanded)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 bg-primary/5 hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    {isVisitsExpanded ? (
+                                      <>
+                                        <span>▲ Réduire l'historique</span>
+                                        <span className="text-[10px] font-normal text-muted-foreground">
+                                          (afficher les 3 derniers)
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>▼ Dérouler les {fullList.length - 3} autres passages de l'année</span>
+                                        <span className="text-[10px] font-bold bg-primary/15 rounded px-1.5 py-0.2">
+                                          {fullList.length} au total
+                                        </span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+
+                              {visitsHistory.length > fullList.length && (
+                                <p className="text-[11px] text-muted-foreground italic text-center pt-1">
+                                  {visitsHistory.length - fullList.length} passage(s) supplémentaire(s) enregistré(s) antérieurement aux 12 derniers mois.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Section 5 : Exploitation & Type de site */}

@@ -7,24 +7,31 @@ import type { Machine, PlanningItem, PlanningEventDetail } from './types';
 import { InspectionForm } from './components/InspectionForm';
 import { MaintenanceMatrix } from './components/MaintenanceMatrix';
 import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
-import { StockManagement, getLowStockPartsCount } from './components/StockManagement';
-import { isRealCleaningMachine } from './components/MachineSelect';
+import { isRealCleaningMachine, AlertContextSelect } from './components/MachineSelect';
 import {
   fetchReferentielPoints,
   fetchRealisedControles,
   fetchRepairTickets,
+  fetchMaintenanceAlerts,
+  sendMaintenanceAlert,
+  markMaintenanceAlertSeen,
+  archiveMaintenanceAlert,
+  fetchMachineBoardColumnsMeta,
+  extractMachineAffectations,
   reschedulePlanningEvent,
   updateMachineStatus,
+  syncAllHubColumns,
+  SECTEUR_RESPONSABLES,
   ReferentielPoint,
   RealisedControle,
   RepairTicket,
+  MaintenanceAlertMessage,
 } from './services/maintenanceApi';
 import {
   ClipboardCheck,
   Calendar as CalendarIcon,
   LayoutGrid,
   BarChart3,
-  Package,
   X,
   Search,
   CheckCircle2,
@@ -33,6 +40,12 @@ import {
   Wrench,
   Clock,
   RotateCcw,
+  Bell,
+  Send,
+  Users,
+  Car,
+  MapPin,
+  Trash2,
 } from 'lucide-react';
 
 type KpiFilter = 'all' | 'service' | 'reparation' | 'verifier_sortie';
@@ -46,13 +59,13 @@ const getTodayStr = () => {
   return `${year}-${month}-${day}`;
 };
 
-// Helper pour extraire la valeur texte d'une colonne Monday
+// Helper pour extraire la valeur texte (y compris Mirror / BoardRelation) d'une colonne Monday
 const getColText = (
-  item: { column_values?: Array<{ id: string; text: string; value?: string | null }> },
+  item: { column_values?: Array<{ id: string; text?: string | null; display_value?: string | null; value?: string | null }> },
   colId: string
 ): string => {
   const col = item.column_values?.find((c) => c.id === colId);
-  return col?.text?.trim() || '—';
+  return (col?.text || col?.display_value || '').trim() || '—';
 };
 
 // Helper pour parser la timeline JSON {"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}
@@ -112,8 +125,15 @@ export const App = () => {
   const [planningItems, setPlanningItems] = useState<PlanningItem[]>([]);
 
   // Navigation par onglets du Hub : Fiche de Contrôle par défaut
-  const [activeTab, setActiveTab] = useState<'inspection' | 'matrix' | 'agenda' | 'indicators' | 'stock'>('inspection');
-  const [lowStockCount, setLowStockCount] = useState<number>(() => getLowStockPartsCount());
+  const [activeTab, setActiveTab] = useState<'inspection' | 'matrix' | 'agenda' | 'indicators'>('inspection');
+  const [machineColsMeta, setMachineColsMeta] = useState<Record<string, string>>({});
+  const [affectationSearch, setAffectationSearch] = useState<string>('');
+  const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlertMessage[]>([]);
+  const [isAlertsModalOpen, setIsAlertsModalOpen] = useState<boolean>(false);
+  const [alertRecipient, setAlertRecipient] = useState<string>('Natacha THOMAS');
+  const [alertMachineInput, setAlertMachineInput] = useState<string>('');
+  const [alertTextInput, setAlertTextInput] = useState<string>('');
+  const [sendingAlert, setSendingAlert] = useState<boolean>(false);
 
   // Filtre tuile KPI
   const [activeTile, setActiveTile] = useState<KpiFilter | null>(null);
@@ -154,6 +174,12 @@ export const App = () => {
                   ... on FormulaValue {
                     display_value
                   }
+                  ... on MirrorValue {
+                    display_value
+                  }
+                  ... on BoardRelationValue {
+                    display_value
+                  }
                 }
               }
             }
@@ -186,6 +212,12 @@ export const App = () => {
                   id
                   text
                   value
+                  ... on MirrorValue {
+                    display_value
+                  }
+                  ... on BoardRelationValue {
+                    display_value
+                  }
                 }
               }
             }
@@ -204,14 +236,18 @@ export const App = () => {
   // 4. Chargement des contrôles réalisés, du référentiel et des réparations
   const loadMaintenanceData = useCallback(async () => {
     try {
-      const [pts, ctrls, repairs] = await Promise.all([
+      const [pts, ctrls, repairs, alerts, colsMeta] = await Promise.all([
         fetchReferentielPoints(),
         fetchRealisedControles(),
         fetchRepairTickets(),
+        fetchMaintenanceAlerts(),
+        fetchMachineBoardColumnsMeta(),
       ]);
       setReferentielPoints(pts);
       setRealisedControles(ctrls);
       setRepairTickets(repairs);
+      setMaintenanceAlerts(alerts);
+      setMachineColsMeta(colsMeta);
     } catch (err) {
       console.error('Erreur chargement données maintenance:', err);
     }
@@ -223,21 +259,7 @@ export const App = () => {
     loadMaintenanceData();
 
     // Synchronisation silencieuse des colonnes dédiées du Hub sur les tableaux Monday
-    import('./services/maintenanceApi')
-      .then(({ syncAllHubColumns }) => syncAllHubColumns())
-      .catch(() => {});
-
-    // Synchronisation silencieuse du compteur d'alertes stock depuis le tableau Monday partagé
-    import('./services/stockApi')
-      .then(async ({ discoverStockBoard, fetchStockPartsFromMonday }) => {
-        const schema = await discoverStockBoard();
-        if (!schema) return;
-        const mondayParts = await fetchStockPartsFromMonday(schema);
-        setLowStockCount(mondayParts.filter((p) => p.currentStock <= p.minStock).length);
-      })
-      .catch(() => {
-        // Fallback silencieux sur localStorage si tableau non encore créé ou hors ligne
-      });
+    syncAllHubColumns().catch(() => {});
   }, [fetchMachines, fetchPlanning, loadMaintenanceData]);
 
   // Matériel réel de nettoyage uniquement (exclusion automatique des chargeurs, batteries, accessoires et "bis")
@@ -285,14 +307,14 @@ export const App = () => {
     [openRepairMachineMatch]
   );
 
-  // Classifieur unique partagé entre les tuiles KPI et la liste filtrée (garantit En service + En réparation + À vérifier/Sortie === Total)
+  // Classifieur unique basé sur le statut réel de la machine sur Monday
   const getMachineKpiCategory = useCallback(
     (m: Machine): Exclude<KpiFilter, 'all'> => {
       const statusText = getColText(m, 'color_mm8dremb').toLowerCase();
       if (statusText.includes('sortie') || statusText.includes('hors')) {
         return 'verifier_sortie';
       }
-      if (statusText.includes('réparation') || statusText.includes('reparation') || hasOpenRepairTicket(m)) {
+      if (statusText.includes('réparation') || statusText.includes('reparation') || statusText.includes('panne')) {
         return 'reparation';
       }
       if (statusText.includes('vérifier') || statusText.includes('verifier') || statusText.includes('remettre')) {
@@ -301,7 +323,7 @@ export const App = () => {
       if (statusText.includes('service')) {
         return 'service';
       }
-      return 'verifier_sortie';
+      return hasOpenRepairTicket(m) ? 'reparation' : 'verifier_sortie';
     },
     [hasOpenRepairTicket]
   );
@@ -398,6 +420,13 @@ export const App = () => {
         .replace(/^contr[oô]le\s*[-:]*\s*/gi, '')
         .trim();
 
+      const matchedMachineForEvent = realMachines.find(
+        (m) =>
+          (c.machineId && String(m.id) === String(c.machineId)) ||
+          m.name.toLowerCase().trim() === cleanMachineName.toLowerCase().trim()
+      );
+      const eventSite = matchedMachineForEvent ? getColText(matchedMachineForEvent, 'dropdown_mm8d4vj2') : '—';
+
       events.push({
         id: `controle-${c.id}`,
         title: `${symbol} ${cleanMachineName}`,
@@ -410,8 +439,8 @@ export const App = () => {
           isControleRealise: true,
           controleData: c,
           machine: cleanMachineName,
-          site: '—',
-          reservedBy: 'Technicien Terrain',
+          site: eventSite,
+          reservedBy: c.technicienName || 'Christophe',
           type: 'Contrôle Technique',
           status: `Résultat : ${c.etatGeneral}`,
           fromDate: c.date,
@@ -646,8 +675,49 @@ export const App = () => {
           </div>
         </div>
 
-        {/* Indicateur de date et statut rapide */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Indicateur de date, cloche alertes bidirectionnelles et statut rapide */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {(() => {
+            const unreadIncoming = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
+            return (
+              <button
+                type="button"
+                onClick={() => setIsAlertsModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  border: unreadIncoming > 0 ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
+                  backgroundColor: unreadIncoming > 0 ? '#FFF8EC' : '#F5F9FC',
+                  color: unreadIncoming > 0 ? '#B86114' : '#1B4565',
+                  fontSize: '12.5px',
+                  fontWeight: 800,
+                  fontFamily: "'Ruda', sans-serif",
+                  cursor: 'pointer',
+                }}
+              >
+                <Bell size={15} color={unreadIncoming > 0 ? '#D66927' : '#39A9DC'} />
+                <span>Alertes Atelier ↔ Secteur</span>
+                {unreadIncoming > 0 && (
+                  <span
+                    style={{
+                      backgroundColor: '#E2445C',
+                      color: '#FFFFFF',
+                      borderRadius: '10px',
+                      padding: '1px 7px',
+                      fontSize: '11px',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {unreadIncoming}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
+
           <div
             style={{
               display: 'flex',
@@ -800,46 +870,6 @@ export const App = () => {
             </span>
           )}
         </button>
-
-        {/* Onglet 5 : Gestion des Stocks Pièces & Consommables */}
-        <button
-          type="button"
-          onClick={() => setActiveTab('stock')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '9px',
-            padding: '11px 22px',
-            borderRadius: '12px',
-            border: activeTab === 'stock' ? '1.5px solid #6366F1' : '1px solid #E2EEF5',
-            backgroundColor: activeTab === 'stock' ? '#6366F1' : '#FFFFFF',
-            color: activeTab === 'stock' ? '#FFFFFF' : '#1B4565',
-            fontFamily: "'Ruda', sans-serif",
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
-            boxShadow: activeTab === 'stock' ? '0 4px 14px rgba(99, 102, 241, 0.3)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <Package size={19} />
-          Stocks Pièces &amp; Consommables
-          {lowStockCount > 0 && (
-            <span
-              style={{
-                backgroundColor: activeTab === 'stock' ? '#FFFFFF' : '#F7AC37',
-                color: activeTab === 'stock' ? '#6366F1' : '#FFFFFF',
-                borderRadius: '10px',
-                padding: '2px 7px',
-                fontSize: '11px',
-                fontWeight: 800,
-                marginLeft: '4px',
-              }}
-            >
-              {lowStockCount}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* Message de notification global */}
@@ -879,6 +909,7 @@ export const App = () => {
         <InspectionForm
           machines={activeParcMachines}
           referentielPoints={referentielPoints}
+          realisedControles={realisedControles}
           initialMachineId={preSelectedMachineId}
           onInspectionSuccess={(name, date) => {
             loadMaintenanceData();
@@ -1043,9 +1074,16 @@ export const App = () => {
                 boxShadow: '0 6px 20px rgba(57, 169, 220, 0.1)',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ fontWeight: 800, fontSize: '15px', fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
-                  Machines filtrées : {filteredMachines.length} résultat(s)
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '15px', fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
+                    Machines filtrées : {filteredMachines.length} résultat(s)
+                  </div>
+                  {activeTile === 'reparation' && (
+                    <div style={{ fontSize: '12px', color: '#57778E', marginTop: '3px' }}>
+                      Filtré sur le statut Monday <b>« En réparation »</b> (Liste des machines). Les machines <b>En service</b> avec un ancien ticket non clôturé portent un badge orange cliquable.
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -1106,20 +1144,24 @@ export const App = () => {
                           {getColText(m, 'color_mm8t2mn5')}
                         </span>
                         {openTicket && (
-                          <span
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('indicators')}
+                            title="Voir / clôturer le ticket dans l'onglet Plan d'action"
                             style={{
                               marginLeft: '8px',
                               fontSize: '11px',
                               fontWeight: 700,
-                              color: '#B91C1C',
-                              backgroundColor: '#FEF2F2',
-                              border: '1px solid #FECACA',
+                              color: isInService ? '#D66927' : '#961C2E',
+                              backgroundColor: isInService ? '#FFF8EC' : '#FDECEE',
+                              border: isInService ? '1px solid #FDE2B8' : '1px solid #F5C6CB',
                               borderRadius: '6px',
-                              padding: '2px 7px',
+                              padding: '2px 8px',
+                              cursor: 'pointer',
                             }}
                           >
-                            🔧 Ticket réparation actif
-                          </span>
+                            {isInService ? '⚠️ Ticket curatif ouvert (clôturer) ➔' : '🔧 Ticket réparation actif ➔'}
+                          </button>
                         )}
                       </div>
 
@@ -1276,6 +1318,150 @@ export const App = () => {
               dayMaxEvents={3}
             />
           </div>
+
+          {/* Section 03 : Affectations du Parc (Personne / Voiture / Site) */}
+          {(() => {
+            const affectations = extractMachineAffectations(realMachines, planningItems, machineColsMeta);
+            const q = affectationSearch.trim().toLowerCase();
+            const filteredAffectations = affectations.filter((a) => {
+              if (!q) return true;
+              return (
+                a.machineName.toLowerCase().includes(q) ||
+                a.site.toLowerCase().includes(q) ||
+                a.personne.toLowerCase().includes(q) ||
+                a.voiture.toLowerCase().includes(q) ||
+                a.machineType.toLowerCase().includes(q)
+              );
+            });
+
+            return (
+              <div style={{ marginTop: '26px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    marginBottom: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span
+                      style={{
+                        backgroundColor: '#1B4565',
+                        color: '#FFFFFF',
+                        fontFamily: "'Ruda', sans-serif",
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        padding: '3px 9px',
+                        borderRadius: '6px',
+                      }}
+                    >
+                      03
+                    </span>
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontSize: '18px',
+                        fontWeight: 800,
+                        fontFamily: "'Ruda', sans-serif",
+                        color: '#1B4565',
+                      }}
+                    >
+                      Affectations Machines (Personne / Voiture / Site)
+                    </h2>
+                  </div>
+
+                  <div style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
+                    <Search size={15} color="#6C8CA3" style={{ position: 'absolute', left: '11px', top: '9px' }} />
+                    <input
+                      type="text"
+                      value={affectationSearch}
+                      onChange={(e) => setAffectationSearch(e.target.value)}
+                      placeholder="Rechercher site, personne, voiture, machine..."
+                      style={{
+                        width: '100%',
+                        padding: '7px 12px 7px 34px',
+                        borderRadius: '10px',
+                        border: '1px solid #C8DCE8',
+                        fontSize: '12.5px',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '16px',
+                    border: '1px solid #E2EEF5',
+                    boxShadow: '0 4px 16px rgba(27, 69, 101, 0.04)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                      <thead style={{ position: 'sticky', top: 0, backgroundColor: '#F5F9FC', zIndex: 1 }}>
+                        <tr style={{ borderBottom: '1.5px solid #D2E9F6', color: '#1B4565' }}>
+                          <th style={{ padding: '10px 14px', fontWeight: 800 }}>Machine</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <MapPin size={13} color="#39A9DC" /> Site d&apos;affectation
+                            </span>
+                          </th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <Users size={13} color="#39A9DC" /> Personne / Resp.
+                            </span>
+                          </th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <Car size={13} color="#39A9DC" /> Voiture / Véhicule
+                            </span>
+                          </th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800 }}>Statut</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredAffectations.map((a) => (
+                          <tr key={a.machineId} style={{ borderBottom: '1px solid #F0F5F8' }}>
+                            <td style={{ padding: '9px 14px', fontWeight: 700, color: '#1B4565' }}>
+                              <div>{a.machineName}</div>
+                              <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>{a.machineType}</div>
+                            </td>
+                            <td style={{ padding: '9px 12px', color: '#1B4565', fontWeight: 600 }}>{a.site}</td>
+                            <td style={{ padding: '9px 12px', color: a.personne === 'Non attribué' ? '#94A3B8' : '#3989B7', fontWeight: 700 }}>
+                              {a.personne}
+                            </td>
+                            <td style={{ padding: '9px 12px', color: a.voiture === '—' ? '#94A3B8' : '#1B4565', fontWeight: 600 }}>
+                              {a.voiture}
+                            </td>
+                            <td style={{ padding: '9px 12px' }}>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: '8px',
+                                  backgroundColor: a.status.toLowerCase().includes('répar') ? '#FEE2E2' : '#ECFDF5',
+                                  color: a.status.toLowerCase().includes('répar') ? '#DC2626' : '#059669',
+                                }}
+                              >
+                                {a.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -1293,11 +1479,6 @@ export const App = () => {
             setActiveTab('inspection');
           }}
         />
-      )}
-
-      {/* ================= ONGLET 5 : STOCKS PIÈCES & CONSOMMABLES ================= */}
-      {activeTab === 'stock' && (
-        <StockManagement onLowStockCountChange={setLowStockCount} />
       )}
 
       {/* Modal Détail du passage / événement (Interactif) */}
@@ -1394,12 +1575,28 @@ export const App = () => {
                 {selectedEvent.controleData.tempsPasse && (
                   <div><b>Temps passé :</b> {selectedEvent.controleData.tempsPasse} min</div>
                 )}
-                {selectedEvent.controleData.anomalies && (
-                  <div style={{ marginTop: '4px', padding: '8px', backgroundColor: '#FFF7F7', borderRadius: '8px', border: '1px solid #F5C6CB', color: '#961C2E', fontSize: '12px', whiteSpace: 'pre-line' }}>
-                    <b>Remarques / Anomalies :</b><br />
-                    {selectedEvent.controleData.anomalies}
-                  </div>
-                )}
+                {selectedEvent.controleData.anomalies && (() => {
+                  const statusLower = (selectedEvent.status || '').toLowerCase();
+                  const isAlertBox = selectedEvent.isMachineInRepair || statusLower.includes('orange') || statusLower.includes('rouge') || statusLower.includes('non conforme') || statusLower.includes('nc');
+                  return (
+                    <div
+                      style={{
+                        marginTop: '4px',
+                        padding: '10px 12px',
+                        backgroundColor: isAlertBox ? '#FFF7F7' : '#EBF6FC',
+                        borderRadius: '8px',
+                        border: isAlertBox ? '1px solid #F5C6CB' : '1px solid #D2E9F6',
+                        color: isAlertBox ? '#961C2E' : '#1B4565',
+                        fontSize: '12px',
+                        whiteSpace: 'pre-line',
+                      }}
+                    >
+                      <b>{isAlertBox ? 'Remarques / Anomalies :' : 'Synthèse du contrôle :'}</b>
+                      <br />
+                      {selectedEvent.controleData.anomalies}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1506,6 +1703,291 @@ export const App = () => {
               >
                 Fermer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Alertes Bidirectionnelles Atelier (Christophe) <-> Responsables de Secteur */}
+      {isAlertsModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 39, 58, 0.58)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAlertsModalOpen(false);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '720px',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 24px 60px rgba(15, 39, 58, 0.25)',
+              border: '1px solid #DDE7F0',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid #E2E8F0',
+                backgroundColor: '#F8FBFD',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
+                  🔔 Alertes Bidirectionnelles Atelier ↔ Responsables de Secteur
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#57778E' }}>
+                  Recevez les signalements des animatrices et envoyez des alertes vers leurs Hubs
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAlertsModalOpen(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#FFFFFF',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: '18px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Formulaire d'envoi vers Responsable de Secteur */}
+              <div
+                style={{
+                  backgroundColor: '#FFF8EC',
+                  border: '1px solid #F7AC37',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#D66927', fontFamily: "'Ruda', sans-serif" }}>
+                  📢 Envoyer une alerte vers un Hub Responsable de Secteur
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <select
+                    value={alertRecipient}
+                    onChange={(e) => setAlertRecipient(e.target.value)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #F7AC37',
+                      backgroundColor: '#FFFFFF',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      color: '#1B4565',
+                    }}
+                  >
+                    {SECTEUR_RESPONSABLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                  <AlertContextSelect
+                    machines={machines}
+                    value={alertMachineInput}
+                    onChange={setAlertMachineInput}
+                    getCol={getColText}
+                    placeholder="Machine / Site concerné (optionnel)"
+                    accentColor="#F7AC37"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={alertTextInput}
+                    onChange={(e) => setAlertTextInput(e.target.value)}
+                    placeholder="Message / Alerte (ex: Machine non rincée, câble abîmé, demander devis...)"
+                    style={{
+                      flex: 1,
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #F7AC37',
+                      fontSize: '12.5px',
+                      color: '#1B4565',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={sendingAlert || !alertTextInput.trim()}
+                    onClick={async () => {
+                      if (!alertTextInput.trim()) return;
+                      setSendingAlert(true);
+                      const res = await sendMaintenanceAlert({
+                        recipientPerson: alertRecipient,
+                        machineName: alertMachineInput.trim() || undefined,
+                        message: alertTextInput.trim(),
+                        senderName: 'Christophe',
+                      });
+                      setSendingAlert(false);
+                      if (res.success) {
+                        setAlertTextInput('');
+                        setAlertMachineInput('');
+                        setSuccessMessage(`Alerte transmise vers le Hub de ${alertRecipient} !`);
+                        await loadMaintenanceData();
+                      } else {
+                        alert(`Erreur envoi alerte : ${res.error}`);
+                      }
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#D66927',
+                      color: '#FFFFFF',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      fontFamily: "'Ruda', sans-serif",
+                      cursor: sendingAlert ? 'wait' : 'pointer',
+                    }}
+                  >
+                    <Send size={13} />
+                    {sendingAlert ? 'Envoi...' : 'Envoyer'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Flux des alertes reçues & envoyées */}
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', fontFamily: "'Ruda', sans-serif", marginBottom: '8px' }}>
+                  Historique des échanges ({maintenanceAlerts.length})
+                </div>
+                {maintenanceAlerts.length === 0 ? (
+                  <div style={{ fontSize: '12.5px', color: '#64748B', fontStyle: 'italic', padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px' }}>
+                    Aucune alerte échangée pour le moment entre l&apos;Atelier et les Responsables de Secteur.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {maintenanceAlerts.map((al) => {
+                      const isIncoming = al.direction === 'to_atelier';
+                      return (
+                        <div
+                          key={al.id}
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            border: `1px solid ${al.seen ? '#E2EEF5' : isIncoming ? '#F5C6CB' : '#D2E9F6'}`,
+                            backgroundColor: al.seen ? '#F8FCFE' : isIncoming ? '#FDECEE' : '#EBF6FC',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
+                              <span
+                                style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 800,
+                                  padding: '2px 7px',
+                                  borderRadius: '6px',
+                                  fontFamily: "'Ruda', sans-serif",
+                                  backgroundColor: isIncoming ? '#FDECEE' : '#D2E9F6',
+                                  color: isIncoming ? '#961C2E' : '#1B4565',
+                                }}
+                              >
+                                {isIncoming ? '⬅️ Reçue (Secteur ➔ Atelier)' : `➡️ Envoyée vers ${al.person || 'Secteur'}`}
+                              </span>
+                              {al.date && <span style={{ fontSize: '11px', color: '#64748B' }}>📅 {al.date}</span>}
+                              {al.seen && (
+                                <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>✓ Vu</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#1B4565' }}>{al.title}</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            {!al.seen && isIncoming && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await markMaintenanceAlertSeen(al.id);
+                                  await loadMaintenanceData();
+                                }}
+                                style={{
+                                  padding: '6px 11px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #10B981',
+                                  backgroundColor: '#ECFDF5',
+                                  color: '#047857',
+                                  fontSize: '11.5px',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                Marquer Vu ✓
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              title="Supprimer / archiver cette alerte sur Monday"
+                              onClick={async () => {
+                                const res = await archiveMaintenanceAlert(al.id);
+                                if (res.success) {
+                                  setMaintenanceAlerts((prev) => prev.filter((item) => item.id !== al.id));
+                                } else {
+                                  alert(`Erreur suppression alerte : ${res.error}`);
+                                }
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '6px 9px',
+                                borderRadius: '8px',
+                                border: '1px solid #FECACA',
+                                backgroundColor: '#FEF2F2',
+                                color: '#B91C1C',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              <Trash2 size={13} />
+                              Supprimer
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -570,3 +570,364 @@ export const MachineSelect: React.FC<MachineSelectProps> = ({
   );
 };
 
+interface AlertContextSelectProps {
+  machines: Machine[];
+  value: string;
+  onChange: (value: string) => void;
+  getCol: (m: Machine, colId: string) => string;
+  placeholder?: string;
+  accentColor?: string;
+}
+
+/**
+ * Sélecteur déroulant style Google (adapté depuis MachineSelect) pour choisir
+ * rapidement une machine du parc, un site d'affectation ou une saisie libre.
+ */
+export const AlertContextSelect: React.FC<AlertContextSelectProps> = ({
+  machines,
+  value,
+  onChange,
+  getCol,
+  placeholder = 'Machine / Site concerné (optionnel)',
+  accentColor = '#F7AC37',
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 40);
+    }
+  }, [isOpen]);
+
+  const sites = useMemo(() => {
+    const set = new Set<string>();
+    machines.forEach((m) => {
+      const s = getCol(m, 'dropdown_mm8d4vj2');
+      if (s && s !== '—' && s.toLowerCase() !== 'non attribué') {
+        set.add(s);
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  }, [machines, getCol]);
+
+  const sortedMachines = useMemo(() => {
+    return machines
+      .filter((m) => isRealCleaningMachine(m, getCol))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' }));
+  }, [machines, getCol]);
+
+  const q = search.toLowerCase().trim();
+  const filteredSites = useMemo(() => {
+    if (!q) return sites;
+    return sites.filter((s) => s.toLowerCase().includes(q));
+  }, [sites, q]);
+
+  const filteredMachines = useMemo(() => {
+    if (!q) return sortedMachines;
+    return sortedMachines.filter((m) => {
+      const name = m.name.toLowerCase();
+      const type = getCol(m, 'color_mm8t2mn5').toLowerCase();
+      const site = getCol(m, 'dropdown_mm8d4vj2').toLowerCase();
+      return name.includes(q) || type.includes(q) || site.includes(q);
+    });
+  }, [sortedMachines, q, getCol]);
+
+  const getBadgeNumber = (name: string) => {
+    const match = name.match(/^(\d+)/);
+    if (match) return match[1];
+    const parts = name.trim().split(/\s+/);
+    if (parts.length > 0 && parts[0].length <= 3) return parts[0];
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const handlePick = (nextValue: string) => {
+    onChange(nextValue);
+    setIsOpen(false);
+    setSearch('');
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setIsOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen((o) => !o);
+          }
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          padding: '7px 10px',
+          borderRadius: '8px',
+          border: `1px solid ${isOpen ? '#39A9DC' : accentColor}`,
+          backgroundColor: '#FFFFFF',
+          cursor: 'pointer',
+          minHeight: '36px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+          <Search size={13} color="#3989B7" style={{ flexShrink: 0 }} />
+          <span
+            style={{
+              fontSize: '12.5px',
+              fontWeight: value ? 700 : 500,
+              color: value ? '#1B4565' : '#6C8CA3',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {value || placeholder}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          {value && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+                setSearch('');
+              }}
+              title="Effacer"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#6C8CA3',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <X size={13} />
+            </button>
+          )}
+          <ChevronDown
+            size={14}
+            color={isOpen ? '#39A9DC' : '#6C8CA3'}
+            style={{
+              transition: 'transform 0.15s ease',
+              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            }}
+          />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 5px)',
+            left: 0,
+            right: 0,
+            zIndex: 10050,
+            backgroundColor: '#FFFFFF',
+            borderRadius: '12px',
+            border: '1.5px solid #39A9DC',
+            boxShadow: '0 14px 36px rgba(27, 69, 101, 0.22)',
+            padding: '8px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ position: 'relative', marginBottom: '8px' }}>
+            <Search size={14} color="#39A9DC" style={{ position: 'absolute', left: '10px', top: '9px' }} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher n°, machine ou site..."
+              style={{
+                width: '100%',
+                padding: '7px 28px 7px 32px',
+                borderRadius: '8px',
+                border: '1px solid #C8DCE8',
+                backgroundColor: '#F8FCFE',
+                fontSize: '12.5px',
+                color: '#1B4565',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '7px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#6C8CA3',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {filteredSites.length > 0 && (
+              <>
+                <div style={{ padding: '2px 6px', fontSize: '10px', fontWeight: 800, color: '#3989B7', textTransform: 'uppercase' }}>
+                  Sites d&apos;affectation ({filteredSites.length})
+                </div>
+                {filteredSites.slice(0, 25).map((site) => {
+                  const formatted = `Site : ${site}`;
+                  const isSelected = value === formatted || value === site;
+                  return (
+                    <div
+                      key={`site-${site}`}
+                      onClick={() => handlePick(formatted)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: '#1B4565',
+                      }}
+                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = '#F5F9FC'; }}
+                      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <MapPin size={13} color="#39A9DC" />
+                        {site}
+                      </span>
+                      {isSelected && <Check size={13} color="#39A9DC" />}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {filteredMachines.length > 0 && (
+              <>
+                <div style={{ padding: '4px 6px 2px', fontSize: '10px', fontWeight: 800, color: '#3989B7', textTransform: 'uppercase' }}>
+                  Machines du parc ({filteredMachines.length})
+                </div>
+                {filteredMachines.map((m) => {
+                  const site = getCol(m, 'dropdown_mm8d4vj2');
+                  const type = getCol(m, 'color_mm8t2mn5') || 'Général';
+                  const formatted = site && site !== '—' ? `${m.name} (${site})` : m.name;
+                  const isSelected = value === formatted || value === m.name;
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => handlePick(formatted)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        padding: '7px 8px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
+                      }}
+                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = '#F5F9FC'; }}
+                      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <span
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '6px',
+                            backgroundColor: isSelected ? '#39A9DC' : '#EBF6FC',
+                            color: isSelected ? '#FFFFFF' : '#39A9DC',
+                            fontSize: '11px',
+                            fontWeight: 900,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {getBadgeNumber(m.name)}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {m.name}
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: '#57778E', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <span>{type}</span>
+                            {site && site !== '—' && <span>· {site}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      {isSelected && <Check size={13} color="#39A9DC" />}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {filteredSites.length === 0 && filteredMachines.length === 0 && !search.trim() && (
+              <div style={{ padding: '14px', textAlign: 'center', fontSize: '12px', color: '#6C8CA3' }}>
+                Aucune machine ou site disponible.
+              </div>
+            )}
+
+            {search.trim() && (
+              <div
+                onClick={() => handlePick(search.trim())}
+                style={{
+                  marginTop: '4px',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  border: '1px dashed #39A9DC',
+                  backgroundColor: '#F8FCFE',
+                  color: '#1B4565',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                + Utiliser « {search.trim()} »
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+

@@ -414,7 +414,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                 Intégrer un Acte d&apos;Intervention Fournisseur (PDF)
               </h2>
               <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#57778E' }}>
-                Importez un rapport Diversey, Kärcher ou SAV externe ➔ création dans « Réparation machines » + historique machine
+                Lecture multi-fournisseurs automatique (Diversey, Kärcher, Nilfisk, SAV externes, factures PDF) ➔ ticket + coût + historique
               </p>
             </div>
           </div>
@@ -893,6 +893,21 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                         <option value="En attente de devis">📄 En attente de devis</option>
                         <option value="À traiter">🚨 À traiter</option>
                       </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Coût intervention (€ HT)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={order.totalHT ?? ''}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          updateOrderField('totalHT', raw === '' ? undefined : Number(raw));
+                        }}
+                        style={inputStyle}
+                        placeholder={order.underWarranty ? '0 (sous garantie)' : 'Ex: 345.00'}
+                      />
                     </div>
                   </div>
 

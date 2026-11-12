@@ -17,19 +17,28 @@ import {
   RotateCw,
   Truck,
   ShieldAlert,
+  Info,
+  History,
+  Plus,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import {
   ReferentielPoint,
+  RealisedControle,
+  SECTEUR_RESPONSABLES,
   filterPointsByMachineType,
   submitFicheControle,
   FicheControleSubmission,
 } from '../services/maintenanceApi';
 import { MachineSelect } from './MachineSelect';
 
+const TECHNICIANS_STORAGE_KEY = 'facility_technicians_v1';
+const DEFAULT_TECHNICIANS = ['Christophe', 'Guillaume', 'Technicien Externe'];
+
 interface InspectionFormProps {
   machines: Machine[];
   referentielPoints: ReferentielPoint[];
+  realisedControles?: RealisedControle[];
   initialMachineId?: string;
   onInspectionSuccess: (machineName: string, date: string) => void;
 }
@@ -37,6 +46,7 @@ interface InspectionFormProps {
 export const InspectionForm: React.FC<InspectionFormProps> = ({
   machines,
   referentielPoints,
+  realisedControles = [],
   initialMachineId,
   onInspectionSuccess,
 }) => {
@@ -51,7 +61,22 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
     const now = new Date();
     return now.toISOString().split('T')[0];
   });
+  const [technicienOptions, setTechnicienOptions] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(TECHNICIANS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_TECHNICIANS;
+  });
   const [technicienName, setTechnicienName] = useState<string>('Christophe');
+  const [isAddingTech, setIsAddingTech] = useState<boolean>(false);
+  const [newTechInput, setNewTechInput] = useState<string>('');
+  const [showStep3Info, setShowStep3Info] = useState<boolean>(false);
+  const [showMachineHistory, setShowMachineHistory] = useState<boolean>(true);
+  const [targetAnimatrice, setTargetAnimatrice] = useState<string>('Natacha THOMAS');
   const [pastilleConforme, setPastilleConforme] = useState<boolean>(true);
   const [noteSurDix, setNoteSurDix] = useState<number>(8);
   const [etatGeneral, setEtatGeneral] = useState<'OK' | 'Moyen' | 'Non conforme'>('OK');
@@ -83,6 +108,35 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   const selectedMachine = useMemo(() => {
     return machines.find((m) => m.id === selectedMachineId) || null;
   }, [machines, selectedMachineId]);
+
+  // Historique des contrôles réalisés pour la machine sélectionnée
+  const selectedMachineHistory = useMemo(() => {
+    if (!selectedMachine) return [];
+    const targetNameNorm = selectedMachine.name.trim().toLowerCase();
+    return realisedControles
+      .filter((c) => {
+        if (c.machineId && String(c.machineId) === String(selectedMachine.id)) return true;
+        const cNameNorm = (c.machineName || c.name || '').trim().toLowerCase();
+        return (
+          cNameNorm === targetNameNorm ||
+          (targetNameNorm.length >= 4 && cNameNorm.includes(targetNameNorm))
+        );
+      })
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [selectedMachine, realisedControles]);
+
+  const handleAddTechnician = () => {
+    const clean = newTechInput.trim();
+    if (!clean) return;
+    const next = Array.from(new Set([...technicienOptions, clean]));
+    setTechnicienOptions(next);
+    setTechnicienName(clean);
+    setNewTechInput('');
+    setIsAddingTech(false);
+    try {
+      localStorage.setItem(TECHNICIANS_STORAGE_KEY, JSON.stringify(next));
+    } catch {}
+  };
 
   // Type et site de la machine sélectionnée
   const machineType = selectedMachine ? getCol(selectedMachine, 'color_mm8t2mn5') : '';
@@ -150,6 +204,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
       tempsPasseMinutes: tempsPasse,
       heuresCompteur,
       remarqueAnimatrice: shouldNotifySecteur ? trimmedNote : '',
+      targetAnimatrice: shouldNotifySecteur ? targetAnimatrice : undefined,
       anomaliesText: !shouldNotifySecteur ? trimmedNote : '',
       ncActions,
       pointsEvaluations: evaluations,
@@ -377,7 +432,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
             {/* Technicien & Date d'intervention */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 <User size={15} color="#39A9DC" />
                 <span
                   style={{
@@ -389,24 +444,122 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 >
                   Technicien :
                 </span>
-                <input
-                  type="text"
-                  value={technicienName}
-                  onChange={(e) => setTechnicienName(e.target.value)}
-                  placeholder="Nom et prénom"
-                  style={{
-                    padding: '7px 11px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #C8DCE8',
-                    fontSize: '13px',
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                    color: '#1B4565',
-                    fontWeight: 700,
-                    backgroundColor: '#F8FCFE',
-                    width: '135px',
-                  }}
-                />
+                {isAddingTech ? (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <input
+                      type="text"
+                      value={newTechInput}
+                      onChange={(e) => setNewTechInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTechnician();
+                        } else if (e.key === 'Escape') {
+                          setIsAddingTech(false);
+                          setNewTechInput('');
+                        }
+                      }}
+                      placeholder="Nom technicien..."
+                      autoFocus
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #39A9DC',
+                        fontSize: '13px',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        color: '#1B4565',
+                        fontWeight: 700,
+                        backgroundColor: '#FFFFFF',
+                        width: '140px',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddTechnician}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: '#00C875',
+                        color: '#FFFFFF',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      OK
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingTech(false);
+                        setNewTechInput('');
+                      }}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '8px',
+                        border: '1px solid #C8DCE8',
+                        backgroundColor: '#FFFFFF',
+                        color: '#64748B',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <select
+                      value={technicienName}
+                      onChange={(e) => setTechnicienName(e.target.value)}
+                      style={{
+                        padding: '7px 10px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #C8DCE8',
+                        fontSize: '13px',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        color: '#1B4565',
+                        fontWeight: 700,
+                        backgroundColor: '#F8FCFE',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {!technicienOptions.includes(technicienName) && (
+                        <option value={technicienName}>{technicienName}</option>
+                      )}
+                      {technicienOptions.map((tech) => (
+                        <option key={tech} value={tech}>
+                          {tech}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingTech(true)}
+                      title="Ajouter un nouveau technicien à la liste"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '7px 9px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #C8DCE8',
+                        backgroundColor: '#EFF6FF',
+                        color: '#0369A1',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Plus size={13} />
+                      Ajouter
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -496,6 +649,109 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     {dynamicChecklist.length} points de contrôle chargés
                   </span>
                 </div>
+              </div>
+
+              {/* Historique des contrôles techniques effectués sur cette machine */}
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  backgroundColor: '#F8FCFE',
+                  border: '1px solid #D2E9F6',
+                }}
+              >
+                <div
+                  onClick={() => setShowMachineHistory((v) => !v)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <History size={15} color="#39A9DC" />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', fontFamily: "'Ruda', sans-serif" }}>
+                      Historique des contrôles sur cette machine ({selectedMachineHistory.length})
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#3989B7' }}>
+                    {showMachineHistory ? 'Masquer ▲' : 'Afficher ▼'}
+                  </span>
+                </div>
+
+                {showMachineHistory && (
+                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '190px', overflowY: 'auto' }}>
+                    {selectedMachineHistory.length === 0 ? (
+                      <div style={{ fontSize: '12px', color: '#64748B', fontStyle: 'italic' }}>
+                        Aucun contrôle précédent enregistré dans Fiche de Contrôle pour cette machine.
+                      </div>
+                    ) : (
+                      selectedMachineHistory.map((ctrl) => {
+                        const etatLow = (ctrl.etatGeneral || '').toLowerCase();
+                        const isNC = etatLow.includes('rouge') || etatLow.includes('non');
+                        const isMid = etatLow.includes('orange') || etatLow.includes('moyen');
+                        const badgeColor = isNC ? '#961C2E' : isMid ? '#D66927' : '#0E7042';
+                        const badgeBg = isNC ? '#FDECEE' : isMid ? '#FFF8EC' : '#E6F9F0';
+                        return (
+                          <div
+                            key={ctrl.id}
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              border: '1px solid #E2EEF5',
+                              borderRadius: '8px',
+                              padding: '8px 12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '3px',
+                              fontSize: '12px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#1B4565' }}>
+                                <span>📅 {ctrl.date}</span>
+                                {ctrl.technicienName && (
+                                  <span style={{ color: '#475569', fontWeight: 600 }}>· {ctrl.technicienName}</span>
+                                )}
+                                {ctrl.categorieIntervention && (
+                                  <span style={{ color: '#3989B7', fontSize: '11px', backgroundColor: '#EBF6FC', padding: '1px 6px', borderRadius: '6px' }}>
+                                    {ctrl.categorieIntervention}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {ctrl.noteSurDix !== undefined && (
+                                  <span style={{ fontWeight: 800, color: '#1B4565', fontSize: '11px' }}>
+                                    {ctrl.noteSurDix}/10
+                                  </span>
+                                )}
+                                <span
+                                  style={{
+                                    backgroundColor: badgeBg,
+                                    color: badgeColor,
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    fontSize: '11px',
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  {ctrl.etatGeneral || 'OK'}
+                                </span>
+                              </div>
+                            </div>
+                            {ctrl.anomalies && (
+                              <div style={{ fontSize: '11.5px', color: '#475569', whiteSpace: 'pre-line', marginTop: '2px', maxHeight: '54px', overflow: 'hidden' }}>
+                                {ctrl.anomalies}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Vérification pastille Facility (numéro physique machine) */}
@@ -1103,9 +1359,32 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     fontWeight: 800,
                     fontFamily: "'Ruda', sans-serif",
                     color: '#1B4565',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
                   }}
                 >
                   Points de contrôle spécifiques ({dynamicChecklist.length})
+                  <button
+                    type="button"
+                    onClick={() => setShowStep3Info((v) => !v)}
+                    title="Légende des statuts (OK / Moyen / NC = Non conforme)"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '22px',
+                      height: '22px',
+                      borderRadius: '50%',
+                      border: '1.5px solid #39A9DC',
+                      backgroundColor: showStep3Info ? '#39A9DC' : '#EBF6FC',
+                      color: showStep3Info ? '#FFFFFF' : '#3989B7',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    <Info size={13} />
+                  </button>
                 </label>
               </div>
 
@@ -1119,14 +1398,37 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                   borderRadius: '8px',
                 }}
               >
-                Référentiel : {machineType || 'Général'}
+                Référentiel : {machineType || 'Général'} · {Object.keys(evaluations).length} saisi(s)
               </span>
             </div>
+
+            {showStep3Info && (
+              <div
+                style={{
+                  marginBottom: '12px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#EBF6FC',
+                  border: '1px solid #D2E9F6',
+                  fontSize: '12px',
+                  color: '#1B4565',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  alignItems: 'center',
+                }}
+              >
+                <span><b style={{ color: '#0E7042' }}>OK</b> = Conforme</span>
+                <span><b style={{ color: '#D66927' }}>Moyen</b> = À surveiller</span>
+                <span><b style={{ color: '#961C2E' }}>NC = Non conforme</b> (crée automatiquement un ticket &amp; checklist dans Réparations)</span>
+                <span style={{ color: '#3989B7', fontStyle: 'italic' }}>Par défaut aucun bouton n&apos;est coché : cliquez pour évaluer chaque point.</span>
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {dynamicChecklist.map((pt, idx) => {
                 const hasSubitems = Boolean(pt.subitems && pt.subitems.length > 0);
-                const currentStatus = evaluations[pt.name] || 'OK';
+                const currentStatus = evaluations[pt.name];
 
                 if (hasSubitems && pt.subitems) {
                   return (
@@ -1163,7 +1465,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 12px' }}>
                         {pt.subitems.map((sub, sIdx) => {
                           const evalKey = `${pt.name} › ${sub.name}`;
-                          const subStatus = evaluations[evalKey] || 'OK';
+                          const subStatus = evaluations[evalKey];
                           return (
                             <div
                               key={sub.id || sIdx}
@@ -1186,6 +1488,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                 {(['OK', 'Moyen', 'NC'] as const).map((st) => {
                                   const isChecked = subStatus === st;
                                   const bgMap = { OK: '#00C875', Moyen: '#F7AC37', NC: '#E2445C' };
+                                  const labelMap = { OK: 'OK', Moyen: 'Moyen', NC: 'NC · Non conforme' };
                                   return (
                                     <button
                                       key={st}
@@ -1203,7 +1506,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                         cursor: 'pointer',
                                       }}
                                     >
-                                      {st}
+                                      {labelMap[st]}
                                     </button>
                                   );
                                 })}
@@ -1255,6 +1558,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                       {(['OK', 'Moyen', 'NC'] as const).map((st) => {
                         const isChecked = currentStatus === st;
                         const bgMap = { OK: '#00C875', Moyen: '#F7AC37', NC: '#E2445C' };
+                        const labelMap = { OK: 'OK', Moyen: 'Moyen', NC: 'NC · Non conforme' };
                         return (
                           <button
                             key={st}
@@ -1273,7 +1577,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                               transition: 'all 0.15s ease',
                             }}
                           >
-                            {st}
+                            {labelMap[st]}
                           </button>
                         );
                       })}
@@ -1881,9 +2185,36 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
               <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#57778E', lineHeight: 1.4 }}>
                 {(notifierResponsable || decisionFinale === 'A voir animatrice')
-                  ? 'Informations transmises sur la fiche machine pour le Responsable de Secteur (local technique, machine mal rincée, sol inadapté, références pièces, rappel agents...).'
+                  ? 'Informations transmises sur la fiche machine et envoyées en alerte directe vers le Responsable de Secteur choisi.'
                   : 'Remarque enregistrée uniquement sur la fiche de contrôle technique (référence pièce, observation mécanique atelier...).'}
               </p>
+
+              {(notifierResponsable || decisionFinale === 'A voir animatrice') && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#B86114' }}>
+                    Destinataire de l&apos;alerte Hub :
+                  </span>
+                  <select
+                    value={targetAnimatrice}
+                    onChange={(e) => setTargetAnimatrice(e.target.value)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #F3CE8A',
+                      backgroundColor: '#FFFFFF',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      color: '#1B4565',
+                    }}
+                  >
+                    {SECTEUR_RESPONSABLES.map((resp) => (
+                      <option key={resp} value={resp}>
+                        {resp}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <textarea
                 rows={3}

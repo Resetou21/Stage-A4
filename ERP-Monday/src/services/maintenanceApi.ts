@@ -6,7 +6,18 @@ export const MAINTENANCE_BOARD_IDS = {
   REFERENTIEL_POINTS: '5107261391',
   FICHE_CONTROLE: '5107262948',
   REPARATION_MACHINES: '5106693291',
+  PLANNING: '5106585296',
+  COMMUNICATION_ANIMATRICES: '5044808167',
 } as const;
+
+export const COMMUNICATION_GROUP_ID = 'group_mkzb19j1';
+
+export const SECTEUR_RESPONSABLES = [
+  'Natacha THOMAS',
+  'Emilie TOBIE',
+  'Ketty PAULIN',
+  'Andre LEVESQUE',
+] as const;
 
 export const MONTH_COLUMN_IDS: Record<number, { id: string; label: string; short: string }> = {
   1: { id: 'boolean_mm8tw6vh', label: 'Janvier', short: 'Jan' },
@@ -67,6 +78,7 @@ export interface FicheControleSubmission {
   heuresCompteur?: number;
   anomaliesText?: string;
   remarqueAnimatrice?: string;
+  targetAnimatrice?: string;
   typeReparation?: 'Interne' | 'Fournisseur';
   machineVetuste?: boolean;
   besoinRevisite?: boolean;
@@ -106,7 +118,7 @@ interface HubColumnSpec {
 
 const FICHE_HUB_SPECS: HubColumnSpec[] = [
   { key: 'noteSurDix', title: 'Note (/10)', type: 'numbers', matchAny: ['note 10', 'note /10', 'note'] },
-  { key: 'technicien', title: 'Technicien', type: 'text', matchAny: ['technicien', 'controleur'] },
+  { key: 'technicien', title: 'Technicien', type: 'status', matchAny: ['technicien', 'controleur'] },
   { key: 'pastille', title: 'Pastille Facility', type: 'status', matchAny: ['pastille'] },
   { key: 'decision', title: 'Décision finale', type: 'status', matchAny: ['decision'] },
   { key: 'modeReparation', title: 'Mode réparation', type: 'text', matchAny: ['mode reparation'] },
@@ -142,6 +154,7 @@ const FICHE_SUBITEM_SPECS: HubColumnSpec[] = [
 ];
 
 const hubColumnsPromiseCache: Record<string, Promise<Record<string, string>> | undefined> = {};
+const hubColumnsTypeByBoardId: Record<string, Record<string, string>> = {};
 
 function normalizeColMatch(str: string): string {
   return (str || '')
@@ -164,6 +177,7 @@ export async function ensureHubBoardColumns(
 
   const run = (async () => {
     const resolved: Record<string, string> = {};
+    if (!hubColumnsTypeByBoardId[boardId]) hubColumnsTypeByBoardId[boardId] = {};
     try {
       const res: any = await (monday as any).api(
         `query GetHubBoardCols($boardId: [ID!]) {
@@ -180,6 +194,10 @@ export async function ensureHubBoardColumns(
 
       const existingCols: Array<{ id: string; title: string; type: string }> =
         res?.data?.boards?.[0]?.columns || [];
+
+      for (const ec of existingCols) {
+        hubColumnsTypeByBoardId[boardId][String(ec.id)] = String(ec.type || '').toLowerCase();
+      }
 
       for (const spec of specs) {
         const targetNorm = normalizeColMatch(spec.title);
@@ -210,7 +228,9 @@ export async function ensureHubBoardColumns(
             }
           );
           if (createRes?.data?.create_column?.id) {
-            resolved[spec.key] = String(createRes.data.create_column.id);
+            const newId = String(createRes.data.create_column.id);
+            resolved[spec.key] = newId;
+            hubColumnsTypeByBoardId[boardId][newId] = spec.type;
           }
         } catch (colErr) {
           console.warn(`Colonne "${spec.title}" non créée sur ${boardId}:`, colErr);
@@ -705,7 +725,18 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
 
         const dateStr = getDateVal('date_mm8txw52');
         const etat = getCol('color_mm8tmqfc') || 'OK';
-        const machineText = getCol('board_relation_mm8txvw9');
+        const machineRelCol = it.column_values?.find((c: any) => c.id === 'board_relation_mm8txvw9');
+        const machineText = machineRelCol?.text || '';
+        let linkedMachineId: string | undefined = Array.isArray(machineRelCol?.linked_item_ids) && machineRelCol.linked_item_ids[0]
+          ? String(machineRelCol.linked_item_ids[0])
+          : undefined;
+        if (!linkedMachineId && machineRelCol?.value) {
+          try {
+            const parsedRel = JSON.parse(machineRelCol.value);
+            const firstId = parsedRel?.linkedPulseIds?.[0]?.linkedPulseId;
+            if (firstId) linkedMachineId = String(firstId);
+          } catch {}
+        }
         const rawNote = ficheCols.noteSurDix ? getCol(ficheCols.noteSurDix) : '';
         const parsedNote = rawNote !== '' && !Number.isNaN(Number(rawNote)) ? Number(rawNote) : undefined;
 
@@ -713,6 +744,7 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
           id: it.id,
           name: it.name,
           machineName: machineText || it.name,
+          machineId: linkedMachineId,
           date: dateStr,
           etatGeneral: etat,
           noteSurDix: parsedNote,
@@ -766,7 +798,10 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
       columnValuesObj[ficheCols.noteSurDix] = submission.noteSurDix;
     }
     if (ficheCols.technicien && submission.technicienName?.trim()) {
-      columnValuesObj[ficheCols.technicien] = submission.technicienName.trim();
+      const techColType = hubColumnsTypeByBoardId[MAINTENANCE_BOARD_IDS.FICHE_CONTROLE]?.[ficheCols.technicien];
+      const cleanTech = submission.technicienName.trim();
+      columnValuesObj[ficheCols.technicien] =
+        techColType === 'status' || techColType === 'color' ? { label: cleanTech } : cleanTech;
     }
     if (ficheCols.pastille) {
       columnValuesObj[ficheCols.pastille] = {
@@ -1027,7 +1062,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
           const repairDescriptionText = ncEntries
             .map(([pt]) => {
               const customAction = submission.ncActions?.[pt]?.trim();
-              return customAction ? `• ${pt} : ${customAction}` : `• ${pt} (Non conforme)`;
+              return customAction ? `☐ ${pt} : ${customAction}` : `☐ ${pt} (Non conforme)`;
             })
             .join('\n');
 
@@ -1120,8 +1155,24 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
       }
 
       // =========================================================================
-      // COMMUNICATION AUTOMATIQUE VERS LE RESPONSABLE DE SECTEUR (FICHE + MACHINE)
+      // COMMUNICATION AUTOMATIQUE VERS LE RESPONSABLE DE SECTEUR (FICHE + MACHINE + ALERTE 5044808167)
       // =========================================================================
+      if (submission.remarqueAnimatrice?.trim() || submission.decisionFinale === 'A voir animatrice') {
+        try {
+          const alertText =
+            submission.remarqueAnimatrice?.trim() ||
+            `Décision contrôle : ${submission.decisionFinale || 'À voir avec le Responsable de Secteur'}`;
+          await sendMaintenanceAlert({
+            recipientPerson: submission.targetAnimatrice?.trim() || 'Natacha THOMAS',
+            machineName: submission.machineName,
+            siteName: submission.machineSite,
+            message: alertText,
+            senderName: submission.technicienName || 'Christophe',
+          });
+        } catch (alertErr) {
+          console.warn('Erreur envoi alerte vers Communication animatrices:', alertErr);
+        }
+      }
       if (
         submission.machineId &&
         (submission.remarqueAnimatrice?.trim() ||
@@ -1368,6 +1419,13 @@ async function syncMachineRepairLifecycleStatus(
 }
 
 // 7. Structure & Récupération des tickets de réparation curatives (Tableau 4 - 5106693291)
+export interface RepairChecklistItem {
+  id: string;
+  label: string;
+  action?: string;
+  checked: boolean;
+}
+
 export interface RepairTicket {
   id: string;
   name: string;
@@ -1376,19 +1434,126 @@ export interface RepairTicket {
   groupId?: string;
   groupTitle?: string;
   date: string;
+  updatedAt?: string;
+  repairedDate?: string;
   type: string;
   status: string; // 'À traiter' | 'En attente de devis' | 'En cours de réparation' | 'Réparée'
   description: string;
+  cost?: number;
+  checklist?: RepairChecklistItem[];
+  fournisseur?: string;
+  numeroBon?: string;
+  site?: string;
+  underWarranty?: boolean;
+}
+
+export function parseRepairChecklist(desc: string): RepairChecklistItem[] {
+  if (!desc) return [];
+  const items: RepairChecklistItem[] = [];
+  const lines = desc.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    // Ignorer les tags techniques
+    if (/^\[(Co[ûu]t|R[ée]par[ée]e\s+le)/i.test(line)) continue;
+
+    let checked: boolean | null = null;
+    let body = '';
+    if (line.startsWith('☑') || line.startsWith('✅') || /^\[x\]/i.test(line)) {
+      checked = true;
+      body = line.replace(/^(☑|✅|\[x\])\s*/i, '').trim();
+    } else if (line.startsWith('☐') || /^\[ \]/i.test(line)) {
+      checked = false;
+      body = line.replace(/^(☐|\[ \])\s*/i, '').trim();
+    } else if (line.startsWith('•') || line.startsWith('- ')) {
+      checked = false;
+      body = line.replace(/^(•|-)\s*/, '').trim();
+    }
+
+    if (checked !== null && body) {
+      // Ne pas transformer l'entête synthétique en tâche s'il contient ' · ' fournisseur sans ':' et que c'est une ligne courte d'en-tête
+      const cleanBody = body.replace(/\s*\(Non conforme\)$/i, '').trim();
+      const colonIdx = cleanBody.indexOf(':');
+      if (colonIdx > 0 && colonIdx < cleanBody.length - 1) {
+        const lbl = cleanBody.slice(0, colonIdx).trim();
+        const act = cleanBody.slice(colonIdx + 1).trim();
+        items.push({ id: `chk-${i}`, label: lbl, action: act, checked });
+      } else {
+        items.push({ id: `chk-${i}`, label: cleanBody, checked });
+      }
+    }
+  }
+  return items;
+}
+
+export function extractCostFromRepairData(
+  desc: string,
+  colValues: any[],
+  boardColumns: Array<{ id: string; title: string; type: string }>
+): number | undefined {
+  // 1. Tag explicite [Coût: 123.45 €] dans la description
+  const tagMatch = (desc || '').match(/\[Co[ûu]t\s*:\s*([\d\s.,]+)\s*€?\]/i);
+  if (tagMatch) {
+    const v = Number(tagMatch[1].replace(/\s+/g, '').replace(',', '.'));
+    if (!Number.isNaN(v)) return v;
+  }
+
+  // 2. Recherche sur d'éventuelles colonnes existantes Coût / Montant / Prix sur le tableau Monday
+  for (const colMeta of boardColumns) {
+    const tNorm = normalizeColMatch(colMeta.title || '');
+    if (
+      tNorm.includes('cout') ||
+      tNorm.includes('montant') ||
+      tNorm.includes('prix') ||
+      tNorm.includes('facture') ||
+      tNorm.includes('tarif')
+    ) {
+      const valObj = colValues?.find((c: any) => c.id === colMeta.id);
+      if (valObj?.text) {
+        const numStr = String(valObj.text).replace(/[^\d.,-]/g, '').replace(',', '.');
+        const v = Number(numStr);
+        if (numStr && !Number.isNaN(v)) return v;
+      }
+    }
+  }
+
+  // 3. Mention libre dans description ex: "Montant : 250 € HT"
+  const freeMatch = (desc || '').match(/(?:co[ûu]t|montant|facture|total\s*ht)\s*[:\-]?\s*([\d\s.,]+)\s*€/i);
+  if (freeMatch) {
+    const v = Number(freeMatch[1].replace(/\s+/g, '').replace(',', '.'));
+    if (!Number.isNaN(v)) return v;
+  }
+
+  return undefined;
+}
+
+export function extractRepairedDate(desc: string, status: string, groupTitle: string | undefined, updatedAt?: string): string | undefined {
+  const tagMatch = (desc || '').match(/\[R[ée]par[ée]e\s+le\s+(\d{4}-\d{2}-\d{2})\]/i);
+  if (tagMatch) return tagMatch[1];
+
+  const isRepaired =
+    normalizeLabelMatch(status).includes('repare') ||
+    normalizeLabelMatch(groupTitle || '').includes('repare');
+  if (isRepaired && updatedAt) {
+    return updatedAt.slice(0, 10);
+  }
+  return undefined;
 }
 
 export async function fetchRepairTickets(): Promise<RepairTicket[]> {
   const query = `
     query GetRepairs($boardId: [ID!]) {
       boards(ids: $boardId) {
+        columns {
+          id
+          title
+          type
+        }
         items_page(limit: 500) {
           items {
             id
             name
+            updated_at
             group {
               id
               title
@@ -1412,11 +1577,26 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
       variables: { boardId: [MAINTENANCE_BOARD_IDS.REPARATION_MACHINES] },
     });
 
+    const boardColumns: Array<{ id: string; title: string; type: string }> =
+      res?.data?.boards?.[0]?.columns || [];
     const items = res?.data?.boards?.[0]?.items_page?.items || [];
+
+    const findColTextByTitle = (colValues: any[], matchAny: string[]) => {
+      for (const cMeta of boardColumns) {
+        const norm = normalizeColMatch(cMeta.title || '');
+        if (matchAny.some((m) => norm.includes(m))) {
+          const val = colValues?.find((cv: any) => cv.id === cMeta.id)?.text || '';
+          if (val) return val;
+        }
+      }
+      return '';
+    };
+
     return items.map((it: any) => {
-      const getCol = (id: string) => it.column_values?.find((c: any) => c.id === id)?.text || '';
+      const colValues = it.column_values || [];
+      const getCol = (id: string) => colValues.find((c: any) => c.id === id)?.text || '';
       const getDateVal = (id: string) => {
-        const col = it.column_values?.find((c: any) => c.id === id);
+        const col = colValues.find((c: any) => c.id === id);
         if (col?.value) {
           try {
             const parsed = JSON.parse(col.value);
@@ -1427,7 +1607,7 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
       };
 
       const dateStr = getDateVal('date_mm8g4vq6');
-      const machineRelCol = it.column_values?.find((c: any) => c.id === 'board_relation_mm8gc4mh');
+      const machineRelCol = colValues.find((c: any) => c.id === 'board_relation_mm8gc4mh');
       const machineRel = machineRelCol?.text || '';
       let linkedMachineIds: string[] = Array.isArray(machineRelCol?.linked_item_ids)
         ? machineRelCol.linked_item_ids.map(String)
@@ -1442,6 +1622,19 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
       }
       const statusStr = getCol('color_mm8vp2nd') || 'À traiter';
       const desc = getCol('text_mm8vhwst');
+      const updatedAt = it.updated_at ? String(it.updated_at) : undefined;
+      const repairedDate = extractRepairedDate(desc, statusStr, it.group?.title, updatedAt);
+      const cost = extractCostFromRepairData(desc, colValues, boardColumns);
+      const checklist = parseRepairChecklist(desc);
+      const fournisseur = findColTextByTitle(colValues, ['fournisseur', 'prestataire']);
+      const numeroBon = findColTextByTitle(colValues, ['numero bon', 'n bon', 'ordre de service']);
+      const site = findColTextByTitle(colValues, ['site']);
+      const warrantyText = findColTextByTitle(colValues, ['garantie']);
+      const underWarranty =
+        warrantyText === 'v' ||
+        warrantyText.toLowerCase().includes('oui') ||
+        warrantyText.toLowerCase().includes('true') ||
+        desc.toLowerCase().includes('sous garantie');
 
       return {
         id: it.id,
@@ -1451,9 +1644,17 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
         groupId: it.group?.id,
         groupTitle: it.group?.title,
         date: dateStr,
+        updatedAt,
+        repairedDate,
         type: getCol('color_mm8gs7c7') || 'Curative',
         status: statusStr,
         description: desc,
+        cost,
+        checklist,
+        fournisseur: fournisseur || undefined,
+        numeroBon: numeroBon || undefined,
+        site: site || undefined,
+        underWarranty,
       };
     });
   } catch (err) {
@@ -1486,74 +1687,6 @@ export async function moveRepairItemToGroup(
     return { success: false, error: formatMondayError(res) };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erreur déplacement groupe' };
-  }
-}
-
-// 8. Mettre à jour le statut d'un ticket de réparation (et déplacer automatiquement entre "Machine en réparation" / "Machine Réparé")
-export async function updateRepairStatus(
-  ticketId: string,
-  newStatus: string
-): Promise<{ success: boolean; error?: string }> {
-  const mutation = `
-    mutation UpdateRepairStatus($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
-      change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues) {
-        id
-      }
-    }
-  `;
-
-  try {
-    const meta = await fetchRepairBoardMeta();
-    const statusLabels = meta.columnsById['color_mm8vp2nd']?.labels || [];
-    const resolvedStatus = pickBestMatchingLabel(newStatus, statusLabels);
-
-    const res: any = await (monday as any).api(mutation, {
-      variables: {
-        boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
-        itemId: ticketId,
-        columnValues: JSON.stringify({
-          color_mm8vp2nd: { label: resolvedStatus },
-        }),
-      },
-    });
-
-    if (res?.data?.change_multiple_column_values?.id) {
-      const normStatus = normalizeLabelMatch(resolvedStatus);
-      const isRepaired = normStatus.includes('repare');
-      const targetGroupId = isRepaired ? meta.repairedGroupId : meta.inRepairGroupId;
-      if (targetGroupId) {
-        await moveRepairItemToGroup(ticketId, targetGroupId);
-      }
-      try {
-        const relRes: any = await (monday as any).api(
-          `query GetTicketMachine($ids: [ID!]) {
-            items(ids: $ids) {
-              column_values(ids: ["board_relation_mm8gc4mh"]) {
-                ... on BoardRelationValue {
-                  linked_item_ids
-                }
-              }
-            }
-          }`,
-          { variables: { ids: [ticketId] } }
-        );
-        const linkedIds: string[] = relRes?.data?.items?.[0]?.column_values?.[0]?.linked_item_ids || [];
-        for (const mId of linkedIds) {
-          await syncMachineRepairLifecycleStatus(
-            String(mId),
-            isRepaired ? 'En service' : 'En réparation',
-            ticketId
-          );
-        }
-      } catch (syncErr) {
-        console.warn('Erreur synchro statut machine après maj ticket:', syncErr);
-      }
-      return { success: true };
-    }
-    return { success: false, error: formatMondayError(res) };
-  } catch (err: any) {
-    console.error('Erreur mise à jour statut réparation:', err);
-    return { success: false, error: err?.message || 'Erreur réseau' };
   }
 }
 
@@ -1786,6 +1919,14 @@ export async function submitSupplierIntervention(
     .filter(Boolean)
     .join(' · ');
 
+  const costTag =
+    order.totalHT !== undefined && !Number.isNaN(Number(order.totalHT))
+      ? `[Coût: ${Number(order.totalHT).toFixed(2)} €]`
+      : order.underWarranty
+      ? '[Coût: 0.00 €]'
+      : '';
+  const repairedTag = isTargetRepaired ? `[Réparée le ${formattedDate}]` : '';
+
   const mainNote =
     order.technicianNotes?.trim() ||
     order.damageSummary?.trim() ||
@@ -1793,7 +1934,10 @@ export async function submitSupplierIntervention(
       ? order.replacedParts.map((p) => `${p.description} (x${p.quantity})`).join(', ')
       : '');
 
-  const descriptionText = [conciseHeader, mainNote].filter(Boolean).join('\n').slice(0, 1200);
+  const descriptionText = [conciseHeader, mainNote, costTag, repairedTag]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 1200);
 
   const columnValues: Record<string, any> = {};
 
@@ -1948,7 +2092,10 @@ export async function submitSupplierIntervention(
       (order.clientAccount ? `<b>📍 Site d'intervention :</b> ${escapeHtml(order.clientAccount)}${order.siteAddress ? ` — ${escapeHtml(order.siteAddress)}` : ''}<br>` : '') +
       (order.technicianName ? `<b>👷 Technicien fournisseur :</b> ${escapeHtml(order.technicianName)}<br>` : '') +
       `<b>📌 Statut ticket :</b> ${escapeHtml(resolvedStatus)}<br>` +
-      (order.damageSummary ? `<br><b>🔎 Analyse SAP (Dommage / Cause / Solution) :</b><br>${escapeHtml(order.damageSummary)}<br>` : '') +
+      (order.totalHT !== undefined && !Number.isNaN(Number(order.totalHT))
+        ? `<b>💶 Coût HT :</b> ${Number(order.totalHT).toFixed(2)} €${order.totalTTC ? ` (${Number(order.totalTTC).toFixed(2)} € TTC)` : ''}<br>`
+        : '') +
+      (order.damageSummary ? `<br><b>🔎 Analyse / Diagnostic :</b><br>${escapeHtml(order.damageSummary)}<br>` : '') +
       partsTableHtml +
       laborHtml +
       (order.technicianNotes
@@ -2061,6 +2208,540 @@ export async function fetchTicketUpdates(ticketId: string): Promise<TicketUpdate
     console.warn('Erreur lecture updates ticket:', err);
     return [];
   }
+}
+
+// ============================================================================
+// 13. CHECKLIST INTERACTIVE SUR RÉPARATION + COÛT + AUTO-PASSAGE À CONFORME
+// ============================================================================
+
+export function serializeRepairChecklistDescription(
+  originalDesc: string,
+  checklist: RepairChecklistItem[],
+  options?: { cost?: number; repairedDate?: string }
+): string {
+  const existingLines = (originalDesc || '').split('\n');
+  const preservedPrefixLines = existingLines.filter((raw) => {
+    const l = raw.trim();
+    if (!l) return false;
+    if (/^(☑|✅|\[x\]|☐|\[ \]|•|- )/i.test(l)) return false;
+    if (/^\[(Co[ûu]t|R[ée]par[ée]e\s+le)/i.test(l)) return false;
+    return true;
+  });
+
+  const checklistLines = checklist.map((item) => {
+    const icon = item.checked ? '☑' : '☐';
+    return item.action ? `${icon} ${item.label} : ${item.action}` : `${icon} ${item.label}`;
+  });
+
+  const existingCostMatch = (originalDesc || '').match(/\[Co[ûu]t\s*:\s*([\d\s.,]+)\s*€?\]/i);
+  const resolvedCost =
+    options && 'cost' in options
+      ? options.cost
+      : existingCostMatch
+      ? Number(existingCostMatch[1].replace(/\s+/g, '').replace(',', '.'))
+      : undefined;
+
+  const metaLines: string[] = [];
+  if (resolvedCost !== undefined && !Number.isNaN(resolvedCost)) {
+    metaLines.push(`[Coût: ${resolvedCost.toFixed(2)} €]`);
+  }
+  if (options?.repairedDate) {
+    metaLines.push(`[Réparée le ${options.repairedDate}]`);
+  }
+
+  return [...preservedPrefixLines, ...checklistLines, ...metaLines].join('\n').trim();
+}
+
+export async function saveRepairChecklistAndProgress(
+  ticket: RepairTicket,
+  updatedChecklist: RepairChecklistItem[],
+  options?: { cost?: number }
+): Promise<{ success: boolean; autoCompleted?: boolean; newStatus?: string; newDescription?: string; error?: string }> {
+  try {
+    const allChecked = updatedChecklist.length > 0 && updatedChecklist.every((c) => c.checked);
+    const todayIso = new Date().toISOString().split('T')[0];
+    const newDescription = serializeRepairChecklistDescription(ticket.description, updatedChecklist, {
+      cost: options?.cost ?? ticket.cost,
+      repairedDate: allChecked ? ticket.repairedDate || todayIso : undefined,
+    });
+
+    const meta = await fetchRepairBoardMeta();
+    const statusLabels = meta.columnsById['color_mm8vp2nd']?.labels || [];
+    const currentlyRepaired = normalizeLabelMatch(ticket.status).includes('repare');
+    let targetStatus = ticket.status;
+    if (allChecked) {
+      targetStatus = pickBestMatchingLabel('Réparée', statusLabels);
+    } else if (currentlyRepaired) {
+      targetStatus = pickBestMatchingLabel('En cours de réparation', statusLabels);
+    }
+
+    const colValues: Record<string, any> = {};
+    const descColType = meta.columnsById['text_mm8vhwst']?.type;
+    colValues.text_mm8vhwst = descColType === 'long_text' ? { text: newDescription } : newDescription;
+    if (targetStatus !== ticket.status || allChecked) {
+      colValues.color_mm8vp2nd = { label: targetStatus };
+    }
+
+    // Si une colonne Coût existe déjà sur le tableau, la synchroniser aussi
+    if (options?.cost !== undefined && !Number.isNaN(options.cost)) {
+      for (const [colId, colMeta] of Object.entries(meta.columnsById)) {
+        const norm = normalizeColMatch(colMeta.title || '');
+        if (norm.includes('cout') || norm.includes('montant') || norm.includes('prix')) {
+          if (colMeta.type === 'numbers' || colMeta.type === 'numeric') {
+            colValues[colId] = options.cost;
+            break;
+          }
+        }
+      }
+    }
+
+    const mutation = `
+      mutation UpdateRepairChecklist($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+        change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues, create_labels_if_missing: true) {
+          id
+        }
+      }
+    `;
+
+    const res: any = await (monday as any).api(mutation, {
+      variables: {
+        boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
+        itemId: ticket.id,
+        columnValues: JSON.stringify(colValues),
+      },
+    });
+
+    if (!res?.data?.change_multiple_column_values?.id) {
+      return { success: false, error: formatMondayError(res) };
+    }
+
+    if (allChecked && !currentlyRepaired) {
+      if (meta.repairedGroupId) {
+        await moveRepairItemToGroup(ticket.id, meta.repairedGroupId);
+      }
+      await syncMachineRepairLifecycleStatus(ticket.machineId, 'En service', ticket.id);
+    } else if (!allChecked && currentlyRepaired) {
+      if (meta.inRepairGroupId) {
+        await moveRepairItemToGroup(ticket.id, meta.inRepairGroupId);
+      }
+      await syncMachineRepairLifecycleStatus(ticket.machineId, 'En réparation', ticket.id);
+    }
+
+    return {
+      success: true,
+      autoCompleted: allChecked,
+      newStatus: targetStatus,
+      newDescription,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur mise à jour checklist' };
+  }
+}
+
+export async function updateRepairCost(
+  ticket: RepairTicket,
+  newCost: number | undefined
+): Promise<{ success: boolean; newDescription?: string; error?: string }> {
+  try {
+    const checklist = ticket.checklist && ticket.checklist.length > 0 ? ticket.checklist : parseRepairChecklist(ticket.description);
+    const newDescription = serializeRepairChecklistDescription(ticket.description, checklist, {
+      cost: newCost,
+      repairedDate: ticket.repairedDate,
+    });
+    const meta = await fetchRepairBoardMeta();
+    const descColType = meta.columnsById['text_mm8vhwst']?.type;
+    const colValues: Record<string, any> = {
+      text_mm8vhwst: descColType === 'long_text' ? { text: newDescription } : newDescription,
+    };
+
+    const res: any = await (monday as any).api(
+      `mutation UpdateRepairCost($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+        change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
+          itemId: ticket.id,
+          columnValues: JSON.stringify(colValues),
+        },
+      }
+    );
+
+    if (res?.data?.change_multiple_column_values?.id) {
+      return { success: true, newDescription };
+    }
+    return { success: false, error: formatMondayError(res) };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur mise à jour coût' };
+  }
+}
+
+// ============================================================================
+// 14. CLÔTURE ANNUELLE MAINTENANCE PRÉVENTIVE (ARCHIVAGE + REMISE À 0 MOIS)
+// ============================================================================
+
+export async function clearMachinePreventiveMonths(
+  machineIds: string[]
+): Promise<{ success: boolean; updatedCount: number; error?: string }> {
+  if (machineIds.length === 0) return { success: true, updatedCount: 0 };
+
+  const resetPayload: Record<string, null> = {};
+  for (const col of Object.values(MONTH_COLUMN_IDS)) {
+    resetPayload[col.id] = null;
+  }
+  const serialized = JSON.stringify(resetPayload);
+
+  let updatedCount = 0;
+  try {
+    for (const mId of machineIds) {
+      await (monday as any).api(
+        `mutation ResetYearMonths($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+          change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues) {
+            id
+          }
+        }`,
+        {
+          variables: {
+            boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+            itemId: mId,
+            columnValues: serialized,
+          },
+        }
+      );
+      updatedCount++;
+    }
+    return { success: true, updatedCount };
+  } catch (err: any) {
+    return { success: false, updatedCount, error: err?.message || 'Erreur réinitialisation annuelle' };
+  }
+}
+
+// ============================================================================
+// 15. ALERTES BIDIRECTIONNELLES (ATELIER CHRISTOPHE <-> RESPONSABLES SECTEUR)
+// ============================================================================
+
+export interface MaintenanceAlertMessage {
+  id: string;
+  title: string;
+  date: string;
+  seen: boolean;
+  person: string;
+  machineName?: string;
+  direction: 'to_atelier' | 'to_secteur' | 'other';
+  senderLabel?: string;
+}
+
+export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[]> {
+  const query = `
+    query GetMaintenanceAlerts($boardId: [ID!]) {
+      boards(ids: $boardId) {
+        items_page(limit: 200) {
+          items {
+            id
+            name
+            group {
+              id
+              title
+            }
+            column_values(ids: ["color_mkzat86a", "board_relation_mkwrnhwg", "date_mkwrkqy5", "boolean_mkwrnzkb"]) {
+              id
+              text
+              value
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const res: any = await (monday as any).api(query, {
+      variables: { boardId: [MAINTENANCE_BOARD_IDS.COMMUNICATION_ANIMATRICES] },
+    });
+    const items = res?.data?.boards?.[0]?.items_page?.items || [];
+    const mapped: MaintenanceAlertMessage[] = items.map((it: any) => {
+      const getCol = (id: string) => it.column_values?.find((c: any) => c.id === id)?.text || '';
+      const vuCol = it.column_values?.find((c: any) => c.id === 'boolean_mkwrnzkb');
+      let seen = false;
+      if (vuCol?.value) {
+        try {
+          seen = JSON.parse(vuCol.value)?.checked === true;
+        } catch {}
+      }
+      if (!seen && vuCol?.text === 'v') seen = true;
+
+      const person = getCol('color_mkzat86a');
+      const clientOrMachine = getCol('board_relation_mkwrnhwg');
+      const dateStr = getCol('date_mkwrkqy5') || '';
+      const title = String(it.name || '');
+      const titleLower = title.toLowerCase();
+      const personLower = person.toLowerCase();
+
+      let direction: MaintenanceAlertMessage['direction'] = 'other';
+      if (titleLower.startsWith('[parc machines') || titleLower.startsWith('[maintenance')) {
+        direction = 'to_secteur';
+      } else if (
+        titleLower.startsWith('[atelier') ||
+        titleLower.includes('[atelier / christophe]') ||
+        personLower.includes('christophe') ||
+        personLower.includes('atelier')
+      ) {
+        direction = 'to_atelier';
+      }
+
+      return {
+        id: String(it.id),
+        title,
+        date: dateStr,
+        seen,
+        person,
+        machineName: clientOrMachine || undefined,
+        direction,
+      };
+    });
+
+    return mapped
+      .filter((m) => m.direction === 'to_atelier' || m.direction === 'to_secteur')
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  } catch (err) {
+    console.warn('Erreur lecture alertes bidirectionnelles:', err);
+    return [];
+  }
+}
+
+export async function sendMaintenanceAlert(params: {
+  recipientPerson: string;
+  machineName?: string;
+  siteName?: string;
+  message: string;
+  senderName?: string;
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  const todayIso = new Date().toISOString().split('T')[0];
+  const prefix = params.senderName ? `[Parc Machines · ${params.senderName}]` : '[Parc Machines]';
+  const contextParts = [params.machineName, params.siteName].filter(Boolean).join(' · ');
+  const itemTitle = `${prefix} ${contextParts ? `${contextParts} — ` : ''}${params.message}`.slice(0, 240);
+
+  const colValues: Record<string, any> = {
+    color_mkzat86a: { label: params.recipientPerson || 'Natacha THOMAS' },
+    date_mkwrkqy5: { date: todayIso },
+  };
+
+  try {
+    const res: any = await (monday as any).api(
+      `mutation CreateCommAlert($boardId: ID!, $groupId: String, $itemName: String!, $columnValues: JSON!) {
+        create_item(board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.COMMUNICATION_ANIMATRICES,
+          groupId: COMMUNICATION_GROUP_ID,
+          itemName: itemTitle,
+          columnValues: JSON.stringify(colValues),
+        },
+      }
+    );
+    if (res?.data?.create_item?.id) {
+      return { success: true, id: String(res.data.create_item.id) };
+    }
+    return { success: false, error: formatMondayError(res) };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur envoi alerte' };
+  }
+}
+
+export async function markMaintenanceAlertSeen(itemId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res: any = await (monday as any).api(
+      `mutation MarkAlertVu($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+        change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.COMMUNICATION_ANIMATRICES,
+          itemId,
+          columnValues: JSON.stringify({ boolean_mkwrnzkb: { checked: 'true' } }),
+        },
+      }
+    );
+    if (res?.data?.change_multiple_column_values?.id) {
+      return { success: true };
+    }
+    return { success: false, error: formatMondayError(res) };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur acquittement alerte' };
+  }
+}
+
+export async function archiveMaintenanceAlert(itemId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res: any = await (monday as any).api(
+      `mutation ArchiveMaintenanceAlert($itemId: ID!) {
+        archive_item(item_id: $itemId) {
+          id
+        }
+      }`,
+      {
+        variables: { itemId },
+      }
+    );
+    if (res?.data?.archive_item?.id) {
+      return { success: true };
+    }
+    return { success: false, error: formatMondayError(res) };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur suppression alerte' };
+  }
+}
+
+// ============================================================================
+// 16. AFFECTATIONS PARC (PERSONNE / VOITURE / SITE) READ-ONLY
+// ============================================================================
+
+export interface MachineAffectation {
+  machineId: string;
+  machineName: string;
+  machineType: string;
+  status: string;
+  site: string;
+  personne: string;
+  voiture: string;
+  serialNumber: string;
+}
+
+export async function fetchMachineBoardColumnsMeta(): Promise<Record<string, string>> {
+  try {
+    const res: any = await (monday as any).api(
+      `query GetMachineColsMeta($boardId: [ID!]) {
+        boards(ids: $boardId) {
+          columns {
+            id
+            title
+          }
+        }
+      }`,
+      { variables: { boardId: [MAINTENANCE_BOARD_IDS.LISTE_MACHINES] } }
+    );
+    const cols: Array<{ id: string; title: string }> = res?.data?.boards?.[0]?.columns || [];
+    const map: Record<string, string> = {};
+    for (const c of cols) map[c.id] = c.title;
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export function extractMachineAffectations(
+  machines: any[],
+  planningItems: any[],
+  colTitlesById: Record<string, string>
+): MachineAffectation[] {
+  const getCvText = (cv: any): string => String(cv?.text || cv?.display_value || '').trim();
+
+  const matchColByKeywords = (m: any, knownIds: string[], keywords: string[]): string => {
+    for (const kId of knownIds) {
+      const val = getCvText(m.column_values?.find((c: any) => c.id === kId));
+      if (val) return val;
+    }
+    for (const cv of m.column_values || []) {
+      const txt = getCvText(cv);
+      if (!txt) continue;
+      const titleNorm = normalizeColMatch(colTitlesById[cv.id] || '');
+      if (titleNorm && keywords.some((kw) => titleNorm.includes(kw))) {
+        return txt;
+      }
+    }
+    return '';
+  };
+
+  const isVehicleLabel = (val: string): boolean => {
+    const low = normalizeColMatch(val);
+    if (!low) return false;
+    return (
+      /\b(vehicule|voiture|camion|fourgon|utilitaire|kangoo|berlingo|partner|master|trafic|jumpy|boxer|ducato)\b/.test(low) ||
+      /^[a-z]{2}\s*\d{3}\s*[a-z]{2}$/.test(low)
+    );
+  };
+
+  return machines.map((m) => {
+    let site = matchColByKeywords(m, ['dropdown_mm8d4vj2', 'board_relation_mm8g9srf', 'dropdown_mm8gh54j'], [
+      'site',
+      'chantier',
+      'client',
+      'etablissement',
+      'affectation',
+      'localisation',
+    ]);
+    let personne = matchColByKeywords(m, ['lookup_mm8d375q'], [
+      'personne',
+      'utilisateur',
+      'agent',
+      'technicien',
+      'detenteur',
+      'conducteur',
+      'responsable',
+      'animatrice',
+      'animateur',
+      'attribue',
+      'salarie',
+    ]);
+    let voiture = matchColByKeywords(m, [], [
+      'voiture',
+      'vehicule',
+      'camion',
+      'fourgon',
+      'immatriculation',
+      'plaque',
+      'utilitaire',
+    ]);
+
+    // Si la colonne "Site d'affectation" contient un véhicule (ex: "vehicule 32"), le basculer dans Voiture
+    if (!voiture && site && isVehicleLabel(site)) {
+      voiture = site;
+      site = 'À bord véhicule';
+    }
+
+    // Enrichir avec d'éventuelles affectations actives trouvées sur Planning (5106585296)
+    const mNameNorm = normalizeColMatch(m.name || '');
+    for (const ev of planningItems || []) {
+      const getEvCol = (id: string) => getCvText(ev.column_values?.find((c: any) => c.id === id));
+      const linkedTxt = normalizeColMatch(ev.name || '');
+      if (linkedTxt && mNameNorm && (linkedTxt.includes(mNameNorm) || mNameNorm.includes(linkedTxt))) {
+        const evPerson = getEvCol('text_mm8jd1am') || getEvCol('lookup_mm8d375q');
+        const evSite = getEvCol('dropdown_mm8dr9jz');
+        if (!personne && evPerson) personne = evPerson;
+        if (!voiture && evSite && isVehicleLabel(evSite)) {
+          voiture = evSite;
+        } else if (!site && evSite) {
+          site = evSite;
+        }
+      }
+    }
+
+    const machineType =
+      getCvText(m.column_values?.find((c: any) => c.id === 'color_mm8t2mn5' || c.id === 'color_mm8g45e8')) ||
+      matchColByKeywords(m, [], ['type', 'categorie']) ||
+      'Matériel';
+    const status =
+      getCvText(m.column_values?.find((c: any) => c.id === 'color_mm8dremb')) || 'En service';
+    const serialNumber = matchColByKeywords(m, [], ['serie', 'serial', 'immat']);
+
+    return {
+      machineId: String(m.id),
+      machineName: m.name,
+      machineType,
+      status,
+      site: site || 'Non affecté / Dépôt',
+      personne: personne || 'Non attribué',
+      voiture: voiture || '—',
+      serialNumber: serialNumber || '',
+    };
+  });
 }
 
 

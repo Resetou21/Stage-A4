@@ -129,13 +129,6 @@ const INVENTAIRES = [
 type InvKey = (typeof INVENTAIRES)[number];
 type DueProduct = { name: string; key: string; inventaire: number | null };
 
-export const updateInventoryValidated = createServerFn({ method: 'POST' })
-  .validator(z.object({ itemId: z.string().min(1), value: z.boolean() }))
-  .handler(async ({ data }) => {
-    await new InventairesConsommablesBoard().item(data.itemId).update({ inventaireValidOk: data.value }).execute();
-    return { ok: true };
-  });
-
 export const validateInventory = createServerFn({ method: 'POST' })
   .validator(
     z.object({

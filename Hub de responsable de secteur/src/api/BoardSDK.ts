@@ -11,9 +11,17 @@ const waitQueue: Array<() => void> = [];
 const inFlightRequests = new Map<string, Promise<any>>();
 const queryCache = new Map<string, { expires: number; data: any }>();
 
-export function clearBoardCache() {
-  queryCache.clear();
-  inFlightRequests.clear();
+export function clearBoardCache(boardId?: string) {
+  if (!boardId) {
+    queryCache.clear();
+    inFlightRequests.clear();
+    return;
+  }
+  for (const key of Array.from(queryCache.keys())) {
+    if (key.includes(boardId)) {
+      queryCache.delete(key);
+    }
+  }
 }
 
 function acquireSlot(): Promise<void> {
@@ -51,7 +59,13 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
       return inFlight;
     }
   } else {
-    queryCache.clear();
+    // Mutation : invalider uniquement le cache du tableau concerné au lieu de vider toute l'application
+    const match = query.match(/board_id:\s*["']?(\d+)["']?/);
+    if (match && match[1]) {
+      clearBoardCache(match[1]);
+    } else {
+      clearBoardCache(BOARD_IDS.INVENTAIRES_CONSOMMABLES);
+    }
   }
 
   const exec = async () => {
@@ -67,9 +81,12 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
               return m.includes('rate limit') || m.includes('complexity');
             });
             if (isRateLimit && attempt < 3) {
-              console.warn(`[BoardSDK] Rate limit encountered, retrying in ${delay}ms... (attempt ${attempt + 1}/3)`);
-              await new Promise((r) => setTimeout(r, delay));
-              delay *= 1.5;
+              const retryErr = res.errors.find((e: any) => e?.extensions?.retry_in_seconds);
+              const retryAfterSec = retryErr?.extensions?.retry_in_seconds;
+              const waitMs = retryAfterSec ? (Number(retryAfterSec) + 1) * 1000 : delay;
+              console.warn(`[BoardSDK] Budget complexité Monday dépassé, attente de ${waitMs}ms avant réessai... (tentative ${attempt + 1}/3)`);
+              await new Promise((r) => setTimeout(r, waitMs));
+              delay = Math.max(delay * 1.5, 2000);
               continue;
             }
             // Alerter visuellement en cas de vrai refus d'autorisation ou erreur Monday API
@@ -431,6 +448,26 @@ class QueryBuilder<T = any> {
               column_id: 'date_mkrcgy18',
               compare_value: [String(gte)],
               operator: 'greater_than_or_equals',
+            },
+          ],
+        };
+      }
+    } else if (this.boardId === BOARD_IDS.TABLEAU_COMPLET_CHANTIER && this._filters.animateur) {
+      const animMap: Record<string, number> = {
+        'Natacha THOMAS': 0,
+        'Ketty PAULIN': 1,
+        'Emilie TOBIE': 3,
+        'Andre LEVESQUE': 7,
+      };
+      const animVal = typeof this._filters.animateur === 'string' ? this._filters.animateur.toLowerCase().trim() : '';
+      const matchedIdx = Object.entries(animMap).find(([k]) => k.toLowerCase().startsWith(animVal))?.[1];
+      if (matchedIdx !== undefined) {
+        queryParams = {
+          rules: [
+            {
+              column_id: 'color_mkrbk3jy',
+              compare_value: [matchedIdx],
+              operator: 'any_of',
             },
           ],
         };

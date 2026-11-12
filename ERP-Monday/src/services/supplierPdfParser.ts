@@ -37,6 +37,8 @@ export interface ParsedSupplierOrder {
   underWarranty: boolean;
   warrantyLabel: string;
   replacedParts: SupplierReplacedPart[];
+  totalHT?: number;
+  totalTTC?: number;
   technicianNotes: string;
   customerSignature: string;
   technicianSignature: string;
@@ -134,29 +136,105 @@ export async function extractPdfRowsFromArrayBuffer(buffer: ArrayBuffer): Promis
 }
 
 /**
- * Parse les lignes spatiales extraites d'un acte d'intervention fournisseur (format SAP / Diversey ou générique).
+ * Parse un nombre formaté à la française ou anglaise ("1 245,50 €" -> 1245.5).
+ */
+function parseMonetaryValue(raw: string): number | undefined {
+  if (!raw) return undefined;
+  const cleaned = raw.replace(/[\s\u00A0\u202F€$]/g, '').replace(/EUR/gi, '').replace(',', '.');
+  const match = cleaned.match(/-?\d+(?:\.\d{1,2})?/);
+  if (!match) return undefined;
+  const val = Number(match[0]);
+  return Number.isFinite(val) && val > 0 ? Math.round(val * 100) / 100 : undefined;
+}
+
+function detectGenericSupplierName(rows: PdfRow[], fullText: string): string {
+  const lowerAll = fullText.toLowerCase();
+  const known: Array<[RegExp, string]> = [
+    [/diversey|solenis/i, 'Diversey (Solenis)'],
+    [/k[aä]rcher/i, 'Kärcher'],
+    [/nilfisk/i, 'Nilfisk'],
+    [/numatic/i, 'Numatic'],
+    [/\bhako\b/i, 'Hako'],
+    [/tennant/i, 'Tennant'],
+    [/comac/i, 'Comac'],
+    [/fimap/i, 'Fimap'],
+    [/taski/i, 'Taski'],
+    [/ghibli/i, 'Ghibli & Wirbel'],
+    [/wetrok/i, 'Wetrok'],
+    [/w[uü]rth/i, 'Würth'],
+    [/bricomarch[eé]|leroy\s*merlin|rexel|kiloutou|loxam/i, 'Prestataire / Négoce'],
+  ];
+  for (const [rx, label] of known) {
+    if (rx.test(lowerAll)) return label;
+  }
+
+  // Fallback automatique : chercher raison sociale (SAS, SARL, EURL, SA, SNC) ou domaine email
+  const companyRx = /\b([A-ZÀ-ÖØ-Ý0-9][A-Za-zÀ-ÿ0-9&\-\s']{2,35}\s+(?:SAS|SARL|EURL|SASU|SA|SNC|GmbH|ETS))\b/;
+  const compM = fullText.match(companyRx);
+  if (compM) return compM[1].replace(/\s+/g, ' ').trim();
+
+  const emailM = fullText.match(/@([a-z0-9\-]+)\.[a-z]{2,}/i);
+  if (emailM && !/gmail|outlook|orange|free|wanadoo|yahoo|facility/i.test(emailM[1])) {
+    const dom = emailM[1];
+    return dom.charAt(0).toUpperCase() + dom.slice(1);
+  }
+
+  // En-tête haut de page (premières lignes non techniques)
+  for (const row of rows.slice(0, 5)) {
+    const txt = row.text.trim();
+    if (
+      txt.length >= 3 &&
+      txt.length <= 45 &&
+      !/^(facture|devis|bon\s+d|date|client|adresse|page\s+\d|t[ée]l|siret|groupe\s+facility)/i.test(txt) &&
+      /[a-zA-ZÀ-ÿ]{3,}/.test(txt)
+    ) {
+      return txt;
+    }
+  }
+
+  return 'Fournisseur Externe';
+}
+
+function extractTotalsHTandTTC(rows: PdfRow[], fullText: string): { totalHT?: number; totalTTC?: number } {
+  let totalHT: number | undefined;
+  let totalTTC: number | undefined;
+
+  for (const r of rows) {
+    const line = r.text;
+    if (!totalHT && /(?:total\s*(?:g[ée]n[ée]ral\s*)?h\.?t\.?|montant\s*h\.?t\.?|net\s*h\.?t\.?|base\s*h\.?t\.?)/i.test(line)) {
+      const amounts = line.match(/(\d[\d\s\u00A0]*[.,]\d{2})\s*(?:€|eur)?/gi);
+      if (amounts && amounts.length > 0) {
+        totalHT = parseMonetaryValue(amounts[amounts.length - 1]);
+      }
+    }
+    if (!totalTTC && /(?:total\s*(?:g[ée]n[ée]ral\s*)?t\.?t\.?c\.?|net\s*[àa]\s*payer|montant\s*t\.?t\.?c\.?|total\s*facture)/i.test(line)) {
+      const amounts = line.match(/(\d[\d\s\u00A0]*[.,]\d{2})\s*(?:€|eur)?/gi);
+      if (amounts && amounts.length > 0) {
+        totalTTC = parseMonetaryValue(amounts[amounts.length - 1]);
+      }
+    }
+  }
+
+  if (!totalHT && !totalTTC) {
+    const genericM = fullText.match(/(?:total|montant|co[ûu]t)\s*[:\-]?\s*(\d[\d\s\u00A0]*[.,]\d{2})\s*(?:€|eur)/i);
+    if (genericM) totalHT = parseMonetaryValue(genericM[1]);
+  }
+  if (!totalHT && totalTTC) {
+    totalHT = Math.round((totalTTC / 1.2) * 100) / 100;
+  }
+
+  return { totalHT, totalTTC };
+}
+
+/**
+ * Parse les lignes spatiales extraites d'un acte d'intervention fournisseur (SAP / Diversey OU multi-fournisseurs automatique).
  */
 export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): ParsedSupplierOrder {
   const fullText = rows.map((r) => r.text).join('\n');
   const lowerAll = fullText.toLowerCase();
 
-  // 1. Détection fournisseur
-  let supplierName = 'Fournisseur Externe';
-  if (lowerAll.includes('diversey') || lowerAll.includes('solenis')) {
-    supplierName = 'Diversey (Solenis)';
-  } else if (lowerAll.includes('karcher') || lowerAll.includes('kärcher')) {
-    supplierName = 'Kärcher';
-  } else if (lowerAll.includes('nilfisk')) {
-    supplierName = 'Nilfisk';
-  } else if (lowerAll.includes('numatic')) {
-    supplierName = 'Numatic';
-  } else if (lowerAll.includes('hako')) {
-    supplierName = 'Hako';
-  } else if (lowerAll.includes('tennant')) {
-    supplierName = 'Tennant';
-  } else if (lowerAll.includes('comac') || lowerAll.includes('fimap')) {
-    supplierName = lowerAll.includes('comac') ? 'Comac' : 'Fimap';
-  }
+  // 1. Détection fournisseur (multi-entreprises automatique)
+  const supplierName = detectGenericSupplierName(rows, fullText);
 
   // Utilitaire : extraire un champ dans une colonne gauche (x < 300) ou droite (x >= 300) sur la même bande Y
   const getSideValue = (labelPattern: RegExp, side: 'left' | 'right' | 'any' = 'any'): string => {
@@ -195,16 +273,16 @@ export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): P
     return '';
   };
 
-  // 2. Numéro de commande / bon
+  // 2. Numéro de commande / bon / facture (SAP ou générique)
   let orderNumber = '';
-  const sapMatch = fullText.match(/Num[ée]ro\s+de\s+(?:commande\s+SAP|bon|commande|dossier)\s*[:\-]?\s*([A-Z0-9\-]{4,})/i);
+  const sapMatch = fullText.match(/(?:Num[ée]ro\s+de\s+(?:commande\s+SAP|bon|commande|dossier|facture)|(?:Facture|Devis|Bon\s+d['’]intervention|OT|Ordre\s+de\s+travail)\s*n[°o]?)\s*[:\-]?\s*([A-Z0-9\-\/]{4,})/i);
   if (sapMatch) {
     orderNumber = sapMatch[1].trim();
   } else {
     for (let i = 0; i < rows.length; i++) {
-      if (/num[ée]ro\s+de/i.test(rows[i].text)) {
+      if (/num[ée]ro\s+de|facture\s*n|bon\s*n/i.test(rows[i].text)) {
         const chunk = rows.slice(i, i + 3).map((r) => r.text).join(' ');
-        const numM = chunk.match(/\b(\d{7,14})\b/);
+        const numM = chunk.match(/\b([A-Z]{0,3}\d{6,14})\b/);
         if (numM) {
           orderNumber = numM[1];
           break;
@@ -213,13 +291,13 @@ export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): P
     }
   }
   if (!orderNumber && fileName) {
-    const fnMatch = fileName.match(/(\d{6,})/);
+    const fnMatch = fileName.match(/(\d{5,})/);
     if (fnMatch) orderNumber = fnMatch[1];
   }
 
   // 3. Date
   let dateDisplay = '';
-  const dateMatch = fullText.match(/(?:Date\s+de\s+cr[ée]ation|Date\s+d'intervention|Date)\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const dateMatch = fullText.match(/(?:Date\s+de\s+(?:cr[ée]ation|facture)|Date\s+d'intervention|Le|Date)\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
   if (dateMatch) {
     dateDisplay = dateMatch[1];
   } else {
@@ -228,10 +306,11 @@ export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): P
   }
   const isoDate = dateDisplay ? normalizeFrDateToIso(dateDisplay) : new Date().toISOString().split('T')[0];
 
-  // 4. Client & Adresse (côté gauche du bloc Informations client)
+  // 4. Client & Adresse (SAP côté gauche ou générique)
   const clientAccount =
     getSideValue(/^Compte\b/i, 'left') ||
     getSideValue(/^Nom de l'adresse\b/i, 'left') ||
+    getSideValue(/^(?:Client|Site|[ÉE]tablissement|Chantier)\s*[:\-]/i, 'any') ||
     '';
   const addrLine = getSideValue(/^Add?resse\s+ligne\s*2\b/i, 'left') || getSideValue(/^Adresse\b/i, 'left');
   const cityLine = getSideValue(/^Pays\b/i, 'left') || getSideValue(/^Ville\b/i, 'left');
@@ -254,6 +333,10 @@ export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): P
         break;
       }
     }
+  }
+  if (!technicianName) {
+    const genTech = fullText.match(/(?:Technicien(?:\s+assign[ée])?|Intervenant|Op[ée]rateur)\s*[:\-]\s*([^\n\r]{2,50})/i);
+    if (genTech) technicianName = genTech[1].trim();
   }
 
   // 6. Équipement, N° série, N° article (sous "Statut de la commande" / "Nom de l'équipement")
@@ -398,6 +481,45 @@ export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): P
     }
   }
 
+  // Fallback générique tableau facture / bon d'intervention multi-entreprises
+  if (replacedParts.length === 0) {
+    for (let i = 0; i < rows.length; i++) {
+      const hdr = rows[i].text;
+      if (
+        /(D[ée]signation|Description|Libell[ée]|Prestation|Article)/i.test(hdr) &&
+        /(Qt[ée]|Quantit[ée]|P\.?U\.?|Prix|Montant|Total)/i.test(hdr)
+      ) {
+        for (let j = i + 1; j < Math.min(rows.length, i + 40); j++) {
+          const rText = rows[j].text.trim();
+          if (!rText) continue;
+          if (/^(Total\s+HT|Total\s+TTC|TVA|Net\s+[àa]\s+payer|Conditions|R[èe]glement|IBAN|SIRET)/i.test(rText)) {
+            break;
+          }
+          // Ignorer les lignes de sous-totaux purement numériques
+          if (/^[\d\s,.\€%]+$/.test(rText)) continue;
+          const refMatch = rText.match(/^([A-Z0-9\-_]{3,14})\s+(.+)$/);
+          const lineMatch = rText.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)\s+(?:€|EUR|\d)/i);
+          if (lineMatch && lineMatch[1].trim().length >= 4) {
+            replacedParts.push({
+              articleNumber: refMatch ? refMatch[1] : 'LIGNE',
+              description: (refMatch ? refMatch[2] : lineMatch[1]).replace(/\s+\d+(?:[.,]\d+)?\s*€.*$/i, '').trim(),
+              quantity: lineMatch[2],
+              unit: 'U',
+              warrantyFlag: '',
+            });
+          }
+        }
+        if (replacedParts.length > 0) break;
+      }
+    }
+  }
+
+  // Fallback générique Observations / Diagnostic / Travaux
+  if (!damageSummary) {
+    const genDiag = fullText.match(/(?:Diagnostic|Panne\s+constat[ée]e|Motif\s+d'appel|Description\s+panne|Objet)\s*[:\-]\s*([^\n]+)/i);
+    if (genDiag) damageSummary = genDiag[1].trim();
+  }
+
   // 10. Note de service (Commentaires du technicien)
   let technicianNotes = '';
   for (let i = 0; i < rows.length; i++) {
@@ -466,13 +588,23 @@ export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): P
     ? 'Sous garantie'
     : 'Hors garantie';
 
-  // 13. Statut suggéré
+  // 13. Totaux financiers HT / TTC (multi-fournisseurs automatique)
+  const { totalHT, totalTTC } = extractTotalsHTandTTC(rows, fullText);
+
+  // 14. Note de service fallback si aucune note SAP détectée
+  if (!technicianNotes) {
+    const genObs = fullText.match(/(?:Observations?|Travaux\s+effectu[ée]s|Commentaires?|Remarques?)\s*[:\-]\s*([^\n]{4,250})/i);
+    if (genObs) technicianNotes = genObs[1].trim();
+  }
+
+  // 15. Statut suggéré
   let suggestedStatus: ParsedSupplierOrder['suggestedStatus'] = 'Réparée';
   if (
     notesLower.includes('tout est ok') ||
     notesLower.includes("fin d'intervention") ||
     lowerAll.includes('100 repare') ||
-    lowerAll.includes('réparé')
+    lowerAll.includes('réparé') ||
+    lowerAll.includes('facture')
   ) {
     suggestedStatus = 'Réparée';
   } else if (notesLower.includes('devis') || notesLower.includes('commander') || notesLower.includes('attente')) {
@@ -496,6 +628,8 @@ export function parseSupplierOrderFromRows(rows: PdfRow[], fileName?: string): P
     underWarranty,
     warrantyLabel,
     replacedParts,
+    totalHT,
+    totalTTC,
     technicianNotes,
     customerSignature,
     technicianSignature,
@@ -521,6 +655,7 @@ export function findBestMatchingMachines(
   const cleanSerial = (order.serialNumber || '').replace(/^0+/, '').toLowerCase();
   const equipLower = (order.equipmentName || '').toLowerCase();
   const siteLower = `${order.clientAccount} ${order.siteAddress}`.toLowerCase();
+  const rawLower = (order.rawTextPreview || '').toLowerCase();
 
   // Mots-clés significatifs du modèle machine (ex: "ultimaxx", "360")
   const equipTokens = equipLower
@@ -557,6 +692,20 @@ export function findBestMatchingMachines(
       if (fullMachineText.includes(tok)) {
         score += 30;
         matchReasons.push(`Site « ${tok} »`);
+      }
+    }
+
+    // Scan universel plein texte si un nouveau format PDF cache le nom/n° série/site ailleurs
+    if (score === 0 && rawLower) {
+      const mTokens = m.name
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length >= 4 && !['autolaveuse', 'monobrosse', 'aspirateur', 'chariot', 'machine'].includes(w));
+      for (const mTok of mTokens) {
+        if (rawLower.includes(mTok)) {
+          score += 20;
+          matchReasons.push(`Texte PDF « ${mTok} »`);
+        }
       }
     }
 

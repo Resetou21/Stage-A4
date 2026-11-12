@@ -1,6 +1,7 @@
 export interface ColumnValue {
   id: string;
   text: string;
+  display_value?: string | null;
   value?: string | null;
 }
 

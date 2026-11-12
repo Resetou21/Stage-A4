@@ -35,6 +35,15 @@
   box-sizing: border-box;
 }
 
+/* Utilitaire scrollbar invisible sur mobile / tablette pour les onglets */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 html, body, #root {
   margin: 0;
   padding: 0;

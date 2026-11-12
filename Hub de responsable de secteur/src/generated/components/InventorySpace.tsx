@@ -35,39 +35,29 @@ export default function InventorySpace({ firstName, onInventoryValidated }: { fi
   const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState('');
 
-  // Pré-chargement de l'historique complet des sites (une seule fois par profil)
+  // Chargement initial des sites (Tile 01) au changement de profil
   useEffect(() => {
     let isMounted = true;
-    setHistoryLoaded(false);
-    getAllSitesHistory({ data: { firstName } })
+    getInventory({ data: { firstName } })
       .then((r) => {
-        if (isMounted) {
-          if (r?.historyBySite) setHistoryMap(r.historyBySite);
-          setHistoryLoaded(true);
+        if (isMounted && r) {
+          setSitesData(r);
+          setSitesCount(r.items.length);
         }
       })
       .catch((e) => {
         console.error(e);
-        if (isMounted) setHistoryLoaded(true);
+        if (isMounted) setSitesCount('—');
       });
+
     return () => { isMounted = false; };
   }, [firstName]);
 
-  // Chargement et rafraîchissement réactif ultra-rapide des inventaires et actions
+  // Chargement et rafraîchissement réactif ultra-rapide des inventaires à faire et des actions
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Compteur de sites
-    getSitesCount({ data: { firstName } })
-      .then((r) => { if (isMounted) setSitesCount(r?.count ?? 0); })
-      .catch((e) => { console.error(e); if (isMounted) setSitesCount('—'); });
-
-    // 2. Pré-chargement liste des sites (Tile 01)
-    getInventory({ data: { firstName } })
-      .then((r) => { if (isMounted) setSitesData(r ?? null); })
-      .catch((e) => console.error(e));
-
-    // 3. Pré-chargement des inventaires à faire (Tile 02)
+    // 1. Pré-chargement des inventaires à faire (Tile 02)
     getInventoryDue({ data: { firstName } })
       .then((r) => {
         if (isMounted) {
@@ -77,7 +67,7 @@ export default function InventorySpace({ firstName, onInventoryValidated }: { fi
       })
       .catch((e) => { console.error(e); if (isMounted) setDueCount('—'); });
 
-    // 4. Pré-chargement des actions suite inventaire (Tile 03)
+    // 2. Pré-chargement des actions suite inventaire (Tile 03)
     getInventoryActions({ data: { firstName } })
       .then((r) => {
         if (isMounted) {
@@ -169,6 +159,7 @@ export default function InventorySpace({ firstName, onInventoryValidated }: { fi
               search={search}
               preloaded={dueData}
               onChanged={() => {
+                setDueCount((n) => (typeof n === 'number' ? Math.max(0, n - 1) : n));
                 setRefreshKey((k) => k + 1);
                 onInventoryValidated?.();
               }}

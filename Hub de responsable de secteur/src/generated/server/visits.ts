@@ -41,83 +41,130 @@ export interface VisitItem {
   qualite: string | null;
 }
 
+const visitsOverviewCache = new Map<string, { timestamp: number; data: any }>();
+const inFlightVisitsOverview = new Map<string, Promise<any>>();
+
+const chantierQualityCache = new Map<string, { timestamp: number; data: any }>();
+const inFlightChantierQuality = new Map<string, Promise<any>>();
+
+const visitsPlansCache = new Map<string, { timestamp: number; data: any }>();
+const inFlightVisitsPlans = new Map<string, Promise<any>>();
+
+const commsCache = new Map<string, { timestamp: number; data: any }>();
+const inFlightComms = new Map<string, Promise<any>>();
+
+export function clearVisitsOverviewCache() {
+  visitsOverviewCache.clear();
+  chantierQualityCache.clear();
+  visitsPlansCache.clear();
+  commsCache.clear();
+}
+
 /* ---------- 1. Visites clients Overview (Rapide : KPI 279/385, Graphique & Jauges en ~3s) ---------- */
 export const getVisitsOverview = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const empty = {
-      year: new Date().getFullYear(),
-      monthly: Array(12).fill(0) as number[],
-      yearCount: 0,
-      satTotal: null as number | null,
-      satMonth: null as number | null,
-      recent: [] as VisitItem[],
-    };
-    const label = labelOf(data.firstName);
-    if (!label) return empty;
+    const k = data.firstName.toLowerCase();
+    const cached = visitsOverviewCache.get(k);
+    if (cached && Date.now() - cached.timestamp < 60000) {
+      return cached.data;
+    }
+    const inFlight = inFlightVisitsOverview.get(k);
+    if (inFlight) return inFlight;
 
-    const target = norm(label);
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const res = { ...empty, year };
-    let bonAll = 0, ratedAll = 0, bonMonth = 0, ratedMonth = 0;
+    const promise = (async () => {
+      const empty = {
+        year: new Date().getFullYear(),
+        monthly: Array(12).fill(0) as number[],
+        yearCount: 0,
+        satTotal: null as number | null,
+        satMonth: null as number | null,
+        recent: [] as VisitItem[],
+      };
+      const label = labelOf(data.firstName);
+      if (!label) return empty;
 
-    const from = `${year}-01-01`;
-    const to = `${year}-12-31`;
-    const today = now.toISOString().slice(0, 10);
-    const t0Date = new Date(`${today}T00:00:00.000Z`);
-    const dow = (t0Date.getUTCDay() + 6) % 7;
-    const lastMonday = new Date(t0Date.getTime() - (dow + 7) * DAY).toISOString().slice(0, 10);
-    const recent: VisitItem[] = [];
+      const target = norm(label);
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const res = { ...empty, year };
+      let bonAll = 0, ratedAll = 0, bonMonth = 0, ratedMonth = 0;
 
-    let cur: string | null = null;
-    do {
-      const qInit = `
-        query GetVisitsFastInit {
-          boards(ids: [1977798116]) {
-            items_page(limit: 500, query_params: {
-              rules: [{ column_id: "date_mkrcgy18", compare_value: ["${from}"], operator: greater_than_or_equals }]
-            }) {
-              cursor
-              items {
-                id
-                name
-                date: column_values(ids: ["date_mkrcgy18"]) { text }
-                anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
-                qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
-                chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+      const from = `${year}-01-01`;
+      const to = `${year}-12-31`;
+      const today = now.toISOString().slice(0, 10);
+      const t0Date = new Date(`${today}T00:00:00.000Z`);
+      const dow = (t0Date.getUTCDay() + 6) % 7;
+      const lastMonday = new Date(t0Date.getTime() - (dow + 7) * DAY).toISOString().slice(0, 10);
+      const recent: VisitItem[] = [];
+
+      const fetchRange = async (rangeFrom: string, rangeTo: string) => {
+        let curRange: string | null = null;
+        const rangeItems: any[] = [];
+        do {
+          const qInit = `
+            query GetVisitsRange {
+              boards(ids: [1977798116]) {
+                items_page(limit: 500, query_params: {
+                  rules: [
+                    { column_id: "date_mkrcgy18", compare_value: ["${rangeFrom}"], operator: greater_than_or_equals },
+                    { column_id: "date_mkrcgy18", compare_value: ["${rangeTo}"], operator: lower_than }
+                  ]
+                }) {
+                  cursor
+                  items {
+                    id
+                    name
+                    date: column_values(ids: ["date_mkrcgy18"]) { text }
+                    anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                    qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
+                    chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+                  }
+                }
               }
             }
-          }
-        }
-      `;
-      const qCursor = `
-        query GetVisitsFastCursor($cursor: String!) {
-          boards(ids: [1977798116]) {
-            items_page(limit: 500, cursor: $cursor) {
-              cursor
-              items {
-                id
-                name
-                date: column_values(ids: ["date_mkrcgy18"]) { text }
-                anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
-                qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
-                chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+          `;
+          const qCursor = `
+            query GetVisitsRangeCursor($cursor: String!) {
+              boards(ids: [1977798116]) {
+                items_page(limit: 500, cursor: $cursor) {
+                  cursor
+                  items {
+                    id
+                    name
+                    date: column_values(ids: ["date_mkrcgy18"]) { text }
+                    anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                    qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
+                    chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+                  }
+                }
               }
             }
-          }
-        }
-      `;
+          `;
 
-      const apiRes: any = cur
-        ? await callMondayApi(qCursor, { variables: { cursor: cur } })
-        : await callMondayApi(qInit);
+          const apiRes: any = curRange
+            ? await callMondayApi(qCursor, { variables: { cursor: curRange } })
+            : await callMondayApi(qInit);
 
-      const page = apiRes?.data?.boards?.[0]?.items_page ?? apiRes?.boards?.[0]?.items_page;
-      if (!page) break;
+          const page = apiRes?.data?.boards?.[0]?.items_page ?? apiRes?.boards?.[0]?.items_page;
+          if (!page) break;
+          rangeItems.push(...(page.items || []));
+          curRange = page.cursor;
+        } while (curRange);
+        return rangeItems;
+      };
 
-      for (const it of page.items || []) {
+      const ranges = [
+        [`${year}-01-01`, `${year}-05-01`],
+        [`${year}-05-01`, `${year}-09-01`],
+        [`${year}-09-01`, `${year + 1}-01-01`],
+      ];
+
+      const parts = await Promise.all(ranges.map(([rf, rt]) => fetchRange(rf, rt)));
+      const allItems = parts.flat();
+
+      for (const it of allItems) {
         const animCv = it.anim?.[0];
         const rawDisp = (animCv?.display_value || animCv?.text || '').trim();
         const names = rawDisp ? rawDisp.split(',').map(norm) : [];
@@ -148,22 +195,37 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
         }
       }
 
-      cur = page.cursor;
-    } while (cur);
+      res.recent = recent;
+      res.satTotal = ratedAll ? (bonAll / ratedAll) * 100 : null;
+      res.satMonth = ratedMonth ? (bonMonth / ratedMonth) * 100 : null;
+      visitsOverviewCache.set(k, { timestamp: Date.now(), data: res });
+      return res;
+    })();
 
-    res.recent = recent;
-    res.satTotal = ratedAll ? (bonAll / ratedAll) * 100 : null;
-    res.satMonth = ratedMonth ? (bonMonth / ratedMonth) * 100 : null;
-    return res;
+    inFlightVisitsOverview.set(k, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightVisitsOverview.delete(k);
+    }
   });
 
 /* ---------- 2. Plans d'actions des visites (22 chantiers, chargé directement et en parallèle) ---------- */
 export const getVisitsPlans = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const empty = { plansOpen: [] as PlanItem[], plansClosedYear: 0 };
-    const label = labelOf(data.firstName);
-    if (!label) return empty;
+    const k = data.firstName.toLowerCase();
+    const cached = visitsPlansCache.get(k);
+    if (cached && Date.now() - cached.timestamp < 60000) {
+      return cached.data;
+    }
+    const inFlight = inFlightVisitsPlans.get(k);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
+      const empty = { plansOpen: [] as PlanItem[], plansClosedYear: 0 };
+      const label = labelOf(data.firstName);
+      if (!label) return empty;
 
     const target = norm(label);
     const now = new Date();
@@ -171,13 +233,46 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
     const month = now.getMonth();
     const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
 
-    // 1. Récupérer les sous-éléments ouverts (Non fait & non abandonné)
+    // 1. Récupérer les sous-éléments ouverts (Non fait & non abandonné) avec filtre natif Monday ultra-rapide
     const pOpen = (async () => {
       let cur: string | null = null;
       const openItems: any[] = [];
       do {
-        const q = `
-          query GetOpenSubs($cursor: String) {
+        const qInit = `
+          query GetOpenSubsInit {
+            boards(ids: [1978388826]) {
+              items_page(limit: 500, query_params: {
+                rules: [
+                  { column_id: "color_mkv1tk6f", compare_value: [1, 3], operator: not_any_of }
+                ]
+              }) {
+                cursor
+                items {
+                  id
+                  name
+                  parent_item {
+                    id
+                    name
+                    group { id title }
+                    column_values(ids: ["lookup_mkvgpaca", "date_mkrcgy18", "board_relation_mktd1vha"]) {
+                      id
+                      text
+                      ... on MirrorValue { display_value }
+                      ... on BoardRelationValue { display_value }
+                    }
+                  }
+                  column_values(ids: ["color_mkv1tk6f", "text_mkrhcpzc", "date_mkwrr950", "dropdown_mkv1j4z1"]) {
+                    id
+                    text
+                    ... on StatusValue { label }
+                  }
+                }
+              }
+            }
+          }
+        `;
+        const qCursor = `
+          query GetOpenSubsCursor($cursor: String!) {
             boards(ids: [1978388826]) {
               items_page(limit: 500, cursor: $cursor) {
                 cursor
@@ -205,7 +300,9 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
             }
           }
         `;
-        const res: any = await callMondayApi(q, { variables: { cursor: cur } });
+        const res: any = cur
+          ? await callMondayApi(qCursor, { variables: { cursor: cur } })
+          : await callMondayApi(qInit);
         const page = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
         if (!page) break;
         for (const it of page.items || []) {
@@ -322,11 +419,21 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
       });
     }
 
-    return {
+    const result = {
       plansOpen,
       plansClosedYear: closedCount,
     };
-  });
+    visitsPlansCache.set(k, { timestamp: Date.now(), data: result });
+    return result;
+  })();
+
+  inFlightVisitsPlans.set(k, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightVisitsPlans.delete(k);
+  }
+});
 
 /* ---------- 3. Visites clients Dashboard (Fonction combinée complète) ---------- */
 export const getVisitsDashboard = createServerFn({ method: 'GET' })
@@ -347,186 +454,250 @@ export const getVisitsDashboard = createServerFn({ method: 'GET' })
 export const getChantierQuality = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
-    type Q = { id: string; chantier: string; date: string | null; resultat: string | null };
-    const out = { stars: { s3: 0, s2: 0, s1: 0, s0: 0 }, insatisfaits: [] as Q[], controle2Mois: [] as Q[], nonVus11Mois: [] as Q[] };
-    const label = labelOf(data.firstName);
-    if (!label) return out;
-    const elevenMonthsAgo = new Date(); elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
-    const board = new TableauCompletChantierBoard();
-    let cur: string | null | undefined = undefined;
-    let itemsFound = 0;
-
-    try {
-      do {
-        const page = await board
-          .items()
-          .withColumns(['c1', 'c2', 'c3', 'rsultatDernierContrle', 'dernierContrle', 'dernierContrle1', 'column3', 'column2', 'column1', 'column', 'alerte2', 'alerte3'])
-          .where({ animateur: label, group: 'topics' })
-          .orderBy({ column: 'name', direction: 'asc' })
-          .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
-          .execute();
-
-        itemsFound += (page.items || []).length;
-
-        for (const it of page.items || []) {
-          const raw = it.dernierContrle ?? it.dernierContrle1 ?? null;
-          const d = raw && !Number.isNaN(new Date(raw).getTime()) ? new Date(raw) : null;
-          const q: Q = { id: it.id, chantier: it.name, date: iso(d), resultat: it.rsultatDernierContrle ?? it.c1 ?? null };
-          const f = [it.column3, it.column2, it.column1, it.column].map((v) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(String(v).replace(',', '.'))));
-          if (f.some((v) => v !== null)) {
-            if (f[0] === 1) out.stars.s3++;
-            if (f[1] === 1) out.stars.s2++;
-            if (f[2] === 1) out.stars.s1++;
-            if (f[3] === 1) out.stars.s0++;
-          } else {
-            const c1Bon = it.c1 === BON;
-            const c2Bon = it.c2 === BON;
-            const c3Bon = it.c3 === BON;
-
-            if (c1Bon && c2Bon && c3Bon) {
-              out.stars.s3++;
-            } else if (c1Bon && c2Bon) {
-              out.stars.s2++;
-            } else if (c1Bon) {
-              out.stars.s1++;
-            } else if (it.c1 === 'Bases non respectées' || it.c1 === "Plan d'action urgent") {
-              out.stars.s0++;
-            }
-          }
-
-          const fnum = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return v === null || v === undefined || String(v).trim() === "" || !Number.isFinite(n) ? null : n; };
-          const a2 = fnum(it.alerte2);
-          const a3 = fnum(it.alerte3);
-          const twoMonthsAgo = new Date();
-          twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-
-          const isBad = (c: unknown) => c === 'Bases non respectées' || c === "Plan d'action urgent";
-          const has3Bad = isBad(it.c1) && isBad(it.c2) && isBad(it.c3);
-          const isClientInsatisfait3 = (a2 !== null && a2 > 0) || has3Bad;
-
-          if (isClientInsatisfait3) out.insatisfaits.push(q);
-
-          const isDernierControleBad = isBad(it.c1) || (Boolean(it.rsultatDernierContrle) && it.rsultatDernierContrle !== BON);
-          if (a3 === 1 || (isDernierControleBad && d && d.getTime() <= twoMonthsAgo.getTime())) {
-            out.controle2Mois.push(q);
-          }
-          if (d && d.getTime() <= elevenMonthsAgo.getTime()) out.nonVus11Mois.push(q);
-        }
-        cur = page.cursor;
-      } while (cur);
-    } catch (e) {
-      console.warn('Erreur lecture TableauCompletChantierBoard:', e);
+    const k = data.firstName.toLowerCase();
+    const cached = chantierQualityCache.get(k);
+    if (cached && Date.now() - cached.timestamp < 60000) {
+      return cached.data;
     }
+    const inFlight = inFlightChantierQuality.get(k);
+    if (inFlight) return inFlight;
 
-    // Fallback de secours si Tableau complet chantier renvoie 0 items
-    if (itemsFound === 0) {
+    const promise = (async () => {
+      type Q = { id: string; chantier: string; date: string | null; resultat: string | null };
+      type Alert = { id: string; texte: string; date: string | null };
+      const out = {
+        stars: { s3: 0, s2: 0, s1: 0, s0: 0 },
+        insatisfaits: [] as Q[],
+        controle2Mois: [] as Q[],
+        nonVus11Mois: [] as Q[],
+        alerts: [] as Alert[],
+      };
+      const label = labelOf(data.firstName);
+      if (!label) return out;
+      const elevenMonthsAgo = new Date(); elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
+      const board = new TableauCompletChantierBoard();
+      let cur: string | null | undefined = undefined;
+      let itemsFound = 0;
+
       try {
-        const normTarget = norm(label);
-        const vBoard = new VisitesClientsBoard();
-        const visitsByChantier = new Map<string, Array<{ date: string; qual: string | null }>>();
-        let vCur: string | null | undefined = undefined;
-
         do {
-          const vPage: any = await vBoard
+          const page = await board
             .items()
-            .withColumns(['dateVisiteClient', 'qualitDeLaPrestation', 'nomChantier', 'animateur', 'animatriceDirect'])
-            .orderBy({ column: 'dateVisiteClient', direction: 'desc' })
-            .withPagination(vCur ? { limit: 500, cursor: vCur } : { limit: 500 })
+            .withColumns([
+              'c1', 'c2', 'c3', 'rsultatDernierContrle', 'dernierContrle', 'dernierContrle1',
+              'column3', 'column2', 'column1', 'column', 'alerte2', 'alerte3',
+              'texteDalerteAnimatrice1', 'datePrvRdvDes2Mois', 'rdv2Mois',
+            ])
+            .where({ animateur: label, group: 'topics' })
+            .orderBy({ column: 'name', direction: 'asc' })
+            .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
             .execute();
 
-          for (const it of vPage.items || []) {
-            const rawDisp = it.animateur?.displayValue ?? '';
-            const names = rawDisp ? rawDisp.split(',').map(norm) : [];
-            const matchByMirror = names.includes(normTarget);
+          itemsFound += (page.items || []).length;
 
-            let match = false;
-            if (rawDisp) {
-              match = matchByMirror;
-            } else {
-              const creatorName = (it.creator?.name || '').toLowerCase();
-              const creatorEmail = (it.creator?.email || '').toLowerCase();
-              const creatorId = String(it.creator?.id || '');
-
-              const isTargetCreator =
-                (normTarget.includes('emilie') && (creatorId === '87318933' || creatorEmail.includes('etobie') || creatorName.includes('emilie') || creatorName.includes('émilie'))) ||
-                (normTarget.includes('ketty') && (creatorId === '76526955' || creatorEmail.includes('kpaulin') || creatorName.includes('ketty'))) ||
-                (normTarget.includes('natacha') && (creatorId === '87318941' || creatorEmail.includes('nthomas') || creatorName.includes('natacha'))) ||
-                (normTarget.includes('andre') && (creatorName.includes('andre') || creatorName.includes('andré')));
-
-              const colAnim = it.animatriceDirect ? norm(String(it.animatriceDirect)) : '';
-              const matchByColAnim = colAnim ? (colAnim.includes(normTarget) || normTarget.includes(colAnim)) : false;
-
-              match = isTargetCreator || matchByColAnim;
+          for (const it of page.items || []) {
+            const texte = (it.texteDalerteAnimatrice1 ?? '').trim();
+            if (texte && it.rdv2Mois !== true) {
+              const d2 = it.datePrvRdvDes2Mois ? new Date(it.datePrvRdvDes2Mois) : null;
+              out.alerts.push({ id: it.id, texte, date: d2 && !Number.isNaN(d2.getTime()) ? d2.toISOString() : null });
             }
 
-            if (!match) continue;
+            const raw = it.dernierContrle ?? it.dernierContrle1 ?? null;
+            const d = raw && !Number.isNaN(new Date(raw).getTime()) ? new Date(raw) : null;
+            const q: Q = { id: it.id, chantier: it.name, date: iso(d), resultat: it.rsultatDernierContrle ?? it.c1 ?? null };
+            const f = [it.column3, it.column2, it.column1, it.column].map((v) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(String(v).replace(',', '.'))));
+            if (f.some((v) => v !== null)) {
+              if (f[0] === 1) out.stars.s3++;
+              if (f[1] === 1) out.stars.s2++;
+              if (f[2] === 1) out.stars.s1++;
+              if (f[3] === 1) out.stars.s0++;
+            } else {
+              const c1Bon = it.c1 === BON;
+              const c2Bon = it.c2 === BON;
+              const c3Bon = it.c3 === BON;
 
-            const cName = it.nomChantier?.linkedItems?.[0]?.name || it.name;
-            const d = it.dateVisiteClient ? new Date(it.dateVisiteClient) : null;
-            const isoStr = d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : '';
-            if (!isoStr) continue;
+              if (c1Bon && c2Bon && c3Bon) {
+                out.stars.s3++;
+              } else if (c1Bon && c2Bon) {
+                out.stars.s2++;
+              } else if (c1Bon) {
+                out.stars.s1++;
+              } else if (it.c1 === 'Bases non respectées' || it.c1 === "Plan d'action urgent") {
+                out.stars.s0++;
+              }
+            }
 
-            const arr = visitsByChantier.get(cName) || [];
-            arr.push({ date: isoStr, qual: it.qualitDeLaPrestation ?? null });
-            visitsByChantier.set(cName, arr);
+            const fnum = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return v === null || v === undefined || String(v).trim() === "" || !Number.isFinite(n) ? null : n; };
+            const a2 = fnum(it.alerte2);
+            const a3 = fnum(it.alerte3);
+            const twoMonthsAgo = new Date();
+            twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+
+            const isBad = (c: unknown) => c === 'Bases non respectées' || c === "Plan d'action urgent";
+            const has3Bad = isBad(it.c1) && isBad(it.c2) && isBad(it.c3);
+            const isClientInsatisfait3 = (a2 !== null && a2 > 0) || has3Bad;
+
+            if (isClientInsatisfait3) out.insatisfaits.push(q);
+
+            const isDernierControleBad = isBad(it.c1) || (Boolean(it.rsultatDernierContrle) && it.rsultatDernierContrle !== BON);
+            if (a3 === 1 || (isDernierControleBad && d && d.getTime() <= twoMonthsAgo.getTime())) {
+              out.controle2Mois.push(q);
+            }
+            if (d && d.getTime() <= elevenMonthsAgo.getTime()) out.nonVus11Mois.push(q);
           }
-          vCur = vPage.cursor;
-        } while (vCur);
-
-        for (const list of visitsByChantier.values()) {
-          list.sort((a, b) => b.date.localeCompare(a.date));
-          const c1 = list[0]?.qual;
-          const c2 = list[1]?.qual;
-          const c3 = list[2]?.qual;
-
-          const c1Bon = c1 === BON;
-          const c2Bon = c2 === BON;
-          const c3Bon = c3 === BON;
-
-          if (c1Bon && c2Bon && c3Bon) out.stars.s3++;
-          else if (c1Bon && c2Bon) out.stars.s2++;
-          else if (c1Bon) out.stars.s1++;
-          else if (c1 === 'Bases non respectées' || c1 === "Plan d'action urgent") out.stars.s0++;
-        }
-      } catch (err) {
-        console.warn('Erreur fallback qualité chantiers:', err);
+          cur = page.cursor;
+        } while (cur);
+      } catch (e) {
+        console.warn('Erreur lecture TableauCompletChantierBoard:', e);
       }
-    }
 
-    return out;
+      // Fallback de secours si Tableau complet chantier renvoie 0 items
+      if (itemsFound === 0) {
+        try {
+          const normTarget = norm(label);
+          const vBoard = new VisitesClientsBoard();
+          const visitsByChantier = new Map<string, Array<{ date: string; qual: string | null }>>();
+          let vCur: string | null | undefined = undefined;
+
+          do {
+            const vPage: any = await vBoard
+              .items()
+              .withColumns(['dateVisiteClient', 'qualitDeLaPrestation', 'nomChantier', 'animateur', 'animatriceDirect'])
+              .orderBy({ column: 'dateVisiteClient', direction: 'desc' })
+              .withPagination(vCur ? { limit: 500, cursor: vCur } : { limit: 500 })
+              .execute();
+
+            for (const it of vPage.items || []) {
+              const rawDisp = it.animateur?.displayValue ?? '';
+              const names = rawDisp ? rawDisp.split(',').map(norm) : [];
+              const matchByMirror = names.includes(normTarget);
+
+              let match = false;
+              if (rawDisp) {
+                match = matchByMirror;
+              } else {
+                const creatorName = (it.creator?.name || '').toLowerCase();
+                const creatorEmail = (it.creator?.email || '').toLowerCase();
+                const creatorId = String(it.creator?.id || '');
+
+                const isTargetCreator =
+                  (normTarget.includes('emilie') && (creatorId === '87318933' || creatorEmail.includes('etobie') || creatorName.includes('emilie') || creatorName.includes('émilie'))) ||
+                  (normTarget.includes('ketty') && (creatorId === '76526955' || creatorEmail.includes('kpaulin') || creatorName.includes('ketty'))) ||
+                  (normTarget.includes('natacha') && (creatorId === '87318941' || creatorEmail.includes('nthomas') || creatorName.includes('natacha'))) ||
+                  (normTarget.includes('andre') && (creatorName.includes('andre') || creatorName.includes('andré')));
+
+                const colAnim = it.animatriceDirect ? norm(String(it.animatriceDirect)) : '';
+                const matchByColAnim = colAnim ? (colAnim.includes(normTarget) || normTarget.includes(colAnim)) : false;
+
+                match = isTargetCreator || matchByColAnim;
+              }
+
+              if (!match) continue;
+
+              const cName = it.nomChantier?.linkedItems?.[0]?.name || it.name;
+              const d = it.dateVisiteClient ? new Date(it.dateVisiteClient) : null;
+              const isoStr = d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : '';
+              if (!isoStr) continue;
+
+              const arr = visitsByChantier.get(cName) || [];
+              arr.push({ date: isoStr, qual: it.qualitDeLaPrestation ?? null });
+              visitsByChantier.set(cName, arr);
+            }
+            vCur = vPage.cursor;
+          } while (vCur);
+
+          for (const list of visitsByChantier.values()) {
+            list.sort((a, b) => b.date.localeCompare(a.date));
+            const c1 = list[0]?.qual;
+            const c2 = list[1]?.qual;
+            const c3 = list[2]?.qual;
+
+            const c1Bon = c1 === BON;
+            const c2Bon = c2 === BON;
+            const c3Bon = c3 === BON;
+
+            if (c1Bon && c2Bon && c3Bon) out.stars.s3++;
+            else if (c1Bon && c2Bon) out.stars.s2++;
+            else if (c1Bon) out.stars.s1++;
+            else if (c1 === 'Bases non respectées' || c1 === "Plan d'action urgent") out.stars.s0++;
+          }
+        } catch (err) {
+          console.warn('Erreur fallback qualité chantiers:', err);
+        }
+      }
+
+      out.alerts.sort((a, b) => (a.date ?? '9').localeCompare(b.date ?? '9'));
+      chantierQualityCache.set(k, { timestamp: Date.now(), data: out });
+      return out;
+    })();
+
+    inFlightChantierQuality.set(k, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightChantierQuality.delete(k);
+    }
   });
 
 /* ---------- Communication via les animatrices ---------- */
 export const getCommunications = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
-    type Msg = { id: string; texte: string; date: string | null; client: string };
-    const label = labelOf(data.firstName);
-    if (!label || label === 'Andre LEVESQUE') return { messages: [] as Msg[] };
-    const board = new CommunicationViaLesAnimatricesBoard();
-    const messages: Msg[] = [];
-    let cur: string | null | undefined = undefined;
-    do {
-      const page = await board
-        .items()
-        .withColumns(['vu', 'date', 'clientConcern', 'personneConcerne'])
-        .where({ group: 'group_mkzb19j1', personneConcerne: label, vu: false })
-        .orderBy({ column: 'date', direction: 'asc' })
-        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
-        .execute();
-      for (const it of page.items) {
-        if (it.vu === true) continue;
-        messages.push({ id: it.id, texte: it.name, date: iso(it.date), client: it.clientConcern?.linkedItems?.map((l) => l.name).join(', ') ?? '' });
-      }
-      cur = page.cursor;
-    } while (cur);
-    return { messages };
+    const k = data.firstName.toLowerCase();
+    const cached = commsCache.get(k);
+    if (cached && Date.now() - cached.timestamp < 5000) {
+      return cached.data;
+    }
+    const inFlight = inFlightComms.get(k);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
+      type Msg = { id: string; texte: string; date: string | null; client: string };
+      const label = labelOf(data.firstName);
+      if (!label || label === 'Andre LEVESQUE') return { messages: [] as Msg[] };
+      const board = new CommunicationViaLesAnimatricesBoard();
+      const messages: Msg[] = [];
+      let cur: string | null | undefined = undefined;
+      do {
+        const page = await board
+          .items()
+          .withColumns(['vu', 'date', 'clientConcern', 'personneConcerne'])
+          .where({ group: 'group_mkzb19j1', personneConcerne: label, vu: false })
+          .orderBy({ column: 'date', direction: 'asc' })
+          .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
+          .execute();
+        for (const it of page.items) {
+          if (it.vu === true) continue;
+          messages.push({ id: it.id, texte: it.name, date: iso(it.date), client: it.clientConcern?.linkedItems?.map((l) => l.name).join(', ') ?? '' });
+        }
+        cur = page.cursor;
+      } while (cur);
+      const res = { messages };
+      commsCache.set(k, { timestamp: Date.now(), data: res });
+      return res;
+    })();
+
+    inFlightComms.set(k, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightComms.delete(k);
+    }
   });
 
 export const markCommunicationSeen = createServerFn({ method: 'POST' })
   .validator(z.object({ itemId: z.string().min(1), vu: z.boolean() }))
   .handler(async ({ data }) => {
     await new CommunicationViaLesAnimatricesBoard().item(data.itemId).update({ vu: data.vu }).execute();
+    commsCache.clear();
+    return { ok: true };
+  });
+
+export const archiveCommunication = createServerFn({ method: 'POST' })
+  .validator(z.object({ itemId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    await new CommunicationViaLesAnimatricesBoard().item(data.itemId).archive().execute();
+    commsCache.clear();
     return { ok: true };
   });
 
@@ -573,6 +744,7 @@ export const updatePlanActionStatus = createServerFn({ method: 'POST' })
     });
 
     clearBoardCache();
+    visitsPlansCache.clear();
     return { ok: true };
   });
 
@@ -619,6 +791,7 @@ export const updatePlanActionText = createServerFn({ method: 'POST' })
     }
 
     clearBoardCache();
+    visitsPlansCache.clear();
     return { ok: true };
   });
 
@@ -645,4 +818,134 @@ export const getSinglePlanAction = createServerFn({ method: 'GET' })
       statut: statutCv,
       action: actionCv,
     };
+  });
+
+export const sendAlertToMaintenance = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    senderName: z.string().min(1),
+    context: z.string().optional(),
+    message: z.string().min(2),
+  }))
+  .handler(async ({ data }) => {
+    const todayIso = new Date().toISOString().split('T')[0];
+    const cleanContext = data.context?.trim();
+    const itemTitle = `[Atelier / Christophe] ${data.senderName}${cleanContext ? ` (${cleanContext})` : ''} — ${data.message.trim()}`.slice(0, 240);
+
+    const colValues: Record<string, any> = {
+      date_mkwrkqy5: { date: todayIso },
+      color_mkzat86a: { label: 'Christophe (Atelier)' },
+    };
+
+    const mutation = `mutation CreateAtelierAlert($boardId: ID!, $groupId: String, $itemName: String!, $columnValues: JSON!) {
+      create_item(board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
+        id
+      }
+    }`;
+
+    try {
+      const res = await callMondayApi(mutation, {
+        variables: {
+          boardId: '5044808167',
+          groupId: 'group_mkzb19j1',
+          itemName: itemTitle,
+          columnValues: JSON.stringify(colValues),
+        },
+      });
+      return { ok: true, id: res?.data?.create_item?.id ? String(res.data.create_item.id) : undefined };
+    } catch {
+      const fallbackRes = await callMondayApi(mutation, {
+        variables: {
+          boardId: '5044808167',
+          groupId: 'group_mkzb19j1',
+          itemName: itemTitle,
+          columnValues: JSON.stringify({ date_mkwrkqy5: { date: todayIso } }),
+        },
+      });
+      return { ok: true, id: fallbackRes?.data?.create_item?.id ? String(fallbackRes.data.create_item.id) : undefined };
+    }
+  });
+
+const alertContextsCache = new Map<string, { timestamp: number; data: { chantiers: string[]; machines: Array<{ id: string; name: string; type: string; site: string }> } }>();
+
+export const getAlertContexts = createServerFn({ method: 'GET' })
+  .validator(z.object({ firstName: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const k = data.firstName.toLowerCase();
+    const cached = alertContextsCache.get(k);
+    if (cached && Date.now() - cached.timestamp < 300_000) {
+      return cached.data;
+    }
+
+    const label = labelOf(data.firstName);
+    const chantiersSet = new Set<string>();
+    const machines: Array<{ id: string; name: string; type: string; site: string }> = [];
+
+    const readChantiers = async () => {
+      if (!label) return;
+      try {
+        const page = await new TableauCompletChantierBoard()
+          .items()
+          .withColumns(['animateur'])
+          .where({ animateur: label, group: 'topics' })
+          .orderBy({ column: 'name', direction: 'asc' })
+          .withPagination({ limit: 500 })
+          .execute();
+        for (const it of page.items || []) {
+          const n = (it.name || '').trim();
+          if (n) chantiersSet.add(n);
+        }
+      } catch (err) {
+        console.warn('getAlertContexts chantiers error:', err);
+      }
+    };
+
+    const readMachines = async () => {
+      try {
+        const res = await callMondayApi(
+          `query GetAlertMachines {
+            boards(ids: [5106585240]) {
+              items_page(limit: 500) {
+                items {
+                  id
+                  name
+                  column_values(ids: ["color_mm8t2mn5", "dropdown_mm8d4vj2"]) {
+                    id
+                    text
+                  }
+                }
+              }
+            }
+          }`
+        );
+        const items = res?.data?.boards?.[0]?.items_page?.items || res?.boards?.[0]?.items_page?.items || [];
+        const excludedTypes = ['batterie', 'chargeur', 'charge', 'accu', 'cable', 'flexible', 'accessoire', 'suceur', 'lamelle', 'bavette', 'disque'];
+        for (const it of items) {
+          const name = String(it.name || '').trim();
+          if (!name) continue;
+          const cols = it.column_values || [];
+          const type = String(cols.find((c: any) => c.id === 'color_mm8t2mn5')?.text || '').trim();
+          const site = String(cols.find((c: any) => c.id === 'dropdown_mm8d4vj2')?.text || '').trim();
+          const typeLow = norm(type);
+          const nameLow = norm(name);
+          if (excludedTypes.some((kw) => typeLow.includes(kw))) continue;
+          if ((nameLow.includes('batterie') || nameLow.includes('chargeur')) && !/\b(a|avec|sur|sans)\s+batteries?\b/.test(nameLow)) continue;
+          machines.push({ id: String(it.id), name, type: type || 'Général', site });
+          if (site && site !== '—' && site.toLowerCase() !== 'non attribué') {
+            chantiersSet.add(site);
+          }
+        }
+        machines.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' }));
+      } catch (err) {
+        console.warn('getAlertContexts machines error:', err);
+      }
+    };
+
+    await Promise.all([readChantiers(), readMachines()]);
+
+    const payload = {
+      chantiers: Array.from(chantiersSet).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' })),
+      machines,
+    };
+    alertContextsCache.set(k, { timestamp: Date.now(), data: payload });
+    return payload;
   });

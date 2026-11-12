@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createServerFn } from '@tanstack/react-start';
 import { TableauCompletChantierBoard, VisitesClientsBoard, InventairesConsommablesBoard, callMondayApi } from '@api/BoardSDK';
 import { BOARD_IDS } from '@api/columnMap';
 
@@ -189,43 +190,146 @@ export interface ChantierItem {
   sensible: boolean;
   groupId: string;
   groupTitle: string;
+  // Suivi des visites sur les 12 derniers mois (fusion calendrier passé + visites en cours)
+  calExtractDates?: string | null;
+  visites12MoisCount: number;
+  visites12MoisDates: string[];
+  totalVisitesHistoriqueCount: number;
+}
+
+interface ChantiersListCache {
+  timestamp: number;
+  data: ChantierItem[];
+}
+const chantiersListCache = new Map<string, ChantiersListCache>();
+const inFlightChantiersList = new Map<string, Promise<ChantierItem[]>>();
+
+export function clearChantiersListCache() {
+  chantiersListCache.clear();
 }
 
 export async function getChantiersList({ data }: { data: { firstName: string } }): Promise<ChantierItem[]> {
-  const label = labelOf(data.firstName);
-  if (!label) return [];
+  const k = data.firstName.toLowerCase();
+  const cached = chantiersListCache.get(k);
+  if (cached && Date.now() - cached.timestamp < 60000) {
+    return cached.data;
+  }
+  const inFlight = inFlightChantiersList.get(k);
+  if (inFlight) return inFlight;
 
-  const board = new TableauCompletChantierBoard();
-  const res: ChantierItem[] = [];
-  let cur: string | null | undefined = undefined;
+  const promise = (async () => {
+    const label = labelOf(data.firstName);
+    if (!label) return [];
 
-  const cols = [
-    'animateur',
-    'codeChantier',
-    'adresse',
-    'codePostal',
-    'ville',
-    'interlocuteur',
-    'telephone',
-    'email',
-    'cle',
-    'doubleCle',
-    'keycafe',
-    'cahierLiaison',
-    'c1',
-    'c2',
-    'c3',
-    'dernierContrle',
-    'dernierContrle1',
-    'rsultatDernierContrle',
-    'column3',
-    'column2',
-    'column1',
-    'column',
-    'heuresMois',
-    'activite',
-    'sensible',
-  ];
+    const board = new TableauCompletChantierBoard();
+    const res: ChantierItem[] = [];
+    let cur: string | null | undefined = undefined;
+
+    // Calcul de la période des 12 derniers mois
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+    // Requête parallèle pour récupérer les visites enregistrées des 12 derniers mois (avec pagination complète et tri décroissant)
+    const pVisits = (async () => {
+      try {
+        const map = new Map<string, string[]>();
+        let vCursor: string | null = null;
+        let pagesCount = 0;
+        const maxPages = 5; // Au maximum 2500 visites (largement suffisant pour 12 mois)
+
+        do {
+          pagesCount++;
+          const qInitial = `
+            query GetVisits12M {
+              boards(ids: [1977798116]) {
+                items_page(limit: 500, query_params: {
+                  order_by: [{ column_id: "date_mkrcgy18", direction: desc }],
+                  rules: [
+                    { column_id: "date_mkrcgy18", compare_value: ["${twelveMonthsAgo}"], operator: greater_than_or_equals }
+                  ]
+                }) {
+                  cursor
+                  items {
+                    date: column_values(ids: ["date_mkrcgy18"]) { text }
+                    ch: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { linked_item_ids display_value } }
+                  }
+                }
+              }
+            }
+          `;
+          const qWithCursor = `
+            query GetVisits12MCursor($cursor: String!) {
+              boards(ids: [1977798116]) {
+                items_page(limit: 500, cursor: $cursor) {
+                  cursor
+                  items {
+                    date: column_values(ids: ["date_mkrcgy18"]) { text }
+                    ch: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { linked_item_ids display_value } }
+                  }
+                }
+              }
+            }
+          `;
+
+          const resV: any = vCursor
+            ? await callMondayApi(qWithCursor, { variables: { cursor: vCursor } })
+            : await callMondayApi(qInitial);
+
+          const page = resV?.data?.boards?.[0]?.items_page || resV?.boards?.[0]?.items_page;
+          const vItems = page?.items || [];
+          for (const v of vItems) {
+            const dt = v.date?.[0]?.text;
+            const linkedIds = v.ch?.[0]?.linked_item_ids || [];
+            if (dt && /^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+              for (const id of linkedIds) {
+                const sid = String(id);
+                if (!map.has(sid)) map.set(sid, []);
+                map.get(sid)!.push(dt);
+              }
+            }
+          }
+          vCursor = page?.cursor || null;
+        } while (vCursor && pagesCount < maxPages);
+
+        return map;
+      } catch (err) {
+        console.warn('[getChantiersList] Warning fetching visits:', err);
+        return new Map<string, string[]>();
+      }
+    })();
+
+    const cols = [
+      'animateur',
+      'codeChantier',
+      'adresse',
+      'codePostal',
+      'ville',
+      'interlocuteur',
+      'telephone',
+      'email',
+      'cle',
+      'doubleCle',
+      'keycafe',
+      'cahierLiaison',
+      'c1',
+      'c2',
+      'c3',
+      'dernierContrle',
+      'dernierContrle1',
+      'rsultatDernierContrle',
+      'column3',
+      'column2',
+      'column1',
+      'column',
+      'heuresMois',
+      'activite',
+      'sensible',
+      'calExtractDates',
+    ];
+
+    // Attente simultanée des visites
+    const visitsMap = await pVisits;
 
   do {
     const page: any = await board
@@ -266,6 +370,26 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
         return String(v).trim() || null;
       };
 
+      // Fusion des visites : Ancien calendrier ("ce qu'elle avait avant") + Visites Monday ("ce qu'on a fait")
+      const rawCal = toStr(it.calExtractDates) || '';
+      const calDates = rawCal
+        ? rawCal
+            .split(/[,;/]|\r?\n/)
+            .map((s) => s.trim())
+            .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s))
+        : [];
+
+      const relDates = visitsMap.get(String(it.id)) || [];
+      const allDatesSet = new Set<string>([...calDates, ...relDates]);
+      if (d) {
+        allDatesSet.add(d.toISOString().slice(0, 10));
+      }
+
+      const allDates = Array.from(allDatesSet).sort((a, b) => b.localeCompare(a));
+      const visites12MoisDates = allDates.filter((dateStr) => dateStr >= twelveMonthsAgo && dateStr <= today);
+      const visites12MoisCount = visites12MoisDates.length;
+      const totalVisitesHistoriqueCount = allDates.length;
+
       res.push({
         id: String(it.id),
         name: String(it.name || '').trim(),
@@ -292,6 +416,10 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
         sensible: Boolean(it.sensible),
         groupId: it.group?.id || 'topics',
         groupTitle: it.group?.title || 'Chantiers en cours',
+        calExtractDates: rawCal || null,
+        visites12MoisCount,
+        visites12MoisDates,
+        totalVisitesHistoriqueCount,
       });
     }
 
@@ -411,6 +539,10 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
           sensible: false,
           groupId: 'topics',
           groupTitle: 'Chantiers en cours',
+          calExtractDates: null,
+          visites12MoisCount: c.lastDate ? 1 : 0,
+          visites12MoisDates: c.lastDate ? [c.lastDate] : [],
+          totalVisitesHistoriqueCount: c.lastDate ? 1 : 0,
         });
       }
       res.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
@@ -419,7 +551,16 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
     }
   }
 
-  return res;
+    chantiersListCache.set(k, { timestamp: Date.now(), data: res });
+    return res;
+  })();
+
+  inFlightChantiersList.set(k, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightChantiersList.delete(k);
+  }
 }
 
 export interface UpdateChantierPayload {
@@ -512,6 +653,10 @@ export async function updateChantierDetails(payload: UpdateChantierPayload): Pro
         }
 
         // Tentative 2 : change_multiple_column_values avec create_labels_if_missing
+        const labelsList = cleanVal
+          ? cleanVal.split(/[,;/]|\r?\n/).map((s) => s.trim()).filter(Boolean)
+          : [];
+
         const multiMutation = `
           mutation UpdateDropdownMulti($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
             change_multiple_column_values(
@@ -529,7 +674,7 @@ export async function updateChantierDetails(payload: UpdateChantierPayload): Pro
             boardId,
             itemId,
             columnValues: JSON.stringify({
-              [item.colId]: cleanVal ? { labels: [cleanVal] } : { labels: [] },
+              [item.colId]: labelsList.length > 0 ? { labels: labelsList } : { labels: [] },
             }),
           },
         });
@@ -545,6 +690,7 @@ export async function updateChantierDetails(payload: UpdateChantierPayload): Pro
       }
     }
 
+    clearChantiersListCache();
     return { 
       success: true, 
       warnings: warnings.length > 0 ? warnings : undefined 
@@ -554,4 +700,128 @@ export async function updateChantierDetails(payload: UpdateChantierPayload): Pro
     return { success: false, error: err?.message || 'Erreur lors de la mise à jour du chantier' };
   }
 }
+
+export interface ChantierVisitHistoryItem {
+  id: string;
+  date: string | null;
+  qualite: string | null;
+}
+
+const chantierVisitsHistoryCache = new Map<string, { timestamp: number; data: ChantierVisitHistoryItem[] }>();
+
+export const getChantierVisitsHistory = createServerFn({ method: 'GET' })
+  .validator(z.object({ chantierId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const cached = chantierVisitsHistoryCache.get(data.chantierId);
+    if (cached && Date.now() - cached.timestamp < 60000) {
+      return { visits: cached.data };
+    }
+
+    try {
+      const q1 = `
+        query ($id: [ID!]) {
+          items(ids: $id) {
+            id
+            cal: column_values(ids: ["text_mkx19mqq"]) { text }
+            date1: column_values(ids: ["date_mkzy6s01"]) { text }
+            date2: column_values(ids: ["date_mkzy5nw9"]) { text }
+            c1: column_values(ids: ["color_mkzyz3ay"]) { text ... on StatusValue { label } }
+            c2: column_values(ids: ["color_mkzyx621"]) { text ... on StatusValue { label } }
+            c3: column_values(ids: ["color_mkzycd34"]) { text ... on StatusValue { label } }
+            relations: column_values(ids: ["board_relation_mktdcjqv", "board_relation_mkv1fqqk", "board_relation_mkvgvrd3"]) {
+              id
+              ... on BoardRelationValue { linked_item_ids }
+            }
+          }
+        }
+      `;
+      const res1: any = await callMondayApi(q1, { variables: { id: [data.chantierId] } });
+      const item = res1?.data?.items?.[0];
+      const rels = item?.relations || [];
+      let linkedIds: string[] = [];
+      for (const cv of rels) {
+        if (cv.linked_item_ids && Array.isArray(cv.linked_item_ids) && cv.linked_item_ids.length > 0) {
+          linkedIds.push(...cv.linked_item_ids.map(String));
+        }
+      }
+      linkedIds = Array.from(new Set(linkedIds)).filter(Boolean);
+
+      let visits: ChantierVisitHistoryItem[] = [];
+
+      if (linkedIds.length > 0) {
+        const q2 = `
+          query ($ids: [ID!]) {
+            items(ids: $ids) {
+              id
+              date: column_values(ids: ["date_mkrcgy18"]) { text }
+              qual: column_values(ids: ["status"]) { text ... on StatusValue { label } }
+            }
+          }
+        `;
+        const res2: any = await callMondayApi(q2, { variables: { ids: linkedIds } });
+        visits = (res2?.data?.items || []).map((it: any) => ({
+          id: String(it.id),
+          date: it.date?.[0]?.text || null,
+          qualite: it.qual?.[0]?.label || it.qual?.[0]?.text || null,
+        })).filter((v: any) => v.date || v.qualite);
+
+        visits.sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
+      }
+
+      // Si aucune visite liée n'a été trouvée dans les relations, fallback sur les colonnes C1/C2/C3 de l'élément
+      if (visits.length === 0 && item) {
+        const lastDate = item.date1?.[0]?.text || item.date2?.[0]?.text || null;
+        const c1Val = item.c1?.[0]?.label || item.c1?.[0]?.text || null;
+        const c2Val = item.c2?.[0]?.label || item.c2?.[0]?.text || null;
+        const c3Val = item.c3?.[0]?.label || item.c3?.[0]?.text || null;
+
+        if (lastDate || c1Val) {
+          visits.push({
+            id: 'c1',
+            date: lastDate,
+            qualite: c1Val,
+          });
+        }
+        if (c2Val) {
+          visits.push({
+            id: 'c2',
+            date: null,
+            qualite: c2Val,
+          });
+        }
+        if (c3Val) {
+          visits.push({
+            id: 'c3',
+            date: null,
+            qualite: c3Val,
+          });
+        }
+      }
+
+      // Ajout des passages du calendrier antérieur s'ils ne sont pas déjà répertoriés
+      const rawCal = item?.cal?.[0]?.text || '';
+      if (rawCal) {
+        const calDates = rawCal
+          .split(/[,;/]|\r?\n/)
+          .map((s: string) => s.trim())
+          .filter((s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s));
+        for (const cd of calDates) {
+          if (!visits.some((v) => v.date === cd)) {
+            visits.push({
+              id: `cal-${cd}`,
+              date: cd,
+              qualite: 'Passage calendrier',
+            });
+          }
+        }
+      }
+      visits.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      chantierVisitsHistoryCache.set(data.chantierId, { timestamp: Date.now(), data: visits });
+      return { visits };
+    } catch (err) {
+      console.error('Erreur getChantierVisitsHistory:', err);
+      return { visits: [] as ChantierVisitHistoryItem[] };
+    }
+  });
 

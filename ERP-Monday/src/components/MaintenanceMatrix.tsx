@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   CheckCircle2,
@@ -10,6 +10,8 @@ import {
   User,
   LayoutGrid,
   Check,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import {
@@ -17,7 +19,28 @@ import {
   toggleMachineMonth,
   setMachineAllMonths,
   updateMachinePreventiveSettings,
+  clearMachinePreventiveMonths,
 } from '../services/maintenanceApi';
+
+const PREVENTIVE_ARCHIVE_PREFIX = 'facility_preventive_archive_';
+const ACTIVE_PREVENTIVE_YEAR_KEY = 'facility_active_preventive_year';
+
+export interface PreventiveArchiveSnapshot {
+  year: number;
+  savedAt: string;
+  machines: Record<
+    string,
+    {
+      name: string;
+      type: string;
+      site: string;
+      isPreventive: boolean;
+      frequence: string;
+      required: number;
+      months: Record<number, boolean>;
+    }
+  >;
+}
 
 interface CleanCheckboxProps {
   checked: boolean;
@@ -91,6 +114,24 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
   machines,
   onDataChanged,
 }) => {
+  const currentCalendarYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number>(currentCalendarYear);
+  const [rolloverBannerYear, setRolloverBannerYear] = useState<number | null>(() => {
+    try {
+      const stored = localStorage.getItem(ACTIVE_PREVENTIVE_YEAR_KEY);
+      if (stored && Number(stored) < currentCalendarYear) {
+        return Number(stored);
+      }
+      if (!stored) {
+        localStorage.setItem(ACTIVE_PREVENTIVE_YEAR_KEY, String(currentCalendarYear));
+      }
+    } catch {}
+    return null;
+  });
+  const [isResettingYear, setIsResettingYear] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'preventive' | 'todo'>('preventive');
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<number>(() => {
@@ -146,19 +187,85 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
     return 2; // Par défaut 2 fois par an
   };
 
-  // Traitement et enrichissement des machines (calcul 0ms)
+  // Liste des années disponibles (année en cours + années archivées)
+  const availableYears = useMemo(() => {
+    const yrs = new Set<number>([currentCalendarYear, currentCalendarYear - 1]);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(PREVENTIVE_ARCHIVE_PREFIX)) {
+          const y = Number(k.replace(PREVENTIVE_ARCHIVE_PREFIX, ''));
+          if (!Number.isNaN(y) && y > 2020) yrs.add(y);
+        }
+      }
+    } catch {}
+    return Array.from(yrs).sort((a, b) => b - a);
+  }, [currentCalendarYear, resetFeedback]);
+
+  const isViewingArchive = selectedYear !== currentCalendarYear;
+
+  const archivedSnapshot = useMemo<PreventiveArchiveSnapshot | null>(() => {
+    if (!isViewingArchive) return null;
+    try {
+      const raw = localStorage.getItem(`${PREVENTIVE_ARCHIVE_PREFIX}${selectedYear}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, [isViewingArchive, selectedYear, resetFeedback]);
+
+  // Sauvegarde automatique d'archive de l'année en cours dès que les machines se chargent
+  useEffect(() => {
+    if (machines.length === 0) return;
+    try {
+      const snapshot: PreventiveArchiveSnapshot = {
+        year: currentCalendarYear,
+        savedAt: new Date().toISOString(),
+        machines: {},
+      };
+      for (const m of machines) {
+        const isPrev = localPreventive[m.id] !== undefined ? localPreventive[m.id] : isChecked(m, 'boolean_mm8tv8zy');
+        const freq = localFrequence[m.id] || getCol(m, 'color_mm8t3v6z') || '2 fois par an';
+        const req = getRequiredMonthsCount(freq);
+        const months: Record<number, boolean> = {};
+        for (let month = 1; month <= 12; month++) {
+          months[month] = isChecked(m, MONTH_COLUMN_IDS[month].id, month);
+        }
+        snapshot.machines[m.id] = {
+          name: m.name,
+          type: getCol(m, 'color_mm8t2mn5') || 'Général',
+          site: getCol(m, 'dropdown_mm8d4vj2') || '—',
+          isPreventive: isPrev,
+          frequence: freq,
+          required: req,
+          months,
+        };
+      }
+      localStorage.setItem(`${PREVENTIVE_ARCHIVE_PREFIX}${currentCalendarYear}`, JSON.stringify(snapshot));
+    } catch {}
+  }, [machines, localMonthChecks, localPreventive, localFrequence, currentCalendarYear]);
+
+  // Traitement et enrichissement des machines (calcul 0ms, année active ou archive)
   const processedMachines = useMemo(() => {
     return machines.map((m) => {
-      const isPreventive = localPreventive[m.id] !== undefined
+      const archEntry = isViewingArchive ? archivedSnapshot?.machines?.[m.id] : undefined;
+      const isPreventive = isViewingArchive
+        ? Boolean(archEntry?.isPreventive)
+        : localPreventive[m.id] !== undefined
         ? localPreventive[m.id]
         : isChecked(m, 'boolean_mm8tv8zy');
-      const frequence = localFrequence[m.id] || getCol(m, 'color_mm8t3v6z') || '2 fois par an';
-      const required = getRequiredMonthsCount(frequence);
+      const frequence = isViewingArchive
+        ? archEntry?.frequence || getCol(m, 'color_mm8t3v6z') || '2 fois par an'
+        : localFrequence[m.id] || getCol(m, 'color_mm8t3v6z') || '2 fois par an';
+      const required = isViewingArchive ? archEntry?.required ?? getRequiredMonthsCount(frequence) : getRequiredMonthsCount(frequence);
 
       let checkedCount = 0;
+      const monthMap: Record<number, boolean> = {};
       for (let month = 1; month <= 12; month++) {
         const colId = MONTH_COLUMN_IDS[month].id;
-        if (isChecked(m, colId, month)) checkedCount++;
+        const val = isViewingArchive ? Boolean(archEntry?.months?.[month]) : isChecked(m, colId, month);
+        monthMap[month] = val;
+        if (val) checkedCount++;
       }
 
       const diff = required - checkedCount;
@@ -184,10 +291,11 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
         balanceDiff: diff,
         indicReste: balanceLabel,
         balance: diff,
+        monthMap,
         raw: m,
       };
     });
-  }, [machines, localMonthChecks, localPreventive, localFrequence]);
+  }, [machines, localMonthChecks, localPreventive, localFrequence, isViewingArchive, archivedSnapshot]);
 
   // Filtrage des machines selon les onglets et le terme de recherche
   const filteredMachines = useMemo(() => {
@@ -216,10 +324,69 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
 
   // Machines programmées pour le mois sélectionné dans le focus
   const currentMonthDueMachines = useMemo(() => {
-    const colId = MONTH_COLUMN_IDS[selectedMonthFilter]?.id;
-    if (!colId) return [];
-    return processedMachines.filter((m) => m.isPreventive && isChecked(m.raw, colId, selectedMonthFilter));
-  }, [processedMachines, selectedMonthFilter, localMonthChecks]);
+    return processedMachines.filter((m) => m.isPreventive && Boolean(m.monthMap?.[selectedMonthFilter]));
+  }, [processedMachines, selectedMonthFilter]);
+
+  const handleCloseYearAndReset = async (archiveTargetYear: number) => {
+    setIsResettingYear(true);
+    setResetFeedback(null);
+
+    // 1. Sauvegarder d'abord l'archive complète de l'année écoulée
+    try {
+      const snapshot: PreventiveArchiveSnapshot = {
+        year: archiveTargetYear,
+        savedAt: new Date().toISOString(),
+        machines: {},
+      };
+      for (const m of machines) {
+        const isPrev = localPreventive[m.id] !== undefined ? localPreventive[m.id] : isChecked(m, 'boolean_mm8tv8zy');
+        const freq = localFrequence[m.id] || getCol(m, 'color_mm8t3v6z') || '2 fois par an';
+        const req = getRequiredMonthsCount(freq);
+        const months: Record<number, boolean> = {};
+        for (let month = 1; month <= 12; month++) {
+          months[month] = isChecked(m, MONTH_COLUMN_IDS[month].id, month);
+        }
+        snapshot.machines[m.id] = {
+          name: m.name,
+          type: getCol(m, 'color_mm8t2mn5') || 'Général',
+          site: getCol(m, 'dropdown_mm8d4vj2') || '—',
+          isPreventive: isPrev,
+          frequence: freq,
+          required: req,
+          months,
+        };
+      }
+      localStorage.setItem(`${PREVENTIVE_ARCHIVE_PREFIX}${archiveTargetYear}`, JSON.stringify(snapshot));
+      localStorage.setItem(ACTIVE_PREVENTIVE_YEAR_KEY, String(currentCalendarYear));
+    } catch {}
+
+    // 2. Remettre à 0 uniquement les cases mensuelles des machines préventives ayant au moins 1 mois coché
+    const targetIds = processedMachines
+      .filter((m) => m.isPreventive && m.checkedCount > 0)
+      .map((m) => m.id);
+
+    const optimisticReset: Record<string, boolean> = {};
+    for (const id of targetIds) {
+      for (let month = 1; month <= 12; month++) {
+        optimisticReset[`${id}-${month}`] = false;
+      }
+    }
+    setLocalMonthChecks((prev) => ({ ...prev, ...optimisticReset }));
+
+    const res = await clearMachinePreventiveMonths(targetIds);
+    setIsResettingYear(false);
+    setConfirmResetOpen(false);
+    setRolloverBannerYear(null);
+
+    if (res.success) {
+      setResetFeedback(
+        `Année ${archiveTargetYear} archivée et ${res.updatedCount} machine(s) remises à 0 pour ${currentCalendarYear}.`
+      );
+      onDataChanged?.();
+    } else {
+      setResetFeedback(res.error || 'Archive enregistrée localement, mais erreur partielle sur Monday.');
+    }
+  };
 
   // Clic sur une case de mois (RÉACTIVITÉ DU TAC AU TAC 0ms + sauvegarde Monday en arrière-plan)
   const handleToggleMonth = (machineId: string, month: number, currentChecked: boolean) => {
@@ -369,14 +536,14 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div
             style={{
-              padding: '7px 14px',
+              padding: '5px 12px',
               borderRadius: '20px',
-              backgroundColor: '#F5F9FC',
+              backgroundColor: isViewingArchive ? '#FFF8EC' : '#F5F9FC',
               color: '#1B4565',
-              border: '1px solid #E2EEF5',
+              border: `1px solid ${isViewingArchive ? '#F7AC37' : '#E2EEF5'}`,
               fontSize: '12.5px',
               fontWeight: 700,
               display: 'inline-flex',
@@ -384,11 +551,144 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
               gap: '6px',
             }}
           >
-            <Calendar size={15} color="#39A9DC" />
-            Exercice Annuel 2026
-          </span>
+            <Calendar size={15} color={isViewingArchive ? '#D66927' : '#39A9DC'} />
+            <span>Exercice :</span>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontWeight: 800,
+                color: '#1B4565',
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              {availableYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr} {yr === currentCalendarYear ? '(Actif)' : '(Archive)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {!isViewingArchive && (
+            <button
+              type="button"
+              onClick={() => setConfirmResetOpen((v) => !v)}
+              title="Archiver l'exercice et remettre les cases mensuelles à 0 (clôture 31 décembre / 1er janvier)"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                borderRadius: '18px',
+                border: '1px solid #CBD5E1',
+                backgroundColor: '#FFFFFF',
+                color: '#1B4565',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <RotateCcw size={13} color="#D66927" />
+              Clôturer / Remettre à 0
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Bannière passage d'année (31 déc -> 1er jan) ou confirmation manuelle */}
+      {(rolloverBannerYear || confirmResetOpen || isViewingArchive || resetFeedback) && (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '12px 18px',
+            borderRadius: '12px',
+            backgroundColor: isViewingArchive ? '#FFFBEB' : resetFeedback ? '#ECFDF5' : '#EFF6FF',
+            border: `1px solid ${isViewingArchive ? '#FDE68A' : resetFeedback ? '#A7F3D0' : '#BFDBFE'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px',
+            fontSize: '12.5px',
+            color: '#1B4565',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+            <Archive size={16} color={isViewingArchive ? '#D97706' : '#0284C7'} />
+            {isViewingArchive ? (
+              archivedSnapshot ? (
+                <span>
+                  <b>Archive {selectedYear} (lecture seule)</b> — Sauvegardée le{' '}
+                  {new Date(archivedSnapshot.savedAt).toLocaleDateString('fr-FR')}. Vos compteurs en direct de {currentCalendarYear} ne sont pas modifiés.
+                </span>
+              ) : (
+                <span>
+                  Aucune archive enregistrée localement pour {selectedYear}. Les futures clôtures annuelles conserveront automatiquement l&apos;historique ici.
+                </span>
+              )
+            ) : resetFeedback ? (
+              <span>{resetFeedback}</span>
+            ) : rolloverBannerYear ? (
+              <span>
+                Nouvel exercice <b>{currentCalendarYear}</b> détecté : voulez-vous archiver <b>{rolloverBannerYear}</b> et remettre les compteurs mensuels à 0 ?
+              </span>
+            ) : (
+              <span>
+                <b>Clôture annuelle :</b> archive l&apos;année en cours dans l&apos;historique puis remet les 12 mois à 0 pour la nouvelle année.
+              </span>
+            )}
+          </div>
+
+          {!isViewingArchive && (rolloverBannerYear || confirmResetOpen) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                disabled={isResettingYear}
+                onClick={() => handleCloseYearAndReset(rolloverBannerYear || currentCalendarYear - 1)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#0284C7',
+                  color: '#FFFFFF',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                {isResettingYear ? 'Archivage en cours...' : `Confirmer l'archivage + remise à 0`}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmResetOpen(false);
+                  setRolloverBannerYear(null);
+                  try {
+                    localStorage.setItem(ACTIVE_PREVENTIVE_YEAR_KEY, String(currentCalendarYear));
+                  } catch {}
+                }}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Plus tard
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ================= BARRE DE RECHERCHE ET FILTRES ================= */}
       <div
@@ -795,9 +1095,10 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                     <td style={{ textAlign: 'center', padding: '10px 4px', width: '56px', boxSizing: 'border-box' }}>
                       <CleanCheckbox
                         checked={m.isPreventive}
-                        onChange={() => handleTogglePreventive(m.id, m.isPreventive)}
+                        disabled={isViewingArchive}
+                        onChange={() => !isViewingArchive && handleTogglePreventive(m.id, m.isPreventive)}
                         color="blue"
-                        title="Activer la maintenance préventive"
+                        title={isViewingArchive ? 'Mode archive (lecture seule)' : 'Activer la maintenance préventive'}
                       />
                     </td>
 
@@ -805,7 +1106,7 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                     <td style={{ padding: '10px 8px', width: '225px', boxSizing: 'border-box' }}>
                       <select
                         value={m.frequence}
-                        disabled={!m.isPreventive}
+                        disabled={!m.isPreventive || isViewingArchive}
                         onChange={(e) => handleChangeFrequence(m.id, e.target.value)}
                         style={{
                           width: '100%',
@@ -817,8 +1118,8 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                           fontSize: '12px',
                           fontWeight: 600,
                           color: '#1B4565',
-                          backgroundColor: m.isPreventive ? '#FFFFFF' : '#F1F5F9',
-                          cursor: m.isPreventive ? 'pointer' : 'not-allowed',
+                          backgroundColor: m.isPreventive && !isViewingArchive ? '#FFFFFF' : '#F1F5F9',
+                          cursor: m.isPreventive && !isViewingArchive ? 'pointer' : 'not-allowed',
                           fontFamily: 'inherit',
                           outline: 'none',
                         }}
@@ -830,10 +1131,9 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                       </select>
                     </td>
 
-                    {/* Les 12 mois (tac au tac 0ms) */}
+                    {/* Les 12 mois (tac au tac 0ms ou lecture archive) */}
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
-                      const colId = MONTH_COLUMN_IDS[month].id;
-                      const checked = isChecked(m.raw, colId, month);
+                      const checked = Boolean(m.monthMap?.[month]);
 
                       return (
                         <td
@@ -848,8 +1148,8 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                         >
                           <CleanCheckbox
                             checked={checked}
-                            disabled={!m.isPreventive}
-                            onChange={() => handleToggleMonth(m.id, month, checked)}
+                            disabled={!m.isPreventive || isViewingArchive}
+                            onChange={() => !isViewingArchive && handleToggleMonth(m.id, month, checked)}
                             color="green"
                             title={`${MONTH_COLUMN_IDS[month].label} - ${m.name}`}
                           />
