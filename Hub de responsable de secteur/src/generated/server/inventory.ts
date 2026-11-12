@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { InventairesConsommablesBoard, TableauCompletChantierBoard, clearBoardCache } from '@api/BoardSDK';
+import { BOARD_IDS } from '@api/columnMap';
 
 const ANIMATEURS = ['Natacha THOMAS', 'Ketty PAULIN', 'Emilie TOBIE', 'Andre LEVESQUE'] as const;
 
@@ -11,9 +12,22 @@ interface CachedChantiers {
   siteNames: Set<string>;
 }
 const chantiersCache = new Map<string, CachedChantiers>();
+const inFlightChantierIds = new Map<string, Promise<{ ids: string[]; siteNames: Set<string> }>>();
+
+const dueCache = new Map<string, { timestamp: number; data: any }>();
+const inFlightDue = new Map<string, Promise<any>>();
+
+const actionsCache = new Map<string, { timestamp: number; data: any }>();
+const inFlightActions = new Map<string, Promise<any>>();
+
+export function clearInventoryCaches() {
+  dueCache.clear();
+  actionsCache.clear();
+}
 
 export function clearChantiersCache() {
   chantiersCache.clear();
+  clearInventoryCaches();
 }
 
 async function getChantierIdsForAnimateur(label: string): Promise<{ ids: string[]; siteNames: Set<string> }> {
@@ -21,29 +35,40 @@ async function getChantierIdsForAnimateur(label: string): Promise<{ ids: string[
   if (cached && Date.now() - cached.timestamp < 120000) {
     return { ids: cached.ids, siteNames: cached.siteNames };
   }
+  const inFlight = inFlightChantierIds.get(label);
+  if (inFlight) return inFlight;
 
-  const chantiers = new TableauCompletChantierBoard();
-  const ids: string[] = [];
-  const siteNames = new Set<string>();
-  let c: string | null | undefined = undefined;
+  const promise = (async () => {
+    const chantiers = new TableauCompletChantierBoard();
+    const ids: string[] = [];
+    const siteNames = new Set<string>();
+    let c: string | null | undefined = undefined;
+    try {
+      do {
+        const res: { items: { id: string; name?: string }[]; cursor?: string | null } = await chantiers
+          .items()
+          .withColumns(['animateur'])
+          .where({ animateur: label })
+          .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
+          .execute();
+        for (const it of res.items) {
+          ids.push(it.id);
+          if (it.name) siteNames.add(normalize(it.name));
+        }
+        c = res.cursor;
+      } while (c);
+    } catch (_) {}
+
+    chantiersCache.set(label, { timestamp: Date.now(), ids, siteNames });
+    return { ids, siteNames };
+  })();
+
+  inFlightChantierIds.set(label, promise);
   try {
-    do {
-      const res: { items: { id: string; name?: string }[]; cursor?: string | null } = await chantiers
-        .items()
-        .withColumns(['animateur'])
-        .where({ animateur: label })
-        .withPagination(c ? { limit: 500, cursor: c } : { limit: 500 })
-        .execute();
-      for (const it of res.items) {
-        ids.push(it.id);
-        if (it.name) siteNames.add(normalize(it.name));
-      }
-      c = res.cursor;
-    } while (c);
-  } catch (_) {}
-
-  chantiersCache.set(label, { timestamp: Date.now(), ids, siteNames });
-  return { ids, siteNames };
+    return await promise;
+  } finally {
+    inFlightChantierIds.delete(label);
+  }
 }
 
 const CONTRATS = [
@@ -112,7 +137,12 @@ export const updateInventoryValidated = createServerFn({ method: 'POST' })
   });
 
 export const validateInventory = createServerFn({ method: 'POST' })
-  .validator(z.object({ itemId: z.string().min(1) }))
+  .validator(
+    z.object({
+      itemId: z.string().min(1),
+      quantities: z.record(z.string(), z.number().finite()).optional(),
+    })
+  )
   .handler(async ({ data }) => {
     const board = new InventairesConsommablesBoard();
     const src = await board
@@ -123,40 +153,44 @@ export const validateInventory = createServerFn({ method: 'POST' })
     const rec = src as unknown as Record<string, unknown>;
     const quantities: Partial<Record<InvKey, number>> = {};
     for (const k of INVENTAIRES) {
-      const v = rec[k];
-      if (typeof v === 'number') quantities[k] = v;
+      const fromClient = data.quantities?.[k];
+      if (typeof fromClient === 'number' && Number.isFinite(fromClient)) {
+        quantities[k] = fromClient;
+      } else {
+        const v = rec[k];
+        if (typeof v === 'number' && Number.isFinite(v)) quantities[k] = v;
+      }
+    }
+    if (Object.keys(quantities).length === 0) {
+      throw new Error('Aucune quantité saisie : validation annulée.');
     }
     const linked = src.tableauCompletChantier?.linkedItems ?? [];
-    const [createdTopics, createdRealises] = await Promise.all([
+    const commonPayload = {
+      name: src.name,
+      codeChantierFournisseur: src.codeChantierFournisseur ?? null,
+      familleDeProduits: src.familleDeProduits ?? [],
+      dateInventaireActuel: new Date(),
+      ...(linked.length ? { tableauCompletChantier: { linkedItems: linked.map((l) => ({ id: l.id })) } } : {}),
+      ...quantities,
+    };
+    const [, createdRealises] = await Promise.all([
       board
         .item()
-        .create({
-          name: src.name,
-          codeChantierFournisseur: src.codeChantierFournisseur ?? null,
-          familleDeProduits: src.familleDeProduits ?? [],
-          dateInventaireActuel: new Date(),
-          inventaireValidOk: false,
-          ...(linked.length ? { tableauCompletChantier: { linkedItems: linked.map((l) => ({ id: l.id })) } } : {}),
-          ...quantities,
-        })
+        .create({ ...commonPayload, inventaireValidOk: false })
         .inGroup('topics')
         .execute(),
       board
         .item()
-        .create({
-          name: src.name,
-          codeChantierFournisseur: src.codeChantierFournisseur ?? null,
-          familleDeProduits: src.familleDeProduits ?? [],
-          dateInventaireActuel: new Date(),
-          inventaireValidOk: true,
-          ...(linked.length ? { tableauCompletChantier: { linkedItems: linked.map((l) => ({ id: l.id })) } } : {}),
-          ...quantities,
-        })
+        .create({ ...commonPayload, inventaireValidOk: true })
         .inGroup('group_mm8adwxm')
         .execute(),
     ]);
+    if (!createdRealises?.id) {
+      throw new Error('Échec création du relevé réalisé sur Monday');
+    }
     await board.item(data.itemId).archive().execute();
-    clearBoardCache();
+    clearInventoryCaches();
+    clearBoardCache(BOARD_IDS.INVENTAIRES_CONSOMMABLES);
     return { ok: true, newId: createdRealises?.id ?? null };
   });
 
@@ -236,141 +270,193 @@ const isFilled = (v: string) => v !== '' && v !== 'null' && v !== '0';
 export const getInventoryActions = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
-    type Row = { id: string; itemId: string; itemIds: string[]; chantier: string; type: 'À récupérer' | 'Avenant'; values: { name: string; value: string }[] };
-    let columns: string[] = [];
-    const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
-    if (!label) return { count: 0, columns, rows: [] as Row[] };
-    const { ids } = await getChantierIdsForAnimateur(label);
-
-    const board = new InventairesConsommablesBoard();
-    const rows: Row[] = [];
-    const latest = new Map<string, { t: number; it: Record<string, unknown> }>();
-    let cur: string | null | undefined = undefined;
-    const invWhere = ids.length > 0
-      ? { tableauCompletChantier: { itemIds: ids }, group: 'group_mm8adwxm' }
-      : { animateur: label, group: 'group_mm8adwxm' };
-
-    do {
-      const res: {
-        items: Array<{ id: string; name: string; dateInventaireActuel?: Date | string | null; tableauCompletChantier?: { linkedItems?: { id: string; name: string }[] } | null }>;
-        cursor?: string | null;
-      } = await board
-        .items().withColumns(['tableauCompletChantier', 'animateur', 'dateInventaireActuel', 'rcuprationRalise', 'avenantRalis', ...([...ACTION_COLS.map(([, r]) => r), ...CONTRATS.map(([k]) => k), ...INVENTAIRES] as any[])])
-        .where(invWhere)
-        .orderBy({ column: 'name', direction: 'asc' })
-        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
-      for (const it of res.items) {
-        const link = it.tableauCompletChantier as { linkedItems?: { id: string }[] } | null | undefined;
-        const siteNameNorm = String(it.name ?? '').replace(/^🆕\s*/i, '').trim().toLowerCase();
-        const key = link?.linkedItems?.map((l) => l.id).join(',') || siteNameNorm || String(it.id);
-        const raw = it.dateInventaireActuel;
-        const createdRaw = (it as any).createdAt;
-        const createdT = createdRaw ? new Date(createdRaw).getTime() : 0;
-        const dateInvT = raw ? new Date(raw as string | Date).getTime() : 0;
-        const t = createdT > 0 ? createdT : (Number.isNaN(dateInvT) ? 0 : dateInvT);
-        const prev = latest.get(key);
-        if (!prev) {
-          latest.set(key, { t, it: it as unknown as Record<string, unknown> });
-        } else if (t > prev.t) {
-          prev.t = t;
-          prev.it = it as unknown as Record<string, unknown>;
-        }
-      }
-      cur = res.cursor;
-    } while (cur);
-
-    for (const { it } of latest.values()) {
-      const rec = it as unknown as Record<string, unknown>;
-      const link = rec.tableauCompletChantier as { linkedItems?: { name: string }[] } | null | undefined;
-      const chantier = link?.linkedItems?.map((l) => l.name).join(', ') || String(rec.name ?? '').replace(/^🆕\s*/i, '');
-      const num = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
-      // Quantité (nb de mois) : À récupérer / (contrat annuel / 12)
-      const rec_ = ACTION_COLS.map(([name, r], i) => {
-        const raw = String(rec[r] ?? "").trim();
-        const contratKey = CONTRATS[i]?.[0];
-        const contrat = contratKey ? num((rec[contratKey] as { displayValue?: string | null } | null)?.displayValue) : 0;
-        const invKey = INVENTAIRES[i];
-        const inv = invKey ? num(rec[invKey]) : 0;
-        const stockMini = contrat > 0 ? Math.max(1, Math.round((contrat / 12) * 2)) : 0;
-        const recupMonday = num(raw);
-        const recupFinal = recupMonday > 0 ? recupMonday : (stockMini > 0 && inv > stockMini ? Math.round(inv - stockMini) : 0);
-        const mois = contrat > 0 && recupFinal > 0 ? Math.round((recupFinal * 12 / contrat) * 10) / 10 : null;
-        const value = mois !== null ? `${recupFinal} (${mois.toLocaleString("fr-FR")} mois)` : String(recupFinal);
-        return { name: `${name} - À récupérer`, value, recup: recupFinal };
-      }).filter((v) => v.recup > 0).map(({ name, value }) => ({ name, value }));
-      // Avenant calculé : min(À récupérer, 25 % du contrat arrondi à l'entier)
-      const ave = ACTION_COLS.map(([name, r], i) => {
-        const contratKey = CONTRATS[i]?.[0];
-        const contrat = contratKey ? num((rec[contratKey] as { displayValue?: string | null } | null)?.displayValue) : 0;
-        const invKey = INVENTAIRES[i];
-        const inv = invKey ? num(rec[invKey]) : 0;
-        const stockMini = contrat > 0 ? Math.max(1, Math.round((contrat / 12) * 2)) : 0;
-        const recupMonday = num(rec[r]);
-        const recupFinal = recupMonday > 0 ? recupMonday : (stockMini > 0 && inv > stockMini ? Math.round(inv - stockMini) : 0);
-        const cap = Math.round(contrat * 0.25);
-        const value = recupFinal > contrat * 0.25 ? cap : recupFinal;
-        return { name: `${name} - Avenant`, value: String(value) };
-      }).filter((v) => Number(v.value) > 0);
-      const itId = String(rec.id);
-      if (rec_.length && rec.rcuprationRalise !== true) rows.push({ id: `${itId}-r`, itemId: itId, itemIds: [itId], chantier, type: 'À récupérer', values: rec_ });
-      if (ave.length && rec.avenantRalis !== true) rows.push({ id: `${itId}-a`, itemId: itId, itemIds: [itId], chantier, type: 'Avenant', values: ave });
+    const k = data.firstName.toLowerCase();
+    const cached = actionsCache.get(k);
+    if (cached && Date.now() - cached.timestamp < 45000) {
+      return cached.data;
     }
-    // Par produit : À récupérer puis Avenant
-    const all = ACTION_COLS.flatMap(([n]) => [`${n} - À récupérer`, `${n} - Avenant`]);
-    columns = all.filter((n) => rows.some((r) => r.values.some((v) => v.name === n)));
-    return { count: rows.length, columns, rows };
+    const inFlight = inFlightActions.get(k);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
+      type Row = { id: string; itemId: string; itemIds: string[]; chantier: string; type: 'À récupérer' | 'Avenant'; values: { name: string; value: string }[] };
+      let columns: string[] = [];
+      const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
+      if (!label) return { count: 0, columns, rows: [] as Row[] };
+      const { ids } = await getChantierIdsForAnimateur(label);
+
+      const board = new InventairesConsommablesBoard();
+      const rows: Row[] = [];
+      const latest = new Map<string, { t: number; it: Record<string, unknown> }>();
+      let cur: string | null | undefined = undefined;
+      const invWhere = ids.length > 0
+        ? { tableauCompletChantier: { itemIds: ids }, group: 'group_mm8adwxm' }
+        : { animateur: label, group: 'group_mm8adwxm' };
+
+      const actionCols = [
+        'tableauCompletChantier',
+        'animateur',
+        'dateInventaireActuel',
+        'rcuprationRalise',
+        'avenantRalis',
+        ...ACTION_COLS.map(([, r]) => r),
+        ...CONTRATS.map(([k]) => k),
+        ...INVENTAIRES,
+      ] as any[];
+
+      do {
+        const res: {
+          items: Array<{ id: string; name: string; dateInventaireActuel?: Date | string | null; tableauCompletChantier?: { linkedItems?: { id: string; name: string }[] } | null }>;
+          cursor?: string | null;
+        } = await board
+          .items()
+          .withColumns(actionCols)
+          .where(invWhere)
+          .orderBy({ column: 'name', direction: 'asc' })
+          .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 })
+          .execute();
+
+        for (const it of res.items) {
+          const link = it.tableauCompletChantier as { linkedItems?: { id: string }[] } | null | undefined;
+          const siteNameNorm = String(it.name ?? '').replace(/^🆕\s*/i, '').trim().toLowerCase();
+          const key = link?.linkedItems?.map((l) => l.id).join(',') || siteNameNorm || String(it.id);
+          const raw = it.dateInventaireActuel;
+          const createdRaw = (it as any).createdAt;
+          const createdT = createdRaw ? new Date(createdRaw).getTime() : 0;
+          const dateInvT = raw ? new Date(raw as string | Date).getTime() : 0;
+          const t = createdT > 0 ? createdT : (Number.isNaN(dateInvT) ? 0 : dateInvT);
+          const prev = latest.get(key);
+          if (!prev) {
+            latest.set(key, { t, it: it as unknown as Record<string, unknown> });
+          } else if (t > prev.t) {
+            prev.t = t;
+            prev.it = it as unknown as Record<string, unknown>;
+          }
+        }
+        cur = res.cursor;
+      } while (cur);
+
+      for (const { it } of latest.values()) {
+        const rec = it as unknown as Record<string, unknown>;
+        const link = rec.tableauCompletChantier as { linkedItems?: { name: string }[] } | null | undefined;
+        const chantier = link?.linkedItems?.map((l) => l.name).join(', ') || String(rec.name ?? '').replace(/^🆕\s*/i, '');
+        const num = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+        // Quantité (nb de mois) : À récupérer / (contrat annuel / 12)
+        const rec_ = ACTION_COLS.map(([name, r], i) => {
+          const raw = String(rec[r] ?? "").trim();
+          const contratKey = CONTRATS[i]?.[0];
+          const contrat = contratKey ? num((rec[contratKey] as { displayValue?: string | null } | null)?.displayValue) : 0;
+          const invKey = INVENTAIRES[i];
+          const inv = invKey ? num(rec[invKey]) : 0;
+          const stockMini = contrat > 0 ? Math.max(1, Math.round((contrat / 12) * 2)) : 0;
+          const recupMonday = num(raw);
+          const recupFinal = recupMonday > 0 ? recupMonday : (stockMini > 0 && inv > stockMini ? Math.round(inv - stockMini) : 0);
+          const mois = contrat > 0 && recupFinal > 0 ? Math.round((recupFinal * 12 / contrat) * 10) / 10 : null;
+          const value = mois !== null ? `${recupFinal} (${mois.toLocaleString("fr-FR")} mois)` : String(recupFinal);
+          return { name: `${name} - À récupérer`, value, recup: recupFinal };
+        }).filter((v) => v.recup > 0).map(({ name, value }) => ({ name, value }));
+        // Avenant calculé : min(À récupérer, 25 % du contrat arrondi à l'entier)
+        const ave = ACTION_COLS.map(([name, r], i) => {
+          const contratKey = CONTRATS[i]?.[0];
+          const contrat = contratKey ? num((rec[contratKey] as { displayValue?: string | null } | null)?.displayValue) : 0;
+          const invKey = INVENTAIRES[i];
+          const inv = invKey ? num(rec[invKey]) : 0;
+          const stockMini = contrat > 0 ? Math.max(1, Math.round((contrat / 12) * 2)) : 0;
+          const recupMonday = num(rec[r]);
+          const recupFinal = recupMonday > 0 ? recupMonday : (stockMini > 0 && inv > stockMini ? Math.round(inv - stockMini) : 0);
+          const cap = Math.round(contrat * 0.25);
+          const value = recupFinal > contrat * 0.25 ? cap : recupFinal;
+          return { name: `${name} - Avenant`, value: String(value) };
+        }).filter((v) => Number(v.value) > 0);
+        const itId = String(rec.id);
+        if (rec_.length && rec.rcuprationRalise !== true) rows.push({ id: `${itId}-r`, itemId: itId, itemIds: [itId], chantier, type: 'À récupérer', values: rec_ });
+        if (ave.length && rec.avenantRalis !== true) rows.push({ id: `${itId}-a`, itemId: itId, itemIds: [itId], chantier, type: 'Avenant', values: ave });
+      }
+      // Par produit : À récupérer puis Avenant
+      const all = ACTION_COLS.flatMap(([n]) => [`${n} - À récupérer`, `${n} - Avenant`]);
+      columns = all.filter((n) => rows.some((r) => r.values.some((v) => v.name === n)));
+      const result = { count: rows.length, columns, rows };
+      actionsCache.set(k, { timestamp: Date.now(), data: result });
+      return result;
+    })();
+
+    inFlightActions.set(k, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightActions.delete(k);
+    }
   });
 
 export const getInventoryDue = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
-    if (!label) return { count: 0, sites: [] as DueSite[], order: [] as string[] };
-    const { ids } = await getChantierIdsForAnimateur(label);
+    const k = data.firstName.toLowerCase();
+    const cached = dueCache.get(k);
+    if (cached && Date.now() - cached.timestamp < 45000) {
+      return cached.data;
+    }
+    const inFlight = inFlightDue.get(k);
+    if (inFlight) return inFlight;
 
-    const board = new InventairesConsommablesBoard();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const sites: DueSite[] = [];
-    const keys = [...CONTRATS.map(([k]) => k), ...INVENTAIRES] as (ContratKey | InvKey)[];
-    let cur: string | null | undefined = undefined;
-    const dueWhere = ids.length > 0
-      ? { tableauCompletChantier: { itemIds: ids }, group: 'topics' }
-      : { animateur: label, group: 'topics' };
+    const promise = (async () => {
+      const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
+      if (!label) return { count: 0, sites: [] as DueSite[], order: [] as string[] };
+      const { ids } = await getChantierIdsForAnimateur(label);
 
-    do {
-      const res: {
-        items: Array<{ id: string; name: string; dateInventaireActuel?: Date | null; inventaireValidOk?: boolean | null; tableauCompletChantier?: { linkedItems?: { name: string }[] } | null }>;
-        cursor?: string | null;
-      } = await board
-        .items().withColumns(['dateInventaireActuel', 'tableauCompletChantier', 'animateur', 'inventaireValidOk', ...keys])
-        .where(dueWhere)
-        .orderBy({ column: 'name', direction: 'asc' })
-        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
-      for (const it of res.items) {
-        const d0 = it.dateInventaireActuel ? new Date(it.dateInventaireActuel) : null;
-        const d = d0 && !Number.isNaN(d0.getTime()) ? d0 : null;
-        if (it.inventaireValidOk === true) continue;
-        // Revient 182 jours après la date du dernier inventaire
-        if (d && d.getTime() + 182 * 86400000 > today.getTime()) continue;
-        const rec = it as unknown as Record<string, unknown>;
-        const products: DueProduct[] = [];
-        CONTRATS.forEach(([k, name], i) => {
-          const v = (rec[k] as { displayValue?: string | null } | null)?.displayValue?.trim() ?? '';
-          if (v === '' || v === 'null') return;
-          products.push({ name, key: INVENTAIRES[i] ?? '', inventaire: null as number | null });
-        });
-        sites.push({
-          id: it.id,
-          chantier: it.tableauCompletChantier?.linkedItems?.map((l) => l.name).join(', ') || it.name,
-          prochain: d ? d.toISOString() : null,
-          valide: false,
-          products,
-        });
-      }
-      cur = res.cursor;
-    } while (cur);
-    return { count: sites.length, sites, order: CONTRATS.map(([, n]) => n as string) };
+      const board = new InventairesConsommablesBoard();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const sites: DueSite[] = [];
+      const keys = [...CONTRATS.map(([k]) => k), ...INVENTAIRES] as (ContratKey | InvKey)[];
+      let cur: string | null | undefined = undefined;
+      const dueWhere = ids.length > 0
+        ? { tableauCompletChantier: { itemIds: ids }, group: 'topics' }
+        : { animateur: label, group: 'topics' };
+
+      do {
+        const res: {
+          items: Array<{ id: string; name: string; dateInventaireActuel?: Date | null; inventaireValidOk?: boolean | null; tableauCompletChantier?: { linkedItems?: { name: string }[] } | null }>;
+          cursor?: string | null;
+        } = await board
+          .items().withColumns(['dateInventaireActuel', 'tableauCompletChantier', 'animateur', 'inventaireValidOk', ...keys])
+          .where(dueWhere)
+          .orderBy({ column: 'name', direction: 'asc' })
+          .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 }).execute();
+        for (const it of res.items) {
+          const d0 = it.dateInventaireActuel ? new Date(it.dateInventaireActuel) : null;
+          const d = d0 && !Number.isNaN(d0.getTime()) ? d0 : null;
+          if (it.inventaireValidOk === true) continue;
+          // Revient 182 jours après la date du dernier inventaire
+          if (d && d.getTime() + 182 * 86400000 > today.getTime()) continue;
+          const rec = it as unknown as Record<string, unknown>;
+          const products: DueProduct[] = [];
+          CONTRATS.forEach(([k, name], i) => {
+            const v = (rec[k] as { displayValue?: string | null } | null)?.displayValue?.trim() ?? '';
+            if (v === '' || v === 'null') return;
+            products.push({ name, key: INVENTAIRES[i] ?? '', inventaire: null as number | null });
+          });
+          sites.push({
+            id: it.id,
+            chantier: it.tableauCompletChantier?.linkedItems?.map((l) => l.name).join(', ') || it.name,
+            prochain: d ? d.toISOString() : null,
+            valide: false,
+            products,
+          });
+        }
+        cur = res.cursor;
+      } while (cur);
+      const result = { count: sites.length, sites, order: CONTRATS.map(([, n]) => n as string) };
+      dueCache.set(k, { timestamp: Date.now(), data: result });
+      return result;
+    })();
+
+    inFlightDue.set(k, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightDue.delete(k);
+    }
   });
 
 export const getSitesCount = createServerFn({ method: 'GET' })
@@ -388,7 +474,7 @@ export const getSitesCount = createServerFn({ method: 'GET' })
       const res: { items: { id: string }[]; cursor?: string | null } = await new InventairesConsommablesBoard()
         .items().withColumns(['tableauCompletChantier', 'animateur'])
         .where(statsWhere)
-        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
+        .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 }).execute();
       count += res.items.length;
       cur = res.cursor;
     } while (cur);
@@ -729,6 +815,7 @@ export const markActionDone = createServerFn({ method: 'POST' })
         })
       )
     );
+    clearBoardCache(BOARD_IDS.INVENTAIRES_CONSOMMABLES);
     return { ok: true };
   });
 
@@ -766,7 +853,6 @@ export const getEconomies = createServerFn({ method: 'GET' })
       ...INVENTAIRES,
     ] as any[];
 
-    // Récupération de tous les inventaires réalisés
     const allRealises: any[] = [];
     let cur: string | null | undefined = undefined;
     const ecoWhere = ids.length > 0
@@ -777,7 +863,7 @@ export const getEconomies = createServerFn({ method: 'GET' })
         .items()
         .withColumns(ecoKeys)
         .where(ecoWhere)
-        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
+        .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 })
         .execute() as unknown as { items: Array<Record<string, unknown>>; cursor?: string | null };
       allRealises.push(...res.items);
       cur = res.cursor;

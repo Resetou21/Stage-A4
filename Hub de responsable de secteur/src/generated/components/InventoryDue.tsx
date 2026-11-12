@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { normalize } from '@generated/lib/normalize';
 import { toast } from 'sonner';
 import { getInventoryDue, updateInventoryValue, validateInventory } from '@generated/server/inventory';
@@ -7,28 +7,64 @@ type Due = Awaited<ReturnType<typeof getInventoryDue>>;
 type Product = Due['sites'][number]['products'][number];
 type InvKey = Parameters<typeof updateInventoryValue>[0]['data']['key'];
 
-function Cell({ itemId, product, onSaved }: { itemId: string; product: Product; onSaved: (v: number | null) => void }) {
+function Cell({
+  itemId,
+  product,
+  onDraftChange,
+  onRegisterSave,
+  onSaved,
+}: {
+  itemId: string;
+  product: Product;
+  onDraftChange: (v: number | null) => void;
+  onRegisterSave: (p: Promise<void>) => void;
+  onSaved: (v: number | null) => void;
+}) {
   const [val, setVal] = useState(product.inventaire?.toString() ?? '');
   const [saving, setSaving] = useState(false);
 
-  const save = async () => {
+  const handleChange = (raw: string) => {
+    setVal(raw);
+    const trimmed = raw.trim().replace(',', '.');
+    if (trimmed === '') {
+      onDraftChange(null);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+      onDraftChange(parsed);
+    }
+  };
+
+  const save = () => {
     const trimmed = val.trim().replace(',', '.');
     const next = trimmed === '' ? null : Number(trimmed);
-    if (next !== null && Number.isNaN(next)) { toast.error('Valeur invalide'); setVal(product.inventaire?.toString() ?? ''); return; }
+    if (next !== null && (Number.isNaN(next) || !Number.isFinite(next))) {
+      toast.error('Valeur invalide');
+      const fallback = product.inventaire?.toString() ?? '';
+      setVal(fallback);
+      onDraftChange(product.inventaire ?? null);
+      return;
+    }
+    onDraftChange(next);
     if (next === product.inventaire) return;
     const prev = product.inventaire;
     onSaved(next);
     setSaving(true);
-    try {
-      await updateInventoryValue({ data: { itemId, key: product.key as InvKey, value: next } });
-    } catch (e) {
-      console.error(e);
-      onSaved(prev);
-      setVal(prev?.toString() ?? '');
-      toast.error("Échec de l'enregistrement");
-    } finally {
-      setSaving(false);
-    }
+    const savePromise = (async () => {
+      try {
+        await updateInventoryValue({ data: { itemId, key: product.key as InvKey, value: next } });
+      } catch (e) {
+        console.error(e);
+        onSaved(prev);
+        onDraftChange(prev ?? null);
+        setVal(prev?.toString() ?? '');
+        toast.error("Échec de l'enregistrement");
+      } finally {
+        setSaving(false);
+      }
+    })();
+    onRegisterSave(savePromise);
   };
 
   return (
@@ -36,7 +72,7 @@ function Cell({ itemId, product, onSaved }: { itemId: string; product: Product; 
       type="text"
       inputMode="decimal"
       value={val}
-      onChange={(e) => setVal(e.target.value)}
+      onChange={(e) => handleChange(e.target.value)}
       onBlur={save}
       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
       aria-label={product.name}
@@ -93,11 +129,42 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
       sites: d.sites.map((s) => s.id !== siteId ? s : { ...s, products: s.products.map((p) => p.name === name ? { ...p, inventaire: v } : p) }),
     }));
 
+  const draftsRef = useRef<Record<string, Record<string, number | null>>>({});
+  const pendingSavesRef = useRef<Record<string, Set<Promise<void>>>>({});
+
+  const setDraftValue = (siteId: string, key: string, v: number | null) => {
+    if (!draftsRef.current[siteId]) draftsRef.current[siteId] = {};
+    draftsRef.current[siteId][key] = v;
+  };
+
+  const registerSave = (siteId: string, p: Promise<void>) => {
+    if (!pendingSavesRef.current[siteId]) pendingSavesRef.current[siteId] = new Set();
+    pendingSavesRef.current[siteId].add(p);
+    p.finally(() => {
+      pendingSavesRef.current[siteId]?.delete(p);
+    });
+  };
+
   const [validating, setValidating] = useState<string | null>(null);
   const toggleValid = async (siteId: string, v: boolean) => {
     if (!v || validating) return;
+    // Si un champ de saisie a encore le focus, forcer son enregistrement avant de lire les valeurs
+    if (document.activeElement instanceof HTMLInputElement) {
+      document.activeElement.blur();
+    }
     const site = due?.sites.find((s) => s.id === siteId);
-    const missing = site?.products.filter((p) => p.inventaire === null).map((p) => p.name) ?? [];
+    const siteDrafts = draftsRef.current[siteId] ?? {};
+    const quantities: Record<string, number> = {};
+    const missing: string[] = [];
+    for (const p of site?.products ?? []) {
+      const hasDraft = Object.prototype.hasOwnProperty.call(siteDrafts, p.key);
+      const val = hasDraft ? siteDrafts[p.key] : p.inventaire;
+      if (typeof val === 'number' && Number.isFinite(val)) {
+        quantities[p.key] = val;
+      } else {
+        missing.push(p.name);
+      }
+    }
     if (missing.length > 0) {
       toast.error('Inventaire incomplet', { description: `Référence(s) non complétée(s) : ${missing.join(', ')}` });
       return;
@@ -108,10 +175,14 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
     setDue((d) => d && ({ ...d, count: Math.max(0, d.count - 1), sites: d.sites.filter((s) => s.id !== siteId) }));
     toast.loading('Validation en cours...', { id: `val-${siteId}` });
     try {
-      await validateInventory({ data: { itemId: siteId } });
+      const pending = Array.from(pendingSavesRef.current[siteId] ?? []);
+      if (pending.length > 0) {
+        await Promise.allSettled(pending);
+      }
+      await validateInventory({ data: { itemId: siteId, quantities } });
+      delete draftsRef.current[siteId];
       toast.success('Inventaire validé', { id: `val-${siteId}` });
       onChanged?.();
-      void refresh();
     } catch (e) {
       console.error(e);
       setDue(prev);
@@ -173,7 +244,15 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                   const p = s.products.find((x) => x.name === c);
                   return (
                     <td key={c} className="px-3 py-2">
-                      {p && <Cell itemId={s.id} product={p} onSaved={(v) => setValue(s.id, c, v)} />}
+                      {p && (
+                        <Cell
+                          itemId={s.id}
+                          product={p}
+                          onDraftChange={(v) => setDraftValue(s.id, p.key, v)}
+                          onRegisterSave={(prom) => registerSave(s.id, prom)}
+                          onSaved={(v) => setValue(s.id, c, v)}
+                        />
+                      )}
                     </td>
                   );
                 })}
