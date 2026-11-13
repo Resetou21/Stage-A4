@@ -36,26 +36,52 @@ export const RESPONSABLES_DATA: ResponsableMeta[] = [
     border: '#A7F3D0',
     initials: 'KP',
   },
-  {
-    name: 'Andre LEVESQUE',
-    role: 'Hub Responsable de Secteur',
-    color: '#FDAB3D',
-    bgLight: '#FFF8EC',
-    border: '#FDE2B8',
-    initials: 'AL',
-  },
 ];
+
+const EXTENDED_PALETTE = [
+  { color: '#8B5CF6', bgLight: '#F3E8FF', border: '#D8B4FE' },
+  { color: '#EC4899', bgLight: '#FCE7F3', border: '#FBCFE8' },
+  { color: '#F59E0B', bgLight: '#FEF3C7', border: '#FDE68A' },
+  { color: '#06B6D4', bgLight: '#CFFAFE', border: '#A5F3FC' },
+  { color: '#10B981', bgLight: '#D1FAE5', border: '#6EE7B7' },
+];
+
+export function getResponsableMeta(name: string, fallbackColor?: string): ResponsableMeta {
+  const cleanName = (name || '').trim();
+  const direct = RESPONSABLES_DATA.find(
+    (r) => r.name.toLowerCase().trim() === cleanName.toLowerCase()
+  );
+  if (direct) return direct;
+
+  const parts = cleanName.split(/\s+/).filter(Boolean);
+  const initials = parts.map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'RS';
+
+  let hash = 0;
+  for (let i = 0; i < cleanName.length; i++) hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
+  const picked = EXTENDED_PALETTE[Math.abs(hash) % EXTENDED_PALETTE.length];
+
+  return {
+    name: cleanName || 'Responsable de Secteur',
+    role: 'Hub Responsable de Secteur',
+    color: fallbackColor || picked.color,
+    bgLight: picked.bgLight,
+    border: picked.border,
+    initials,
+  };
+}
 
 interface ResponsableSelectProps {
   value: string;
   onChange: (value: string) => void;
+  options?: readonly string[];
   accentColor?: string;
   fullWidth?: boolean;
 }
 
-export const ResponsableSelect: React.FC<ResponsableSelectProps> = ({
+export const ResponsableSelect: React.FC<ResponsableSelectProps> = React.memo(({
   value,
   onChange,
+  options,
   accentColor = '#39A9DC',
   fullWidth = false,
 }) => {
@@ -93,39 +119,25 @@ export const ResponsableSelect: React.FC<ResponsableSelectProps> = ({
     }
   }, [isOpen]);
 
+  // Options effectives résolues (depuis options fournies ou liste globale SECTEUR_RESPONSABLES)
+  const allResponsables = useMemo<ResponsableMeta[]>(() => {
+    const names = options && options.length > 0 ? options : SECTEUR_RESPONSABLES;
+    return names.map((n) => getResponsableMeta(n, accentColor));
+  }, [options, accentColor]);
+
   // Récupérer les métadonnées de la personne sélectionnée
   const currentMeta = useMemo<ResponsableMeta>(() => {
-    const found = RESPONSABLES_DATA.find(
-      (r) => r.name.toLowerCase().trim() === (value || '').toLowerCase().trim()
-    );
-    if (found) return found;
-
-    // Fallback dynamique
-    const initials = (value || 'RS')
-      .split(' ')
-      .map((p) => p[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-
-    return {
-      name: value || 'Natacha THOMAS',
-      role: 'Hub Responsable de Secteur',
-      color: accentColor,
-      bgLight: '#F5F9FC',
-      border: '#D2E9F6',
-      initials,
-    };
-  }, [value, accentColor]);
+    return getResponsableMeta(value || allResponsables[0]?.name || 'Natacha THOMAS', accentColor);
+  }, [value, accentColor, allResponsables]);
 
   // Liste filtrée par recherche
   const filteredResponsables = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return RESPONSABLES_DATA;
-    return RESPONSABLES_DATA.filter(
+    if (!q) return allResponsables;
+    return allResponsables.filter(
       (r) => r.name.toLowerCase().includes(q) || r.role.toLowerCase().includes(q)
     );
-  }, [search]);
+  }, [search, allResponsables]);
 
   return (
     <div
@@ -407,4 +419,4 @@ export const ResponsableSelect: React.FC<ResponsableSelectProps> = ({
       )}
     </div>
   );
-};
+});

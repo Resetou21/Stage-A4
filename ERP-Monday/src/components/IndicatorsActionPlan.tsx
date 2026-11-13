@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense, lazy } from 'react';
 import {
   Wrench,
   CheckCircle2,
@@ -30,7 +30,10 @@ import {
   saveRepairChecklistAndProgress,
   updateRepairCost,
 } from '../services/maintenanceApi';
-import { SupplierImportModal } from './SupplierImportModal';
+
+const SupplierImportModal = lazy(() =>
+  import('./SupplierImportModal').then((m) => ({ default: m.SupplierImportModal }))
+);
 
 function computeDaysBetween(startIso?: string, endIso?: string): number | null {
   if (!startIso) return null;
@@ -1381,6 +1384,32 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                             {isReparee ? `Réparée en ${immobDays} j` : `Immobilisée depuis ${immobDays} j`}
                           </span>
                         )}
+                        {!isReparee && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              padding: '3px 8px',
+                              borderRadius: '10px',
+                              backgroundColor: '#EFF6FF',
+                              color: '#1D4ED8',
+                              border: '1px solid #BFDBFE',
+                              fontFamily: "'Ruda', sans-serif",
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            title="Estimation calculée en croisant la date de déclaration et le délai moyen de résolution"
+                          >
+                            <Clock size={11} />
+                            {(() => {
+                              const avg = stats.avgResolutionDays || 8;
+                              const elapsed = immobDays || 0;
+                              const remaining = Math.max(1, avg - elapsed);
+                              return elapsed > avg ? `Délai dépassé (+${elapsed - avg} j)` : `Reste estimé : ~${remaining} j`;
+                            })()}
+                          </span>
+                        )}
                         {t.cost !== undefined && (
                           <span
                             style={{
@@ -1563,14 +1592,18 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
         )}
       </div>
 
-      <SupplierImportModal
-        isOpen={isSupplierModalOpen}
-        onClose={() => setIsSupplierModalOpen(false)}
-        machines={machines}
-        repairTickets={repairTickets}
-        getCol={getCol}
-        onSuccess={onRefreshData}
-      />
+      {isSupplierModalOpen && (
+        <Suspense fallback={null}>
+          <SupplierImportModal
+            isOpen={isSupplierModalOpen}
+            onClose={() => setIsSupplierModalOpen(false)}
+            machines={machines}
+            repairTickets={repairTickets}
+            getCol={getCol}
+            onSuccess={onRefreshData}
+          />
+        </Suspense>
+      )}
 
       {/* Modale Fiche Détaillée d'un Ticket + Checklist NC + Historique Contrôles Machine */}
       {detailTicket && (() => {
@@ -1655,6 +1688,19 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                     <span>🔧 Statut : <b style={{ color: detailIsRepaired ? '#059669' : '#DC2626' }}>{detailIsRepaired ? 'Conforme / Réparée' : detailTicket.status}</b></span>
                     {detailImmob !== null && (
                       <span>⏱️ {detailIsRepaired ? `Réparée en ${detailImmob} j` : `Immobilisée depuis ${detailImmob} j`}</span>
+                    )}
+                    {!detailIsRepaired && (
+                      <span style={{ color: '#1D4ED8', fontWeight: 700 }}>
+                        ⏳ Reste estimé :{' '}
+                        <b>
+                          {(() => {
+                            const avg = stats.avgResolutionDays || 8;
+                            const elapsed = detailImmob || 0;
+                            const remaining = Math.max(1, avg - elapsed);
+                            return elapsed > avg ? `Délai dépassé (+${elapsed - avg} j)` : `~${remaining} j`;
+                          })()}
+                        </b>
+                      </span>
                     )}
                   </p>
                 </div>

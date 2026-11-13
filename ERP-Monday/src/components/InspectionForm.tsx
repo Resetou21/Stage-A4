@@ -33,6 +33,33 @@ import { MachineSelect } from './MachineSelect';
 import { TechnicienSelect } from './TechnicienSelect';
 import { ResponsableSelect } from './ResponsableSelect';
 
+const POINT_TIPS: Record<string, string> = {
+  suceur: "Vérifier la souplesse de la bavette, l'absence de déchirure et le bon contact avec le sol.",
+  bavette: "Contrôler l'usure du caoutchouc, la propreté et le serrage des fixations.",
+  brosse: "Contrôler la hauteur des poils, l'usure régulière et l'absence de fils ou ficelles coincés.",
+  plateau: "Vérifier le clip de verrouillage, le centrage du disque et l'absence de vibration.",
+  filtre: "Contrôler l'encrassement, l'absence de colmatage et l'étanchéité du panier.",
+  cuve: "Vérifier l'absence de boue stagnante, le bon fonctionnement du flotteur et l'état du joint.",
+  batterie: "Vérifier le niveau d'eau déminéralisée, le serrage des cosses et l'absence de corrosion/sulfate.",
+  cable: "Contrôler l'état de la gaine extérieure, la prise 230V et l'absence de coupure/écrasement.",
+  chargeur: "Tester le voyant de charge, la ventilation et l'intégrité de la connectique.",
+  roue: "Vérifier la rotation libre, l'absence de blocage mécanique et la bande de roulement.",
+  flexible: "Contrôler l'absence de pliure, de perforation ou de fuite d'eau/aspiration.",
+  lance: "Vérifier le déclenchement de la gâchette et le raccord rapide haute pression.",
+  buse: "Contrôler le calibrage du jet et l'absence d'entartrage ou de bouchage.",
+  commande: "Tester les contacteurs marche/arrêt, le timon de réglage et le bouton de sécurité.",
+  moteur: "Vérifier l'absence de bruit anormal, d'odeur d'échauffement ou d'étincelles.",
+  purge: "Contrôler le bon écoulement et l'étanchéité du bouchon/tuyau de vidange.",
+};
+
+function getInspectionTip(name: string): string {
+  const n = (name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const [key, tip] of Object.entries(POINT_TIPS)) {
+    if (n.includes(key)) return tip;
+  }
+  return "Point de contrôle spécifique : inspecter l'usure, la propreté et le bon fonctionnement mécanique.";
+}
+
 interface InspectionFormProps {
   machines: Machine[];
   referentielPoints: ReferentielPoint[];
@@ -1512,9 +1539,30 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                 gap: '8px',
                               }}
                             >
-                              <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#1B4565', paddingLeft: '6px' }}>
-                                ↳ {sub.name}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#1B4565', paddingLeft: '6px' }}>
+                                  ↳ {sub.name}
+                                </span>
+                                <span
+                                  title={getInspectionTip(sub.name)}
+                                  style={{
+                                    cursor: 'help',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '18px',
+                                    height: '18px',
+                                    borderRadius: '50%',
+                                    backgroundColor: '#EBF6FC',
+                                    color: '#39A9DC',
+                                    border: '1px solid #BAE6FD',
+                                    fontSize: '11px',
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  <Info size={11} />
+                                </span>
+                              </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 {(['OK', 'Moyen', 'NC'] as const).map((st) => {
                                   const isChecked = subStatus === st;
@@ -1584,6 +1632,25 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#1B4565' }}>
                           {pt.name}
+                        </span>
+                        <span
+                          title={getInspectionTip(pt.name)}
+                          style={{
+                            cursor: 'help',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            backgroundColor: '#EBF6FC',
+                            color: '#39A9DC',
+                            border: '1px solid #BAE6FD',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                          }}
+                        >
+                          <Info size={11} />
                         </span>
                         {pt.categories?.nettoyage && (
                           <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#E6F7F4', color: '#00A389', border: '1px solid #A7F3D0' }}>

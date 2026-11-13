@@ -18,6 +18,7 @@ import {
   markMaintenanceAlertSeen,
   archiveMaintenanceAlert,
   fetchMachineBoardColumnsMeta,
+  setCachedMachineBoardColumnsMeta,
   extractMachineAffectations,
   reschedulePlanningEvent,
   updateMachineStatus,
@@ -156,7 +157,7 @@ export const App = () => {
   // Modal d'événement sélectionné dans l'Agenda (Interactif)
   const [selectedEvent, setSelectedEvent] = useState<PlanningEventDetail | null>(null);
 
-  // 1. Chargement des machines depuis Monday
+  // 1. Chargement des machines depuis Monday (+ colonnes meta en 1 seule requête combinée)
   const fetchMachines = useCallback(async () => {
     const boardId = '5106585240';
 
@@ -164,6 +165,10 @@ export const App = () => {
       const query = `
         query GetMachines($boardId: [ID!]) {
           boards(ids: $boardId) {
+            columns {
+              id
+              title
+            }
             items_page(limit: 500) {
               items {
                 id
@@ -189,9 +194,17 @@ export const App = () => {
       `;
       const response = await (monday as any).api(query, { variables: { boardId: [boardId] } });
 
-      if (response?.data?.boards?.[0]?.items_page?.items) {
-        setMachines(response.data.boards[0].items_page.items);
-      } else if (response?.errors) {
+      const board = response?.data?.boards?.[0];
+      if (board?.items_page?.items) {
+        setMachines(board.items_page.items);
+      }
+      if (board?.columns && board.columns.length > 0) {
+        const map: Record<string, string> = {};
+        for (const c of board.columns) map[c.id] = c.title;
+        setMachineColsMeta(map);
+        setCachedMachineBoardColumnsMeta(map);
+      }
+      if (response?.errors) {
         console.error('Erreur GraphQL machines:', response.errors[0]?.message);
       }
     } catch (err: any) {
@@ -248,19 +261,22 @@ export const App = () => {
       setRealisedControles(ctrls);
       setRepairTickets(repairs);
       setMaintenanceAlerts(alerts);
-      setMachineColsMeta(colsMeta);
+      if (colsMeta && Object.keys(colsMeta).length > 0) {
+        setMachineColsMeta((prev) => (Object.keys(prev).length > 0 ? prev : colsMeta));
+      }
     } catch (err) {
       console.error('Erreur chargement données maintenance:', err);
     }
   }, []);
 
   useEffect(() => {
-    fetchMachines();
-    fetchPlanning();
-    loadMaintenanceData();
-
-    // Synchronisation silencieuse des colonnes dédiées du Hub sur les tableaux Monday
-    syncAllHubColumns().catch(() => {});
+    // Parallélisation immédiate de l'ensemble des requêtes Monday sans waterfall
+    Promise.allSettled([
+      fetchMachines(),
+      fetchPlanning(),
+      loadMaintenanceData(),
+      syncAllHubColumns(),
+    ]);
   }, [fetchMachines, fetchPlanning, loadMaintenanceData]);
 
   // Matériel réel de nettoyage uniquement (exclusion automatique des chargeurs, batteries, accessoires et "bis")

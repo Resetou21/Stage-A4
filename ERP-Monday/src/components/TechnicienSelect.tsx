@@ -26,7 +26,7 @@ interface TechnicienSelectProps {
   onChange: (value: string) => void;
 }
 
-export const TechnicienSelect: React.FC<TechnicienSelectProps> = ({ value, onChange }) => {
+export const TechnicienSelect: React.FC<TechnicienSelectProps> = React.memo(({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [search, setSearch] = useState<string>('');
   const [labels, setLabels] = useState<TechnicienLabel[]>(() => {
@@ -494,4 +494,4 @@ export const TechnicienSelect: React.FC<TechnicienSelectProps> = ({ value, onCha
       )}
     </div>
   );
-};
+});

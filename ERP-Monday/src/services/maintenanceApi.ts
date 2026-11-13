@@ -16,7 +16,6 @@ export const SECTEUR_RESPONSABLES = [
   'Natacha THOMAS',
   'Emilie TOBIE',
   'Ketty PAULIN',
-  'Andre LEVESQUE',
 ] as const;
 
 export const MONTH_COLUMN_IDS: Record<number, { id: string; label: string; short: string }> = {
@@ -46,7 +45,12 @@ export const DEFAULT_TECHNICIEN_LABELS: TechnicienLabel[] = [
   { name: 'Technicien Externe', color: '#fdab3d', border: '#e99729' },
 ];
 
-export async function fetchTechnicienStatusLabels(): Promise<TechnicienLabel[]> {
+let cachedTechnicienLabels: TechnicienLabel[] | null = null;
+
+export async function fetchTechnicienStatusLabels(forceRefresh = false): Promise<TechnicienLabel[]> {
+  if (!forceRefresh && cachedTechnicienLabels && cachedTechnicienLabels.length > 0) {
+    return cachedTechnicienLabels;
+  }
   try {
     const res: any = await (monday as any).api(
       `query GetTechnicienColumn($boardId: [ID!]) {
@@ -93,6 +97,7 @@ export async function fetchTechnicienStatusLabels(): Promise<TechnicienLabel[]> 
             list.push(def);
           }
         }
+        cachedTechnicienLabels = list;
         return list;
       }
     }
@@ -100,6 +105,10 @@ export async function fetchTechnicienStatusLabels(): Promise<TechnicienLabel[]> 
     console.warn('Erreur récupération étiquettes technicien depuis Monday:', err);
   }
   return DEFAULT_TECHNICIEN_LABELS;
+}
+
+export function setCachedTechnicienLabels(labels: TechnicienLabel[]): void {
+  cachedTechnicienLabels = labels;
 }
 
 export interface ReferentielSubItem {
@@ -451,7 +460,12 @@ async function createFicheControlSubitems(
 }
 
 // 0. Vérifier et créer automatiquement les 4 colonnes cases à cocher dans le Référentiel (5107261391) et dans sa table de sous-éléments si présente
+let referentielColumnsVerified = false;
+
 export async function ensureReferentielColumnsExist(subBoardId?: string): Promise<void> {
+  if (!subBoardId && referentielColumnsVerified) {
+    return;
+  }
   const targetBoardId = subBoardId || MAINTENANCE_BOARD_IDS.REFERENTIEL_POINTS;
   try {
     const query = `
@@ -497,6 +511,9 @@ export async function ensureReferentielColumnsExist(subBoardId?: string): Promis
         });
       }
     }
+    if (!subBoardId) {
+      referentielColumnsVerified = true;
+    }
   } catch (err) {
     console.warn('Erreur vérification colonnes Référentiel:', err);
   }
@@ -528,10 +545,13 @@ export function classifyPointCategories(pointName: string): {
   };
 }
 
+let cachedReferentielPoints: ReferentielPoint[] | null = null;
+
 // 1. Récupérer l'intégralité du Référentiel des points de contrôle (groupé par type de machine + sous-éléments + colonnes de catégories)
-export async function fetchReferentielPoints(): Promise<ReferentielPoint[]> {
-  // S'assurer d'abord que les 4 colonnes de tag existent sur Monday
-  await ensureReferentielColumnsExist();
+export async function fetchReferentielPoints(forceRefresh = false): Promise<ReferentielPoint[]> {
+  if (!forceRefresh && cachedReferentielPoints && cachedReferentielPoints.length > 0) {
+    return cachedReferentielPoints;
+  }
 
   const queryWithSubitems = `
     query GetReferentiel($boardId: [ID!]) {
@@ -658,7 +678,7 @@ export async function fetchReferentielPoints(): Promise<ReferentielPoint[]> {
     return valChecked || txtChecked;
   };
 
-  return items.map((it: any) => {
+  const mapped: ReferentielPoint[] = items.map((it: any) => {
     const parsedSubitems: ReferentielSubItem[] = Array.isArray(it.subitems)
       ? it.subitems.map((sub: any) => {
           const subCols = sub.board?.columns || [];
@@ -707,6 +727,9 @@ export async function fetchReferentielPoints(): Promise<ReferentielPoint[]> {
       subitems: parsedSubitems.length > 0 ? parsedSubitems : undefined,
     };
   });
+
+  cachedReferentielPoints = mapped;
+  return mapped;
 }
 
 // Trouver les points de contrôle qui correspondent à un type de machine ET à la catégorie d'intervention
@@ -2732,7 +2755,16 @@ export interface MachineAffectation {
   serialNumber: string;
 }
 
-export async function fetchMachineBoardColumnsMeta(): Promise<Record<string, string>> {
+let cachedMachineBoardColumnsMeta: Record<string, string> | null = null;
+
+export function setCachedMachineBoardColumnsMeta(map: Record<string, string>): void {
+  cachedMachineBoardColumnsMeta = map;
+}
+
+export async function fetchMachineBoardColumnsMeta(forceRefresh = false): Promise<Record<string, string>> {
+  if (!forceRefresh && cachedMachineBoardColumnsMeta && Object.keys(cachedMachineBoardColumnsMeta).length > 0) {
+    return cachedMachineBoardColumnsMeta;
+  }
   try {
     const res: any = await (monday as any).api(
       `query GetMachineColsMeta($boardId: [ID!]) {
@@ -2748,9 +2780,10 @@ export async function fetchMachineBoardColumnsMeta(): Promise<Record<string, str
     const cols: Array<{ id: string; title: string }> = res?.data?.boards?.[0]?.columns || [];
     const map: Record<string, string> = {};
     for (const c of cols) map[c.id] = c.title;
+    cachedMachineBoardColumnsMeta = map;
     return map;
   } catch {
-    return {};
+    return cachedMachineBoardColumnsMeta || {};
   }
 }
 

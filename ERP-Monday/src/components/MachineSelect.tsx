@@ -60,7 +60,7 @@ export function isRealCleaningMachine(m: Machine, getCol: (m: Machine, colId: st
   return true;
 }
 
-export const MachineSelect: React.FC<MachineSelectProps> = ({
+export const MachineSelect: React.FC<MachineSelectProps> = React.memo(({
   machines,
   selectedMachineId,
   onSelectMachine,
@@ -568,7 +568,7 @@ export const MachineSelect: React.FC<MachineSelectProps> = ({
       )}
     </div>
   );
-};
+});
 
 interface AlertContextSelectProps {
   machines: Machine[];
@@ -583,7 +583,7 @@ interface AlertContextSelectProps {
  * Sélecteur déroulant style Google (adapté depuis MachineSelect) pour choisir
  * rapidement une machine du parc, un site d'affectation ou une saisie libre.
  */
-export const AlertContextSelect: React.FC<AlertContextSelectProps> = ({
+export const AlertContextSelect: React.FC<AlertContextSelectProps> = React.memo(({
   machines,
   value,
   onChange,
@@ -929,5 +929,5 @@ export const AlertContextSelect: React.FC<AlertContextSelectProps> = ({
       )}
     </div>
   );
-};
+});
 
