@@ -16,7 +16,6 @@ export const SECTEUR_RESPONSABLES = [
   'Natacha THOMAS',
   'Emilie TOBIE',
   'Ketty PAULIN',
-  'Andre LEVESQUE',
 ] as const;
 
 export const MONTH_COLUMN_IDS: Record<number, { id: string; label: string; short: string }> = {
