@@ -15,6 +15,7 @@ import {
   Timer,
   History,
   Archive,
+  RotateCcw,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import {
@@ -29,6 +30,7 @@ import {
   parseRepairChecklist,
   saveRepairChecklistAndProgress,
   updateRepairCost,
+  updateRepairTicketStatus,
 } from '../services/maintenanceApi';
 
 const SupplierImportModal = lazy(() =>
@@ -292,6 +294,38 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
       await onRefreshData();
     } else {
       alert(`Erreur mise à jour coût : ${res.error}`);
+    }
+  };
+
+  const handleUpdateTicketStatus = async (ticket: RepairTicket, targetStatus: string) => {
+    setUpdatingTicketId(ticket.id);
+    const matched = findMachineForTicket(ticket, machines);
+    const res = await updateRepairTicketStatus(ticket, targetStatus, {
+      machineId: matched?.id,
+      technicienName: 'Christophe',
+    });
+    setUpdatingTicketId(null);
+    if (res.success) {
+      const isRep = targetStatus.toLowerCase().includes('repar');
+      setSuccessToast(
+        isRep
+          ? `Machine "${ticket.machineName}" marquée comme Réparée ! Elle est désormais dans l'historique.`
+          : `Statut mis à jour : "${targetStatus}".`
+      );
+      if (detailTicket && detailTicket.id === ticket.id) {
+        setDetailTicket((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: res.newStatus || targetStatus,
+                machineId: prev.machineId || matched?.id,
+              }
+            : null
+        );
+      }
+      await onRefreshData();
+    } else {
+      alert(`Erreur modification statut : ${res.error}`);
     }
   };
 
@@ -1483,11 +1517,37 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                       </span>
                     </div>
 
-                    {/* Actions rapides sur le ticket (sans bouton Marquer Réparée ni lien externe Monday) */}
+                    {/* Actions rapides sur le ticket */}
                     <div
                       style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}
                       onClick={(e) => e.stopPropagation()}
                     >
+                      {!isReparee && (
+                        <button
+                          type="button"
+                          disabled={updatingTicketId === t.id}
+                          onClick={() => handleUpdateTicketStatus(t, 'Réparée')}
+                          title="Marquer cette machine comme Réparée et la basculer dans l'historique"
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: '#ECFDF5',
+                            color: '#047857',
+                            border: '1px solid #A7F3D0',
+                            fontSize: '11.5px',
+                            fontWeight: 800,
+                            fontFamily: "'Ruda', sans-serif",
+                            cursor: updatingTicketId === t.id ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}
+                        >
+                          <CheckCircle2 size={13} color="#00C875" />
+                          {updatingTicketId === t.id ? 'Clôture...' : 'Marquer Réparée'}
+                        </button>
+                      )}
+
                       {isMisplacedInInRepairGroup && (
                         <button
                           type="button"
@@ -1750,6 +1810,117 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
               </div>
 
               <div style={{ padding: '18px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* 0. Bandeau de Statut & Clôture de la réparation */}
+                {(() => {
+                  const detailReparee = (detailTicket.status || '').toLowerCase().includes('repar');
+                  return (
+                    <div
+                      style={{
+                        backgroundColor: detailReparee ? '#F0FDF4' : '#FEF2F2',
+                        border: `1.5px solid ${detailReparee ? '#86EFAC' : '#FECACA'}`,
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: detailReparee ? '#16A34A' : '#DC2626',
+                          }}
+                        />
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>
+                            Statut actuel de la réparation
+                          </div>
+                          <div style={{ fontSize: '15px', fontWeight: 900, color: detailReparee ? '#15803D' : '#991B1B' }}>
+                            {detailTicket.status || 'À traiter'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* Sélecteur de statut rapide */}
+                        <select
+                          value={detailTicket.status}
+                          disabled={updatingTicketId === detailTicket.id}
+                          onChange={(e) => handleUpdateTicketStatus(detailTicket, e.target.value)}
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #CBD5E1',
+                            fontSize: '12.5px',
+                            fontWeight: 700,
+                            color: '#1B4565',
+                            backgroundColor: '#FFFFFF',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="À traiter">🔴 À traiter</option>
+                          <option value="En attente de devis">🟠 En attente de devis</option>
+                          <option value="En cours de réparation">🔵 En cours de réparation</option>
+                          <option value="Réparée">🟢 Réparée</option>
+                        </select>
+
+                        {/* Bouton d'action principal */}
+                        {!detailReparee ? (
+                          <button
+                            type="button"
+                            disabled={updatingTicketId === detailTicket.id}
+                            onClick={() => handleUpdateTicketStatus(detailTicket, 'Réparée')}
+                            style={{
+                              backgroundColor: '#00C875',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '8px 16px',
+                              fontSize: '12.5px',
+                              fontWeight: 800,
+                              cursor: updatingTicketId === detailTicket.id ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 2px 8px rgba(0, 200, 117, 0.35)',
+                            }}
+                          >
+                            <CheckCircle2 size={16} />
+                            {updatingTicketId === detailTicket.id ? 'Clôture en cours...' : '✅ Clôturer et marquer comme Réparée'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={updatingTicketId === detailTicket.id}
+                            onClick={() => handleUpdateTicketStatus(detailTicket, 'En cours de réparation')}
+                            style={{
+                              backgroundColor: '#39A9DC',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '8px 14px',
+                              fontSize: '12px',
+                              fontWeight: 800,
+                              cursor: updatingTicketId === detailTicket.id ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <RotateCcw size={14} />
+                            {updatingTicketId === detailTicket.id ? 'Modification...' : '↩️ Rouvrir l\'intervention'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* 1. Checklist interactive des points Non Conformes & Barre de progression */}
                 {detailChecklist.length > 0 && (
                   <div
@@ -2110,7 +2281,31 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                   gap: '10px',
                 }}
               >
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {!(detailTicket.status || '').toLowerCase().includes('repar') && (
+                    <button
+                      type="button"
+                      disabled={updatingTicketId === detailTicket.id}
+                      onClick={() => handleUpdateTicketStatus(detailTicket, 'Réparée')}
+                      style={{
+                        backgroundColor: '#00C875',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(0, 200, 117, 0.25)',
+                      }}
+                    >
+                      <CheckCircle2 size={15} />
+                      {updatingTicketId === detailTicket.id ? 'Clôture...' : 'Marquer comme Réparée'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onOpenInspection(matchedMachine ? matchedMachine.id : '')}

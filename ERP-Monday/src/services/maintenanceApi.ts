@@ -1342,6 +1342,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
           const resRes = await resolveRepairTicketsForMachine(submission.machineId, {
             formattedDate,
             machineName: submission.machineName,
+            machineSite: submission.machineSite,
             technicienName: submission.technicienName,
             noteSurDix: submission.noteSurDix,
           });
@@ -2576,11 +2577,13 @@ export async function resolveRepairTicketsForMachine(
   details: {
     formattedDate: string;
     machineName?: string;
+    machineSite?: string;
+    targetTicketId?: string;
     technicienName?: string;
     noteSurDix?: number;
   }
 ): Promise<{ resolvedCount: number; resolvedTicketIds: string[] }> {
-  if (!machineId) return { resolvedCount: 0, resolvedTicketIds: [] };
+  if (!machineId && !details.targetTicketId) return { resolvedCount: 0, resolvedTicketIds: [] };
 
   try {
     const [allTickets, repairMeta] = await Promise.all([
@@ -2590,6 +2593,7 @@ export async function resolveRepairTicketsForMachine(
 
     const cleanMachineName = (details.machineName || '').toLowerCase().trim();
     const cleanNoCode = cleanMachineName.replace(/^\d+\s*[-–]\s*/, '').trim();
+    const cleanSite = (details.machineSite || '').toLowerCase().trim();
 
     const openTicketsForMachine = allTickets.filter((t) => {
       const stNorm = normalizeLabelMatch(t.status);
@@ -2597,13 +2601,24 @@ export async function resolveRepairTicketsForMachine(
       const isClosed = stNorm.includes('repare') || grpNorm.includes('repare');
       if (isClosed) return false;
 
+      // 0. Ticket ciblé explicitement
+      if (details.targetTicketId && String(t.id) === String(details.targetTicketId)) return true;
+
       // 1. Liaison relationnelle directe par ID machine
-      if (t.machineId && String(t.machineId) === String(machineId)) return true;
+      if (machineId && t.machineId && String(t.machineId) === String(machineId)) return true;
+
+      const tNorm = `${t.machineName || ''} ${t.name || ''}`.toLowerCase();
 
       // 2. Correspondance textuelle sur les anciens tickets importés via Excel sans colonne liée
       if (cleanNoCode && cleanNoCode.length >= 3) {
-        const tNorm = `${t.machineName || ''} ${t.name || ''}`.toLowerCase();
         if (tNorm.includes(cleanNoCode) || (cleanMachineName && tNorm.includes(cleanMachineName))) {
+          return true;
+        }
+      }
+
+      // 3. Correspondance par site client mentionné dans le nom du ticket (ex: "SUPER U", "ARKTEOS")
+      if (cleanSite && cleanSite.length >= 4) {
+        if (tNorm.includes(cleanSite)) {
           return true;
         }
       }
@@ -2613,7 +2628,9 @@ export async function resolveRepairTicketsForMachine(
 
     if (openTicketsForMachine.length === 0) {
       // Aucun ticket ouvert : s'assurer que la machine est En service par sécurité
-      await syncMachineRepairLifecycleStatus(machineId, 'En service');
+      if (machineId) {
+        await syncMachineRepairLifecycleStatus(machineId, 'En service');
+      }
       return { resolvedCount: 0, resolvedTicketIds: [] };
     }
 
@@ -2625,15 +2642,16 @@ export async function resolveRepairTicketsForMachine(
       const updatedDesc = currentDesc.replace(/☐/g, '☑');
       const descWithDate = updatedDesc.includes('[Réparée le')
         ? updatedDesc
-        : `${updatedDesc}\n\n[Réparée le ${details.formattedDate} suite au contrôle technique]`;
+        : `${updatedDesc}\n\n[Réparée le ${details.formattedDate} suite au contrôle technique]`.trim();
 
       const colValues: Record<string, any> = {
         color_mm8vp2nd: { label: 'Réparée' },
       };
 
       // Si le ticket n'avait pas encore la relation machine (ancien import Excel), l'associer automatiquement
-      if (!ticket.machineId && machineId) {
-        colValues.board_relation_mm8gc4mh = { item_ids: [Number(machineId)] };
+      const effectiveMachineId = ticket.machineId || machineId;
+      if (!ticket.machineId && effectiveMachineId) {
+        colValues.board_relation_mm8gc4mh = { item_ids: [Number(effectiveMachineId)] };
       }
 
       if (descWithDate.trim()) {
@@ -2685,12 +2703,124 @@ export async function resolveRepairTicketsForMachine(
     }
 
     // 4. Mettre à jour le statut du parc de la machine à 'En service'
-    await syncMachineRepairLifecycleStatus(machineId, 'En service');
+    if (machineId) {
+      await syncMachineRepairLifecycleStatus(machineId, 'En service');
+    }
 
     return { resolvedCount: resolvedTicketIds.length, resolvedTicketIds };
   } catch (err) {
     console.error('Erreur lors de la résolution automatique des tickets de réparation:', err);
     return { resolvedCount: 0, resolvedTicketIds: [] };
+  }
+}
+
+/**
+ * Met à jour manuellement le statut d'un ticket de réparation (ex: 'Réparée', 'À traiter', 'En cours de réparation').
+ * Synchronise automatiquement le groupe Monday, le statut parc machine et la description.
+ */
+export async function updateRepairTicketStatus(
+  ticket: RepairTicket,
+  targetStatus: string,
+  options?: {
+    machineId?: string;
+    technicienName?: string;
+    formattedDate?: string;
+  }
+): Promise<{ success: boolean; newStatus?: string; error?: string }> {
+  try {
+    const today = options?.formattedDate || new Date().toISOString().split('T')[0];
+    const meta = await fetchRepairBoardMeta();
+    const statusLabels = meta.columnsById['color_mm8vp2nd']?.labels || [];
+    const resolvedStatus = pickBestMatchingLabel(targetStatus, statusLabels);
+    const isTargetRepaired = normalizeLabelMatch(resolvedStatus).includes('repare');
+    const targetGroupId = isTargetRepaired ? meta.repairedGroupId : meta.inRepairGroupId;
+
+    const colValues: Record<string, any> = {
+      color_mm8vp2nd: { label: resolvedStatus },
+    };
+
+    // Rattachement de la machine si non liée
+    const linkedMachineId = ticket.machineId || options?.machineId;
+    if (linkedMachineId && !ticket.machineId) {
+      colValues.board_relation_mm8gc4mh = { item_ids: [Number(linkedMachineId)] };
+    }
+
+    // Mise à jour de la description : cocher les cases si réparée
+    const currentDesc = ticket.description || '';
+    let updatedDesc = currentDesc;
+    if (isTargetRepaired) {
+      updatedDesc = updatedDesc.replace(/☐/g, '☑');
+      if (!updatedDesc.includes('[Réparée le')) {
+        updatedDesc = `${updatedDesc}\n\n[Réparée le ${today}]`.trim();
+      }
+    } else {
+      updatedDesc = updatedDesc.replace(/\n*\[R[ée]par[ée]e\s+le[^\]]+\]/gi, '').trim();
+    }
+
+    if (updatedDesc !== currentDesc) {
+      const descColType = meta.columnsById['text_mm8vhwst']?.type;
+      colValues.text_mm8vhwst = descColType === 'long_text' ? { text: updatedDesc } : updatedDesc;
+    }
+
+    const mutation = `
+      mutation UpdateTicketStatus($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+        change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues, create_labels_if_missing: true) {
+          id
+        }
+      }
+    `;
+
+    const res: any = await (monday as any).api(mutation, {
+      variables: {
+        boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
+        itemId: ticket.id,
+        columnValues: JSON.stringify(colValues),
+      },
+    });
+
+    if (!res?.data?.change_multiple_column_values?.id) {
+      return { success: false, error: formatMondayError(res) };
+    }
+
+    // Déplacement dans le groupe approprié sur Monday
+    if (targetGroupId) {
+      await moveRepairItemToGroup(ticket.id, targetGroupId);
+    }
+
+    // Synchronisation du statut du parc de la machine
+    if (linkedMachineId) {
+      await syncMachineRepairLifecycleStatus(
+        linkedMachineId,
+        isTargetRepaired ? 'En service' : 'En réparation',
+        ticket.id
+      );
+    }
+
+    // Publication d'un mot dans le fil d'activité
+    const actionText = isTargetRepaired
+      ? `✅ <b>Ticket marqué comme Réparé le ${today}</b>`
+      : `🔧 <b>Statut mis à jour : ${resolvedStatus}</b>`;
+    const userText = options?.technicienName ? ` par ${options.technicienName}` : '';
+    await (monday as any).api(
+      `mutation PostStatusChangeUpdate($itemId: ID!, $body: String!) {
+        create_update(item_id: $itemId, body: $body) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          itemId: ticket.id,
+          body: `${actionText}${userText}`,
+        },
+      }
+    ).catch(() => {});
+
+    return {
+      success: true,
+      newStatus: resolvedStatus,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur modification statut ticket' };
   }
 }
 
