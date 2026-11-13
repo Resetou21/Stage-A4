@@ -1,5 +1,80 @@
 import monday from './monday';
 import type { ParsedSupplierOrder } from './supplierPdfParser';
+import type { Machine } from '../types';
+
+/**
+ * Détermine de manière robuste si un ticket de réparation est clôturé / réparé.
+ * Gère les variantes avec/sans accent ("réparée", "reparee", "réparé", etc.)
+ */
+export function isTicketRepaired(status?: string, groupTitle?: string): boolean {
+  if (!status && !groupTitle) return false;
+  const s = `${status || ''} ${groupTitle || ''}`.toLowerCase();
+  return (
+    s.includes('réparée') ||
+    s.includes('reparee') ||
+    s.includes('réparé') ||
+    s.includes('repare') ||
+    s.includes('resolu') ||
+    s.includes('résolu') ||
+    s.includes('conforme')
+  );
+}
+
+/**
+ * Détection intelligente de la machine reliée à un ticket de réparation.
+ * Fonctionne par ID relationnel direct, nom exact, code modèle ou nom de site.
+ */
+export function findMachineForTicket(
+  ticket: { machineId?: string; machineName?: string; name?: string },
+  machinesList: Machine[]
+): Machine | undefined {
+  if (ticket.machineId) {
+    const direct = machinesList.find((m) => String(m.id) === String(ticket.machineId));
+    if (direct) return direct;
+  }
+
+  const raw = `${ticket.machineName || ''} ${ticket.name || ''}`.toLowerCase();
+  const clean = raw
+    .replace(/^(r[ée]paration|panne|intervention|curative?)\s*[-–:]\s*/gi, '')
+    .replace(/\s*[-–]\s*\d{2}[\/\-]\d{2}[\/\-]\d{2,4}.*$/g, '')
+    .trim();
+
+  // 1. Match exact sur le nom
+  const exact = machinesList.find((m) => m.name.toLowerCase().trim() === clean);
+  if (exact) return exact;
+
+  // 2. Match sans le préfixe numérique de la machine (ex: "2 - TASKI ERGODISC 2000" -> "taski ergodisc 2000")
+  for (const m of machinesList) {
+    const mNorm = m.name.toLowerCase().trim();
+    const mNoCode = mNorm.replace(/^\d+\s*[-–]\s*/, '').trim();
+    if (mNoCode.length >= 3 && (clean.includes(mNoCode) || mNorm.includes(clean))) {
+      return m;
+    }
+  }
+
+  // 3. Match sur les codes modèles (ex: "SC 2000", "SC2000", "SC351", "344NX", "M3", "AX 14")
+  const modelToken = clean.match(/[a-z]{0,4}\s?\d{2,4}[a-z]{0,3}/i)?.[0]?.replace(/\s+/g, '') || '';
+  if (modelToken.length >= 3) {
+    for (const m of machinesList) {
+      const mNorm = m.name.toLowerCase().replace(/\s+/g, '');
+      if (mNorm.includes(modelToken)) {
+        return m;
+      }
+    }
+  }
+
+  // 4. Match par site client mentionné dans le nom du ticket
+  for (const m of machinesList) {
+    for (const cv of m.column_values || []) {
+      const txt = (cv.text || '').toLowerCase().trim();
+      if (txt.length >= 5 && clean.includes(txt)) {
+        return m;
+      }
+    }
+  }
+
+  return undefined;
+}
 
 export const MAINTENANCE_BOARD_IDS = {
   LISTE_MACHINES: '5106585240',

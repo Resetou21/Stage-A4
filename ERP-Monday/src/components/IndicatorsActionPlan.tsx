@@ -31,6 +31,8 @@ import {
   saveRepairChecklistAndProgress,
   updateRepairCost,
   updateRepairTicketStatus,
+  isTicketRepaired,
+  findMachineForTicket,
 } from '../services/maintenanceApi';
 
 const SupplierImportModal = lazy(() =>
@@ -138,56 +140,6 @@ function parseTicketDescription(rawDesc: string): ParsedTicketDescription {
     essentialText: raw.length > 260 ? `${raw.slice(0, 257)}...` : raw,
     note: raw,
   };
-}
-
-// Détection intelligente de la machine reliée à un ticket
-function findMachineForTicket(ticket: RepairTicket, machinesList: Machine[]): Machine | undefined {
-  if (ticket.machineId) {
-    const direct = machinesList.find((m) => String(m.id) === String(ticket.machineId));
-    if (direct) return direct;
-  }
-
-  const raw = `${ticket.machineName || ''} ${ticket.name || ''}`.toLowerCase();
-  const clean = raw
-    .replace(/^(r[ée]paration|panne|intervention|curative?)\s*[-–:]\s*/gi, '')
-    .replace(/\s*[-–]\s*\d{2}[\/\-]\d{2}[\/\-]\d{2,4}.*$/g, '')
-    .trim();
-
-  // 1. Match exact sur le nom
-  const exact = machinesList.find((m) => m.name.toLowerCase().trim() === clean);
-  if (exact) return exact;
-
-  // 2. Match sans le préfixe numérique de la machine (ex: "2 - TASKI ERGODISC 2000" -> "taski ergodisc 2000")
-  for (const m of machinesList) {
-    const mNorm = m.name.toLowerCase().trim();
-    const mNoCode = mNorm.replace(/^\d+\s*[-–]\s*/, '').trim();
-    if (mNoCode.length >= 3 && (clean.includes(mNoCode) || mNorm.includes(clean))) {
-      return m;
-    }
-  }
-
-  // 3. Match sur les codes modèles (ex: "SC 2000", "SC2000", "SC351", "344NX", "M3", "AX 14")
-  const modelToken = clean.match(/[a-z]{0,4}\s?\d{2,4}[a-z]{0,3}/i)?.[0]?.replace(/\s+/g, '') || '';
-  if (modelToken.length >= 3) {
-    for (const m of machinesList) {
-      const mNorm = m.name.toLowerCase().replace(/\s+/g, '');
-      if (mNorm.includes(modelToken)) {
-        return m;
-      }
-    }
-  }
-
-  // 4. Match par site client mentionné dans le nom du ticket
-  for (const m of machinesList) {
-    for (const cv of m.column_values || []) {
-      const txt = (cv.text || '').toLowerCase().trim();
-      if (txt.length >= 5 && clean.includes(txt)) {
-        return m;
-      }
-    }
-  }
-
-  return undefined;
 }
 
 interface IndicatorsActionPlanProps {
@@ -306,7 +258,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
     });
     setUpdatingTicketId(null);
     if (res.success) {
-      const isRep = targetStatus.toLowerCase().includes('repar');
+      const isRep = isTicketRepaired(targetStatus);
       setSuccessToast(
         isRep
           ? `Machine "${ticket.machineName}" marquée comme Réparée ! Elle est désormais dans l'historique.`
@@ -1671,8 +1623,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
         const detailDone = detailChecklist.filter((c) => c.checked).length;
         const detailTotal = detailChecklist.length;
         const detailPct = detailTotal > 0 ? Math.round((detailDone / detailTotal) * 100) : 0;
-        const detailIsRepaired =
-          detailTicket.status.toLowerCase().includes('réparée') || detailTicket.status.toLowerCase().includes('reparee');
+        const detailIsRepaired = isTicketRepaired(detailTicket.status, detailTicket.groupTitle);
         const detailImmob = detailIsRepaired
           ? computeDaysBetween(detailTicket.date, detailTicket.repairedDate || detailTicket.updatedAt)
           : computeDaysBetween(detailTicket.date);
@@ -1812,7 +1763,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
               <div style={{ padding: '18px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {/* 0. Bandeau de Statut & Clôture de la réparation */}
                 {(() => {
-                  const detailReparee = (detailTicket.status || '').toLowerCase().includes('repar');
+                  const detailReparee = detailIsRepaired;
                   return (
                     <div
                       style={{
@@ -2282,7 +2233,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  {!(detailTicket.status || '').toLowerCase().includes('repar') && (
+                  {!detailIsRepaired && (
                     <button
                       type="button"
                       disabled={updatingTicketId === detailTicket.id}

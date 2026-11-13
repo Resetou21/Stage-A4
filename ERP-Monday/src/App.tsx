@@ -27,6 +27,8 @@ import {
   RealisedControle,
   RepairTicket,
   MaintenanceAlertMessage,
+  isTicketRepaired,
+  findMachineForTicket,
 } from './services/maintenanceApi';
 import {
   ClipboardCheck,
@@ -300,57 +302,55 @@ export const App = () => {
   }, [realMachines]);
 
   // Machines ayant actuellement un ticket ouvert dans Réparation machines (5106693291)
-  const openRepairMachineMatch = useMemo(() => {
+  const openRepairMachineIds = useMemo(() => {
     const ids = new Set<string>();
-    const names = new Set<string>();
     repairTickets.forEach((t) => {
-      const statusNorm = (t.status || '').toLowerCase();
-      const groupNorm = (t.groupTitle || '').toLowerCase();
-      const isClosed =
-        statusNorm.includes('réparée') ||
-        statusNorm.includes('reparee') ||
-        statusNorm.includes('réparé') ||
-        statusNorm.includes('repare') ||
-        groupNorm.includes('réparé') ||
-        groupNorm.includes('repare');
+      const isClosed = isTicketRepaired(t.status, t.groupTitle);
       if (!isClosed) {
-        if (t.machineId) {
+        const matched = findMachineForTicket(t, realMachines);
+        if (matched) {
+          ids.add(String(matched.id));
+        } else if (t.machineId) {
           ids.add(String(t.machineId));
-        } else if (t.machineName) {
-          names.add(t.machineName.toLowerCase().replace(/\s+/g, ' ').trim());
         }
       }
     });
-    return { ids, names };
-  }, [repairTickets]);
+    return ids;
+  }, [repairTickets, realMachines]);
 
   const hasOpenRepairTicket = useCallback(
     (m: Machine): boolean => {
-      if (openRepairMachineMatch.ids.has(String(m.id))) return true;
-      const mName = (m.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
-      if (!mName) return false;
-      return openRepairMachineMatch.names.has(mName);
+      return openRepairMachineIds.has(String(m.id));
     },
-    [openRepairMachineMatch]
+    [openRepairMachineIds]
   );
 
-  // Classifieur unique basé sur le statut réel de la machine sur Monday
+  // Classifieur dynamique : reflète l'état réel opérationnel et les réparations ouvertes
   const getMachineKpiCategory = useCallback(
     (m: Machine): Exclude<KpiFilter, 'all'> => {
       const statusText = getColText(m, 'color_mm8dremb').toLowerCase();
+      // 1. Sortie explicite du parc
       if (statusText.includes('sortie') || statusText.includes('hors')) {
         return 'verifier_sortie';
       }
-      if (statusText.includes('réparation') || statusText.includes('reparation') || statusText.includes('panne')) {
+      // 2. En réparation : soit statut Monday explicite, soit ticket curatif ouvert non clôturé
+      if (
+        statusText.includes('réparation') ||
+        statusText.includes('reparation') ||
+        statusText.includes('panne') ||
+        hasOpenRepairTicket(m)
+      ) {
         return 'reparation';
       }
+      // 3. À vérifier
       if (statusText.includes('vérifier') || statusText.includes('verifier') || statusText.includes('remettre')) {
         return 'verifier_sortie';
       }
+      // 4. En service
       if (statusText.includes('service')) {
         return 'service';
       }
-      return hasOpenRepairTicket(m) ? 'reparation' : 'verifier_sortie';
+      return 'verifier_sortie';
     },
     [hasOpenRepairTicket]
   );
@@ -1126,7 +1126,7 @@ export const App = () => {
                   </div>
                   {activeTile === 'reparation' && (
                     <div style={{ fontSize: '12px', color: '#57778E', marginTop: '3px' }}>
-                      Filtré sur le statut Monday <b>« En réparation »</b> (Liste des machines). Les machines <b>En service</b> avec un ancien ticket non clôturé portent un badge orange cliquable.
+                      Machines ayant une panne signalée ou une réparation en cours dans le tableau Réparations.
                     </div>
                   )}
                 </div>
