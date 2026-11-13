@@ -65,7 +65,7 @@ interface InspectionFormProps {
   referentielPoints: ReferentielPoint[];
   realisedControles?: RealisedControle[];
   initialMachineId?: string;
-  onInspectionSuccess: (machineName: string, date: string) => void;
+  onInspectionSuccess: (machineName: string, date: string, resolvedRepairsCount?: number) => void;
   isModal?: boolean;
   onCloseModal?: () => void;
 }
@@ -232,7 +232,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
     if (res.success) {
       setSubmitSuccess(true);
-      onInspectionSuccess(selectedMachine.name, inspectionDate);
+      onInspectionSuccess(selectedMachine.name, inspectionDate, res.resolvedRepairsCount);
       if (isModal && onCloseModal) {
         setTimeout(() => {
           onCloseModal();

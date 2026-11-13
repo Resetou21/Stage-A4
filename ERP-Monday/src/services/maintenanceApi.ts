@@ -908,7 +908,12 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
 }
 
 // 3. Soumettre une Fiche de Contrôle (créer un item dans 5107262948)
-export async function submitFicheControle(submission: FicheControleSubmission): Promise<{ success: boolean; id?: string; error?: string }> {
+export async function submitFicheControle(submission: FicheControleSubmission): Promise<{
+  success: boolean;
+  id?: string;
+  resolvedRepairsCount?: number;
+  error?: string;
+}> {
   try {
     const formattedDate = submission.date;
     const itemName = `Contrôle - ${submission.machineName} - ${formattedDate}`;
@@ -1192,10 +1197,11 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
       }
 
       // =========================================================================
-      // CRÉATION AUTOMATIQUE DE LA RÉPARATION CURATIVE DANS LE TABLEAU 4 (5106693291)
-      // Si au moins 1 point non conforme (NC) a été détecté
+      // GESTION DU CYCLE DE VIE DES RÉPARATIONS CURATIVES (TABLEAU 4 - 5106693291)
       // =========================================================================
       const ncEntries = Object.entries(submission.pointsEvaluations).filter(([_, st]) => st === 'NC');
+      let resolvedRepairsCount = 0;
+
       if (ncEntries.length > 0 && submission.machineId) {
         try {
           const repairExtraCols = await ensureHubBoardColumns(MAINTENANCE_BOARD_IDS.REPARATION_MACHINES, REPAIR_HUB_SPECS);
@@ -1207,91 +1213,140 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
             })
             .join('\n');
 
-          const repairColValues: Record<string, any> = {
-            board_relation_mm8gc4mh: { item_ids: [Number(submission.machineId)] },
-            color_mm8gs7c7: { label: 'Curative' },
-            date_mm8g4vq6: { date: formattedDate },
-            color_mm8vp2nd: { label: 'À traiter' },
-            text_mm8vhwst: repairDescriptionText,
-          };
-
-          if (repairExtraCols.fournisseur) {
-            repairColValues[repairExtraCols.fournisseur] =
-              submission.typeReparation === 'Fournisseur' ? 'Fournisseur agréé' : `Interne (${submission.technicienName || 'Christophe'})`;
-          }
-          if (repairExtraCols.site && submission.machineSite?.trim()) {
-            repairColValues[repairExtraCols.site] = submission.machineSite.trim();
-          }
-          if (repairExtraCols.noteControle && submission.noteSurDix !== undefined) {
-            repairColValues[repairExtraCols.noteControle] = submission.noteSurDix;
-          }
-
-          const repairMeta = await fetchRepairBoardMeta();
-          const repairMutation = repairMeta.inRepairGroupId
-            ? `
-              mutation CreateRepairWithGroup($boardId: ID!, $groupId: String, $itemName: String!, $columnValues: JSON!) {
-                create_item(board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
-                  id
-                }
-              }
-            `
-            : `
-              mutation CreateRepair($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
-                create_item(board_id: $boardId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
-                  id
-                }
-              }
-            `;
-
-          const repairVars: Record<string, any> = {
-            boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
-            itemName: repairItemName,
-            columnValues: JSON.stringify(repairColValues),
-          };
-          if (repairMeta.inRepairGroupId) {
-            repairVars.groupId = repairMeta.inRepairGroupId;
-          }
-
-          const repairRes: any = await (monday as any).api(repairMutation, {
-            variables: repairVars,
+          const allRepairs = await fetchRepairTickets();
+          const existingOpenTicket = allRepairs.find((t) => {
+            if (String(t.machineId || '') !== String(submission.machineId)) return false;
+            const stNorm = normalizeLabelMatch(t.status);
+            const grpNorm = normalizeLabelMatch(t.groupTitle || '');
+            return !stNorm.includes('repare') && !grpNorm.includes('repare');
           });
 
-          // Post d'un compte-rendu formaté dans la bulle d'activité Monday de l'item de réparation
-          if (repairRes?.data?.create_item?.id) {
-            await syncMachineRepairLifecycleStatus(submission.machineId, 'En réparation');
-            const repairItemId = repairRes.data.create_item.id;
-            const updateHtml = `🔧 <b>Intervention curative générée automatiquement suite au contrôle technique du ${formattedDate}</b><br><br>` +
-              `<b>Technicien :</b> ${submission.technicienName || 'Christophe'}<br>` +
-              `<b>Machine :</b> ${submission.machineName} (${submission.machineType})<br>` +
-              `<b>État général :</b> ${etatLabel} ${submission.noteSurDix !== undefined ? `(${submission.noteSurDix}/10)` : ''}<br>` +
-              `<b>Catégorie d'intervention :</b> ${submission.categorieIntervention || 'Contrôle simple'}<br>` +
-              `<b>Mode de réparation :</b> ${submission.typeReparation === 'Fournisseur' ? '🏭 Fournisseur agréé (machine 500 kg / lourde)' : '🔧 En interne par l\'équipe'}<br>` +
-              `<b>Propreté :</b> ${submission.proprete || 'Propre'} | <b>Entretien :</b> ${submission.entretienRegulier || 'Entretenue'} | <b>Fiche site :</b> ${submission.ficheSurSite || 'Oui'}<br><br>` +
-              (submission.remarqueAnimatrice?.trim() ? `<div style="background:#FFF8EC;border-left:4px solid #F7AC37;padding:8px 12px;margin:8px 0;">📢 <b>Alerte / Remarque pour le Responsable de Secteur :</b><br>${submission.remarqueAnimatrice.trim()}</div><br>` : '') +
-              `<b>Points non conformes détectés &amp; Actions à entreprendre :</b><br>` +
-              ncEntries
-                .map(([pt]) => {
-                  const act = submission.ncActions?.[pt]?.trim() || 'À diagnostiquer et réparer';
-                  return `• <b>${pt}</b> : <span style="color:#e2445c;font-weight:bold;">NC</span> ➔ <i>${act}</i>`;
-                })
-                .join('<br>') +
-              (submission.anomaliesText?.trim() ? `<br><br><b>Remarques complémentaires :</b><br>${submission.anomaliesText.trim()}` : '');
-
-            await (monday as any).api(`
-              mutation PostUpdate($itemId: ID!, $body: String!) {
-                create_update(item_id: $itemId, body: $body) {
+          if (existingOpenTicket) {
+            // Un ticket curatif est déjà ouvert : actualiser la checklist et la date sans créer de doublon
+            const repairColValues: Record<string, any> = {
+              date_mm8g4vq6: { date: formattedDate },
+              color_mm8vp2nd: { label: 'À traiter' },
+              text_mm8vhwst: repairDescriptionText,
+            };
+            await (monday as any).api(
+              `mutation UpdateExistingRepair($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+                change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues, create_labels_if_missing: true) {
                   id
                 }
+              }`,
+              {
+                variables: {
+                  boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
+                  itemId: existingOpenTicket.id,
+                  columnValues: JSON.stringify(repairColValues),
+                },
               }
-            `, {
-              variables: {
-                itemId: repairItemId,
-                body: updateHtml,
-              },
+            );
+            await syncMachineRepairLifecycleStatus(submission.machineId, 'En réparation');
+          } else {
+            // Aucun ticket ouvert : création normale du ticket curatif
+            const repairColValues: Record<string, any> = {
+              board_relation_mm8gc4mh: { item_ids: [Number(submission.machineId)] },
+              color_mm8gs7c7: { label: 'Curative' },
+              date_mm8g4vq6: { date: formattedDate },
+              color_mm8vp2nd: { label: 'À traiter' },
+              text_mm8vhwst: repairDescriptionText,
+            };
+
+            if (repairExtraCols.fournisseur) {
+              repairColValues[repairExtraCols.fournisseur] =
+                submission.typeReparation === 'Fournisseur' ? 'Fournisseur agréé' : `Interne (${submission.technicienName || 'Christophe'})`;
+            }
+            if (repairExtraCols.site && submission.machineSite?.trim()) {
+              repairColValues[repairExtraCols.site] = submission.machineSite.trim();
+            }
+            if (repairExtraCols.noteControle && submission.noteSurDix !== undefined) {
+              repairColValues[repairExtraCols.noteControle] = submission.noteSurDix;
+            }
+
+            const repairMeta = await fetchRepairBoardMeta();
+            const repairMutation = repairMeta.inRepairGroupId
+              ? `
+                mutation CreateRepairWithGroup($boardId: ID!, $groupId: String, $itemName: String!, $columnValues: JSON!) {
+                  create_item(board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
+                    id
+                  }
+                }
+              `
+              : `
+                mutation CreateRepair($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
+                  create_item(board_id: $boardId, item_name: $itemName, column_values: $columnValues, create_labels_if_missing: true) {
+                    id
+                  }
+                }
+              `;
+
+            const repairVars: Record<string, any> = {
+              boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
+              itemName: repairItemName,
+              columnValues: JSON.stringify(repairColValues),
+            };
+            if (repairMeta.inRepairGroupId) {
+              repairVars.groupId = repairMeta.inRepairGroupId;
+            }
+
+            const repairRes: any = await (monday as any).api(repairMutation, {
+              variables: repairVars,
             });
+
+            // Post d'un compte-rendu formaté dans la bulle d'activité Monday de l'item de réparation
+            if (repairRes?.data?.create_item?.id) {
+              await syncMachineRepairLifecycleStatus(submission.machineId, 'En réparation');
+              const repairItemId = repairRes.data.create_item.id;
+              const updateHtml = `🔧 <b>Intervention curative générée automatiquement suite au contrôle technique du ${formattedDate}</b><br><br>` +
+                `<b>Technicien :</b> ${submission.technicienName || 'Christophe'}<br>` +
+                `<b>Machine :</b> ${submission.machineName} (${submission.machineType})<br>` +
+                `<b>État général :</b> ${etatLabel} ${submission.noteSurDix !== undefined ? `(${submission.noteSurDix}/10)` : ''}<br>` +
+                `<b>Catégorie d'intervention :</b> ${submission.categorieIntervention || 'Contrôle simple'}<br>` +
+                `<b>Mode de réparation :</b> ${submission.typeReparation === 'Fournisseur' ? '🏭 Fournisseur agréé (machine 500 kg / lourde)' : '🔧 En interne par l\'équipe'}<br>` +
+                `<b>Propreté :</b> ${submission.proprete || 'Propre'} | <b>Entretien :</b> ${submission.entretienRegulier || 'Entretenue'} | <b>Fiche site :</b> ${submission.ficheSurSite || 'Oui'}<br><br>` +
+                (submission.remarqueAnimatrice?.trim() ? `<div style="background:#FFF8EC;border-left:4px solid #F7AC37;padding:8px 12px;margin:8px 0;">📢 <b>Alerte / Remarque pour le Responsable de Secteur :</b><br>${submission.remarqueAnimatrice.trim()}</div><br>` : '') +
+                `<b>Points non conformes détectés &amp; Actions à entreprendre :</b><br>` +
+                ncEntries
+                  .map(([pt]) => {
+                    const act = submission.ncActions?.[pt]?.trim() || 'À diagnostiquer et réparer';
+                    return `• <b>${pt}</b> : <span style="color:#e2445c;font-weight:bold;">NC</span> ➔ <i>${act}</i>`;
+                  })
+                  .join('<br>') +
+                (submission.anomaliesText?.trim() ? `<br><br><b>Remarques complémentaires :</b><br>${submission.anomaliesText.trim()}` : '');
+
+              await (monday as any).api(`
+                mutation PostUpdate($itemId: ID!, $body: String!) {
+                  create_update(item_id: $itemId, body: $body) {
+                    id
+                  }
+                }
+              `, {
+                variables: {
+                  itemId: repairItemId,
+                  body: updateHtml,
+                },
+              });
+            }
           }
         } catch (repairErr) {
-          console.warn('Erreur lors de la création automatique de la réparation:', repairErr);
+          console.warn('Erreur lors de la gestion de la réparation curative:', repairErr);
+        }
+      } else if (submission.machineId && submission.decisionFinale !== 'Non conforme / À réparer') {
+        // =========================================================================
+        // MACHINE CONFORME / RÉPARÉE (0 point non conforme)
+        // Clôture automatique de tous les tickets curatifs ouverts pour cette machine
+        // et remise immédiate de la machine "En service" sur Liste des machines
+        // =========================================================================
+        try {
+          const resRes = await resolveRepairTicketsForMachine(submission.machineId, {
+            formattedDate,
+            technicienName: submission.technicienName,
+            noteSurDix: submission.noteSurDix,
+          });
+          resolvedRepairsCount = resRes.resolvedCount;
+        } catch (resErr) {
+          console.warn('Erreur clôture automatique des réparations:', resErr);
         }
       }
 
@@ -1354,7 +1409,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
         }
       }
 
-      return { success: true, id: createdId };
+      return { success: true, id: createdId, resolvedRepairsCount };
     }
     return { success: false, error: res?.errors?.[0]?.message || 'Erreur inconnue lors de la création.' };
   } catch (err: any) {
@@ -2476,6 +2531,111 @@ export async function saveRepairChecklistAndProgress(
     };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erreur mise à jour checklist' };
+  }
+}
+
+/**
+ * Clôture automatiquement les tickets de réparation curatifs en cours pour une machine
+ * lorsque celle-ci passe un contrôle technique favorable / conforme.
+ */
+export async function resolveRepairTicketsForMachine(
+  machineId: string,
+  details: {
+    formattedDate: string;
+    technicienName?: string;
+    noteSurDix?: number;
+  }
+): Promise<{ resolvedCount: number; resolvedTicketIds: string[] }> {
+  if (!machineId) return { resolvedCount: 0, resolvedTicketIds: [] };
+
+  try {
+    const [allTickets, repairMeta] = await Promise.all([
+      fetchRepairTickets(),
+      fetchRepairBoardMeta(),
+    ]);
+
+    const openTicketsForMachine = allTickets.filter((t) => {
+      if (String(t.machineId || '') !== String(machineId)) return false;
+      const stNorm = normalizeLabelMatch(t.status);
+      const grpNorm = normalizeLabelMatch(t.groupTitle || '');
+      const isClosed = stNorm.includes('repare') || grpNorm.includes('repare');
+      return !isClosed;
+    });
+
+    if (openTicketsForMachine.length === 0) {
+      // Aucun ticket ouvert : s'assurer que la machine est En service par sécurité
+      await syncMachineRepairLifecycleStatus(machineId, 'En service');
+      return { resolvedCount: 0, resolvedTicketIds: [] };
+    }
+
+    const resolvedTicketIds: string[] = [];
+
+    for (const ticket of openTicketsForMachine) {
+      // 1. Remplacer toutes les cases non cochées ☐ par cochées ☑ dans la description
+      const currentDesc = ticket.description || '';
+      const updatedDesc = currentDesc.replace(/☐/g, '☑');
+      const descWithDate = updatedDesc.includes('[Réparée le')
+        ? updatedDesc
+        : `${updatedDesc}\n\n[Réparée le ${details.formattedDate} suite au contrôle technique]`;
+
+      const colValues: Record<string, any> = {
+        color_mm8vp2nd: { label: 'Réparée' },
+      };
+      if (descWithDate.trim()) {
+        const descColType = repairMeta.columnsById['text_mm8vhwst']?.type;
+        colValues.text_mm8vhwst = descColType === 'long_text' ? { text: descWithDate } : descWithDate;
+      }
+
+      await (monday as any).api(
+        `mutation ResolveRepairTicket($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+          change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues, create_labels_if_missing: true) {
+            id
+          }
+        }`,
+        {
+          variables: {
+            boardId: MAINTENANCE_BOARD_IDS.REPARATION_MACHINES,
+            itemId: ticket.id,
+            columnValues: JSON.stringify(colValues),
+          },
+        }
+      );
+
+      // 2. Déplacer dans le groupe "Machine Réparé"
+      if (repairMeta.repairedGroupId) {
+        await moveRepairItemToGroup(ticket.id, repairMeta.repairedGroupId);
+      }
+
+      // 3. Publier un compte-rendu dans le fil d'activité Monday de l'item de réparation
+      const updateHtml = `✅ <b>Machine contrôlée conforme &amp; remise en service le ${details.formattedDate}</b><br><br>` +
+        `<b>Technicien :</b> ${details.technicienName || 'Christophe'}<br>` +
+        `<b>Contrôle technique :</b> Favorable ${details.noteSurDix !== undefined ? `(${details.noteSurDix}/10)` : ''}<br>` +
+        `Toutes les anomalies curatives ont été levées et validées. Le ticket de réparation est clôturé et la machine est remise <b>En service</b>.`;
+
+      await (monday as any).api(
+        `mutation PostRepairResolved($itemId: ID!, $body: String!) {
+          create_update(item_id: $itemId, body: $body) {
+            id
+          }
+        }`,
+        {
+          variables: {
+            itemId: ticket.id,
+            body: updateHtml,
+          },
+        }
+      );
+
+      resolvedTicketIds.push(ticket.id);
+    }
+
+    // 4. Mettre à jour le statut du parc de la machine à 'En service'
+    await syncMachineRepairLifecycleStatus(machineId, 'En service');
+
+    return { resolvedCount: resolvedTicketIds.length, resolvedTicketIds };
+  } catch (err) {
+    console.error('Erreur lors de la résolution automatique des tickets de réparation:', err);
+    return { resolvedCount: 0, resolvedTicketIds: [] };
   }
 }
 

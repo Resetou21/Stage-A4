@@ -994,10 +994,14 @@ export const App = () => {
           referentielPoints={referentielPoints}
           realisedControles={realisedControles}
           initialMachineId={preSelectedMachineId}
-          onInspectionSuccess={(name, date) => {
+          onInspectionSuccess={(name, date, resolvedCount) => {
             loadMaintenanceData();
             fetchMachines();
-            setSuccessMessage(`Contrôle validé avec succès pour ${name} (${date}) !`);
+            if (resolvedCount && resolvedCount > 0) {
+              setSuccessMessage(`Contrôle validé et machine remise En service ! (${name} - ticket de réparation clôturé)`);
+            } else {
+              setSuccessMessage(`Contrôle validé avec succès pour ${name} (${date}) !`);
+            }
           }}
         />
       )}
@@ -2107,9 +2111,13 @@ export const App = () => {
               initialMachineId={inspectionModalMachineId}
               isModal={true}
               onCloseModal={() => setInspectionModalMachineId(null)}
-              onInspectionSuccess={async (name, date) => {
+              onInspectionSuccess={async (name, date, resolvedCount) => {
                 await Promise.all([loadMaintenanceData(), fetchMachines()]);
-                setSuccessMessage(`Contrôle validé avec succès pour ${name} (${date}) !`);
+                if (resolvedCount && resolvedCount > 0) {
+                  setSuccessMessage(`Contrôle validé et machine remise En service ! (${name} - ticket de réparation clôturé)`);
+                } else {
+                  setSuccessMessage(`Contrôle validé avec succès pour ${name} (${date}) !`);
+                }
               }}
             />
           </div>
