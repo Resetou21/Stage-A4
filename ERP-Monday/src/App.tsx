@@ -143,6 +143,15 @@ export const App = () => {
   // Notifications
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Auto-dismiss du toaster de notification après 4.5 secondes
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => {
+      setSuccessMessage(null);
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
+
   // Référentiel points de contrôle & Contrôles réalisés
   const [referentielPoints, setReferentielPoints] = useState<ReferentielPoint[]>([]);
   const [realisedControles, setRealisedControles] = useState<RealisedControle[]>([]);
@@ -889,32 +898,89 @@ export const App = () => {
         </button>
       </div>
 
-      {/* Message de notification global */}
+      {/* Toast Notification Flottant (Pop-up moderne en bas à droite) */}
       {successMessage && (
         <div
+          className="facility-toast-popup"
           style={{
-            backgroundColor: '#E6F8F0',
-            color: '#0E7042',
-            border: '1px solid #00C875',
-            borderRadius: '12px',
-            padding: '14px 20px',
-            fontSize: '14px',
-            fontWeight: 700,
-            marginBottom: '22px',
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 99999,
+            backgroundColor: '#FFFFFF',
+            border: '1.5px solid #00C875',
+            borderRadius: '14px',
+            padding: '14px 18px',
+            minWidth: '320px',
+            maxWidth: '480px',
+            boxShadow: '0 12px 36px rgba(0, 200, 117, 0.22), 0 4px 14px rgba(27, 69, 101, 0.08)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: '0 4px 12px rgba(0, 200, 117, 0.12)',
+            gap: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <CheckCircle2 size={20} color="#00C875" />
-            <span>{successMessage}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                backgroundColor: '#E6F8F0',
+                border: '1px solid #A7F3D0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <CheckCircle2 size={20} color="#00C875" />
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: '#0E7042',
+                  fontFamily: "'Ruda', sans-serif",
+                  letterSpacing: '0.2px',
+                }}
+              >
+                Action enregistrée
+              </div>
+              <div
+                style={{
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  color: '#1B4565',
+                  marginTop: '2px',
+                  lineHeight: 1.35,
+                }}
+              >
+                {successMessage}
+              </div>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => setSuccessMessage(null)}
-            style={{ background: 'none', border: 'none', color: '#0E7042', cursor: 'pointer', fontWeight: 800 }}
+            title="Fermer la notification"
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: '#F1F5F9',
+              color: '#64748B',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              fontWeight: 800,
+              flexShrink: 0,
+              transition: 'background 0.15s ease',
+            }}
           >
             ✕
           </button>

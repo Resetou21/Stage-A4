@@ -151,3 +151,21 @@ h1, h2, h3, h4, h5, h6, .font-title {
   font-style: italic !important;
   box-shadow: none !important;
 }
+
+/* Animation Toaster Toast Flottant */
+@keyframes toastSlideInBottom {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.facility-toast-popup {
+  animation: toastSlideInBottom 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
