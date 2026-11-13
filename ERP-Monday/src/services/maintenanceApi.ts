@@ -1688,17 +1688,11 @@ export function extractCostFromRepairData(
   colValues: any[],
   boardColumns: Array<{ id: string; title: string; type: string }>
 ): number | undefined {
-  // 1. Tag explicite [Coût: 123.45 €] dans la description
-  const tagMatch = (desc || '').match(/\[Co[ûu]t\s*:\s*([\d\s.,]+)\s*€?\]/i);
-  if (tagMatch) {
-    const v = Number(tagMatch[1].replace(/\s+/g, '').replace(',', '.'));
-    if (!Number.isNaN(v)) return v;
-  }
-
-  // 2. Recherche sur d'éventuelles colonnes existantes Coût / Montant / Prix sur le tableau Monday
+  // 1. Recherche prioritaire sur la colonne officielle Monday Montant / Coût / Prix (ex: numeric_mm8g9d6m)
   for (const colMeta of boardColumns) {
     const tNorm = normalizeColMatch(colMeta.title || '');
     if (
+      colMeta.id === 'numeric_mm8g9d6m' ||
       tNorm.includes('cout') ||
       tNorm.includes('montant') ||
       tNorm.includes('prix') ||
@@ -1712,6 +1706,13 @@ export function extractCostFromRepairData(
         if (numStr && !Number.isNaN(v)) return v;
       }
     }
+  }
+
+  // 2. Tag explicite [Coût: 123.45 €] dans la description (fallback)
+  const tagMatch = (desc || '').match(/\[Co[ûu]t\s*:\s*([\d\s.,]+)\s*€?\]/i);
+  if (tagMatch) {
+    const v = Number(tagMatch[1].replace(/\s+/g, '').replace(',', '.'));
+    if (!Number.isNaN(v)) return v;
   }
 
   // 3. Mention libre dans description ex: "Montant : 250 € HT"
@@ -2175,6 +2176,31 @@ export async function submitSupplierIntervention(
     };
   }
 
+  // Synchroniser la colonne officielle Montant (€) si le total HT est extrait ou saisi
+  const parsedSupplierTotalHT =
+    order.totalHT !== undefined && !Number.isNaN(Number(order.totalHT))
+      ? Number(order.totalHT)
+      : order.underWarranty
+      ? 0
+      : undefined;
+  if (parsedSupplierTotalHT !== undefined) {
+    let costColId: string | undefined = meta.columnsById['numeric_mm8g9d6m'] ? 'numeric_mm8g9d6m' : undefined;
+    if (!costColId) {
+      for (const [colId, colMeta] of Object.entries(meta.columnsById)) {
+        const norm = normalizeColMatch(colMeta.title || '');
+        if (norm.includes('montant') || norm.includes('cout') || norm.includes('prix') || norm.includes('facture') || norm.includes('tarif')) {
+          if (colMeta.type === 'numbers' || colMeta.type === 'numeric') {
+            costColId = colId;
+            break;
+          }
+        }
+      }
+    }
+    if (costColId) {
+      columnValues[costColId] = String(parsedSupplierTotalHT);
+    }
+  }
+
   let targetTicketId: string | undefined = existingTicketId;
 
   try {
@@ -2481,14 +2507,20 @@ export async function saveRepairChecklistAndProgress(
 
     // Si une colonne Coût existe déjà sur le tableau, la synchroniser aussi
     if (options?.cost !== undefined && !Number.isNaN(options.cost)) {
-      for (const [colId, colMeta] of Object.entries(meta.columnsById)) {
-        const norm = normalizeColMatch(colMeta.title || '');
-        if (norm.includes('cout') || norm.includes('montant') || norm.includes('prix')) {
-          if (colMeta.type === 'numbers' || colMeta.type === 'numeric') {
-            colValues[colId] = options.cost;
-            break;
+      let costColId: string | undefined = meta.columnsById['numeric_mm8g9d6m'] ? 'numeric_mm8g9d6m' : undefined;
+      if (!costColId) {
+        for (const [colId, colMeta] of Object.entries(meta.columnsById)) {
+          const norm = normalizeColMatch(colMeta.title || '');
+          if (norm.includes('cout') || norm.includes('montant') || norm.includes('prix') || norm.includes('facture') || norm.includes('tarif')) {
+            if (colMeta.type === 'numbers' || colMeta.type === 'numeric') {
+              costColId = colId;
+              break;
+            }
           }
         }
+      }
+      if (costColId) {
+        colValues[costColId] = String(options.cost);
       }
     }
 
@@ -2677,6 +2709,24 @@ export async function updateRepairCost(
     const colValues: Record<string, any> = {
       text_mm8vhwst: descColType === 'long_text' ? { text: newDescription } : newDescription,
     };
+
+    // Synchronisation directe de la colonne Montant (€) sur le tableau Monday (numeric_mm8g9d6m)
+    let costColId: string | undefined = meta.columnsById['numeric_mm8g9d6m'] ? 'numeric_mm8g9d6m' : undefined;
+    if (!costColId) {
+      for (const [colId, colMeta] of Object.entries(meta.columnsById)) {
+        const norm = normalizeColMatch(colMeta.title || '');
+        if (norm.includes('montant') || norm.includes('cout') || norm.includes('prix') || norm.includes('facture') || norm.includes('tarif')) {
+          if (colMeta.type === 'numbers' || colMeta.type === 'numeric') {
+            costColId = colId;
+            break;
+          }
+        }
+      }
+    }
+
+    if (costColId) {
+      colValues[costColId] = newCost !== undefined && !Number.isNaN(newCost) ? String(newCost) : '';
+    }
 
     const res: any = await (monday as any).api(
       `mutation UpdateRepairCost($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
