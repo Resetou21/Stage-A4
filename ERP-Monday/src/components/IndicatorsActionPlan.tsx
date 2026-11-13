@@ -135,6 +135,56 @@ function parseTicketDescription(rawDesc: string): ParsedTicketDescription {
   };
 }
 
+// Détection intelligente de la machine reliée à un ticket
+function findMachineForTicket(ticket: RepairTicket, machinesList: Machine[]): Machine | undefined {
+  if (ticket.machineId) {
+    const direct = machinesList.find((m) => String(m.id) === String(ticket.machineId));
+    if (direct) return direct;
+  }
+
+  const raw = `${ticket.machineName || ''} ${ticket.name || ''}`.toLowerCase();
+  const clean = raw
+    .replace(/^(r[ée]paration|panne|intervention|curative?)\s*[-–:]\s*/gi, '')
+    .replace(/\s*[-–]\s*\d{2}[\/\-]\d{2}[\/\-]\d{2,4}.*$/g, '')
+    .trim();
+
+  // 1. Match exact sur le nom
+  const exact = machinesList.find((m) => m.name.toLowerCase().trim() === clean);
+  if (exact) return exact;
+
+  // 2. Match sans le préfixe numérique de la machine (ex: "2 - TASKI ERGODISC 2000" -> "taski ergodisc 2000")
+  for (const m of machinesList) {
+    const mNorm = m.name.toLowerCase().trim();
+    const mNoCode = mNorm.replace(/^\d+\s*[-–]\s*/, '').trim();
+    if (mNoCode.length >= 3 && (clean.includes(mNoCode) || mNorm.includes(clean))) {
+      return m;
+    }
+  }
+
+  // 3. Match sur les codes modèles (ex: "SC 2000", "SC2000", "SC351", "344NX", "M3", "AX 14")
+  const modelToken = clean.match(/[a-z]{0,4}\s?\d{2,4}[a-z]{0,3}/i)?.[0]?.replace(/\s+/g, '') || '';
+  if (modelToken.length >= 3) {
+    for (const m of machinesList) {
+      const mNorm = m.name.toLowerCase().replace(/\s+/g, '');
+      if (mNorm.includes(modelToken)) {
+        return m;
+      }
+    }
+  }
+
+  // 4. Match par site client mentionné dans le nom du ticket
+  for (const m of machinesList) {
+    for (const cv of m.column_values || []) {
+      const txt = (cv.text || '').toLowerCase().trim();
+      if (txt.length >= 5 && clean.includes(txt)) {
+        return m;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 interface IndicatorsActionPlanProps {
   machines: Machine[];
   realisedControles: RealisedControle[];
@@ -1213,13 +1263,8 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                 badgeBorder = '#D2E9F6';
               }
 
-              // Trouver machine correspondante
-              const matchedMachine = machines.find(
-                (m) =>
-                  (t.machineId && m.id === t.machineId) ||
-                  m.name.toLowerCase().trim() === t.machineName.toLowerCase().trim() ||
-                  t.machineName.toLowerCase().includes(m.name.toLowerCase().slice(0, 10))
-              );
+              // Trouver machine correspondante avec détection intelligente
+              const matchedMachine = findMachineForTicket(t, machines);
 
               const parsedDesc = parseTicketDescription(t.description || '');
               const isSupplierTicket =
@@ -1287,6 +1332,21 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                         >
                           {t.machineName}
                         </span>
+                        {matchedMachine && !t.machineName.toLowerCase().includes(matchedMachine.name.toLowerCase().slice(0, 8)) && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: '#3989B7',
+                              backgroundColor: '#EBF6FC',
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              border: '1px solid #D2E9F6',
+                            }}
+                          >
+                            🔗 {matchedMachine.name}
+                          </span>
+                        )}
                         <span
                           style={{
                             fontSize: '11px',
@@ -1425,35 +1485,11 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                         </button>
                       )}
 
-                      {matchedMachine && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenInspection(matchedMachine.id)}
-                          title="Lancer une fiche de contrôle technique"
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: isReparee ? '#F0FDF4' : '#FAFCFD',
-                            color: isReparee ? '#047857' : '#39A9DC',
-                            border: isReparee ? '1px solid #BBF7D0' : '1px solid #D2E9F6',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                          }}
-                        >
-                          <ClipboardCheck size={14} />
-                          Contrôler
-                        </button>
-                      )}
-
                       <button
                         type="button"
                         onClick={() => openTicketDetail(t)}
                         style={{
-                          padding: '7px 12px',
+                          padding: '7px 14px',
                           borderRadius: '8px',
                           backgroundColor: isReparee ? '#ECFDF5' : '#EFF6FF',
                           color: isReparee ? '#065F46' : '#0369A1',
@@ -1463,7 +1499,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                           cursor: 'pointer',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
                         }}
                       >
                         {isReparee ? 'Consulter le rapport' : 'Ouvrir fiche & points NC'}
@@ -1555,18 +1591,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
           .toLowerCase();
         const detailModelMatch = detailCleanHint.match(/[a-z]{1,4}\s?\d{2,4}/i)?.[0]?.replace(/\s+/g, '') || '';
 
-        const matchedMachine = machines.find((m) => {
-          if (detailTicket.machineId && String(m.id) === String(detailTicket.machineId)) return true;
-          const mNorm = m.name.trim().toLowerCase();
-          const mNoCode = mNorm.replace(/^\d+\s*[-–]\s*/, '').trim();
-          if (detailCleanHint.length >= 4 && (mNorm.includes(detailCleanHint) || detailCleanHint.includes(mNoCode))) {
-            return true;
-          }
-          if (detailModelMatch.length >= 4) {
-            return mNorm.replace(/\s+/g, '').includes(detailModelMatch);
-          }
-          return false;
-        });
+        const matchedMachine = findMachineForTicket(detailTicket, machines);
 
         const machineControlsHistory = realisedControles
           .filter((c) => {
@@ -1634,31 +1659,29 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  {matchedMachine && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenInspection(matchedMachine.id)}
-                      title="Ouvrir la fiche de contrôle technique complète pour cette machine"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '7px 13px',
-                        borderRadius: '9px',
-                        backgroundColor: '#39A9DC',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        fontSize: '12.5px',
-                        fontWeight: 800,
-                        fontFamily: "'Ruda', sans-serif",
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 8px rgba(57, 169, 220, 0.25)',
-                      }}
-                    >
-                      <ClipboardCheck size={15} />
-                      <span>Fiche de contrôle</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenInspection(matchedMachine ? matchedMachine.id : '')}
+                    title="Ouvrir la fiche de contrôle technique"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '7px 13px',
+                      borderRadius: '9px',
+                      backgroundColor: '#39A9DC',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      fontFamily: "'Ruda', sans-serif",
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(57, 169, 220, 0.25)',
+                    }}
+                  >
+                    <ClipboardCheck size={15} />
+                    <span>Fiche de contrôle</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setDetailTicket(null)}
@@ -1923,7 +1946,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                           lineHeight: 1.45,
                         }}
                       >
-                        <b>Ticket historique importé :</b> aucune checklist de points NC ni description détaillée n&apos;était attachée à cette ancienne ligne sur Monday. Utilisez le bouton <b>« Contrôler »</b> ci-dessus si vous souhaitez réaliser une nouvelle fiche technique complète sur cette machine.
+                        <b>Ticket historique importé :</b> aucune checklist détaillée n&apos;était attachée à cette ancienne ligne sur Monday. Vous pouvez utiliser le bouton <b>« Fiche de contrôle »</b> ci-dessus si vous souhaitez réaliser un contrôle technique sur cette machine.
                       </div>
                     );
                   }
@@ -2042,29 +2065,29 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                 }}
               >
                 <div>
-                  {matchedMachine && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenInspection(matchedMachine.id)}
-                      style={{
-                        backgroundColor: '#39A9DC',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '8px 16px',
-                        fontSize: '12.5px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 6px rgba(57, 169, 220, 0.25)',
-                      }}
-                    >
-                      <ClipboardCheck size={15} />
-                      Ouvrir la fiche de contrôle technique
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenInspection(matchedMachine ? matchedMachine.id : '')}
+                    style={{
+                      backgroundColor: '#39A9DC',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 6px rgba(57, 169, 220, 0.25)',
+                    }}
+                  >
+                    <ClipboardCheck size={15} />
+                    {matchedMachine
+                      ? `Lancer la fiche de contrôle (${matchedMachine.name})`
+                      : 'Lancer une fiche de contrôle technique'}
+                  </button>
                 </div>
                 <button
                   type="button"
