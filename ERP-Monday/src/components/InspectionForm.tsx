@@ -65,6 +65,7 @@ interface InspectionFormProps {
   referentielPoints: ReferentielPoint[];
   realisedControles?: RealisedControle[];
   initialMachineId?: string;
+  targetTicketId?: string;
   onInspectionSuccess: (machineName: string, date: string, resolvedRepairsCount?: number) => void;
   isModal?: boolean;
   onCloseModal?: () => void;
@@ -75,6 +76,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   referentielPoints,
   realisedControles = [],
   initialMachineId,
+  targetTicketId,
   onInspectionSuccess,
   isModal = false,
   onCloseModal,
@@ -224,6 +226,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
       anomaliesText: !shouldNotifySecteur ? trimmedNote : '',
       ncActions,
       pointsEvaluations: evaluations,
+      targetTicketId,
     };
 
     const res = await submitFicheControle(submission);

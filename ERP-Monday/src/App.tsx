@@ -160,6 +160,7 @@ export const App = () => {
   // Machine pré-sélectionnée (ex: lancée depuis l'agenda ou les indicateurs)
   const [preSelectedMachineId, setPreSelectedMachineId] = useState<string>('');
   const [inspectionModalMachineId, setInspectionModalMachineId] = useState<string | null>(null);
+  const [inspectionTargetTicketId, setInspectionTargetTicketId] = useState<string | null>(null);
   const [isRescheduling, setIsRescheduling] = useState<boolean>(false);
   const [updatingMachineId, setUpdatingMachineId] = useState<string | null>(null);
 
@@ -1561,9 +1562,10 @@ export const App = () => {
           onRefreshData={async () => {
             await Promise.all([loadMaintenanceData(), fetchMachines()]);
           }}
-          onOpenInspection={(mId) => {
+          onOpenInspection={(mId, ticketId) => {
             setPreSelectedMachineId(mId);
             setInspectionModalMachineId(mId);
+            setInspectionTargetTicketId(ticketId || null);
           }}
         />
       )}
@@ -2109,9 +2111,14 @@ export const App = () => {
               referentielPoints={referentielPoints}
               realisedControles={realisedControles}
               initialMachineId={inspectionModalMachineId}
+              targetTicketId={inspectionTargetTicketId || undefined}
               isModal={true}
-              onCloseModal={() => setInspectionModalMachineId(null)}
+              onCloseModal={() => {
+                setInspectionModalMachineId(null);
+                setInspectionTargetTicketId(null);
+              }}
               onInspectionSuccess={async (name, date, resolvedCount) => {
+                setInspectionTargetTicketId(null);
                 await Promise.all([loadMaintenanceData(), fetchMachines()]);
                 if (resolvedCount && resolvedCount > 0) {
                   setSuccessMessage(`Contrôle validé et machine remise En service ! (${name} - ticket de réparation clôturé)`);

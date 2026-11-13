@@ -195,7 +195,7 @@ interface IndicatorsActionPlanProps {
   realisedControles: RealisedControle[];
   repairTickets: RepairTicket[];
   onRefreshData: () => Promise<void>;
-  onOpenInspection: (machineId: string) => void;
+  onOpenInspection: (machineId: string, ticketId?: string) => void;
 }
 
 export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
@@ -1767,7 +1767,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    onClick={() => onOpenInspection(matchedMachine ? matchedMachine.id : '')}
+                    onClick={() => onOpenInspection(matchedMachine ? matchedMachine.id : '', detailTicket?.id)}
                     title="Ouvrir la fiche de contrôle technique"
                     style={{
                       display: 'inline-flex',
@@ -2308,7 +2308,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                   )}
                   <button
                     type="button"
-                    onClick={() => onOpenInspection(matchedMachine ? matchedMachine.id : '')}
+                    onClick={() => onOpenInspection(matchedMachine ? matchedMachine.id : '', detailTicket?.id)}
                     style={{
                       backgroundColor: '#39A9DC',
                       color: '#FFFFFF',

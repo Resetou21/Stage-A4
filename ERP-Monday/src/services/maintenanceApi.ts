@@ -162,6 +162,7 @@ export interface FicheControleSubmission {
   dateRevisite?: string;
   ncActions?: Record<string, string>;
   pointsEvaluations: Record<string, 'OK' | 'Moyen' | 'NC'>;
+  targetTicketId?: string;
 }
 
 export interface RealisedControle {
@@ -1343,6 +1344,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
             formattedDate,
             machineName: submission.machineName,
             machineSite: submission.machineSite,
+            targetTicketId: submission.targetTicketId,
             technicienName: submission.technicienName,
             noteSurDix: submission.noteSurDix,
           });
