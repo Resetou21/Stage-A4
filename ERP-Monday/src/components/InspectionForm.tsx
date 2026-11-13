@@ -19,7 +19,6 @@ import {
   ShieldAlert,
   Info,
   History,
-  Plus,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import {
@@ -31,9 +30,7 @@ import {
   FicheControleSubmission,
 } from '../services/maintenanceApi';
 import { MachineSelect } from './MachineSelect';
-
-const TECHNICIANS_STORAGE_KEY = 'facility_technicians_v1';
-const DEFAULT_TECHNICIANS = ['Christophe', 'Guillaume', 'Technicien Externe'];
+import { TechnicienSelect } from './TechnicienSelect';
 
 interface InspectionFormProps {
   machines: Machine[];
@@ -61,19 +58,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
     const now = new Date();
     return now.toISOString().split('T')[0];
   });
-  const [technicienOptions, setTechnicienOptions] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem(TECHNICIANS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_TECHNICIANS;
-  });
   const [technicienName, setTechnicienName] = useState<string>('Christophe');
-  const [isAddingTech, setIsAddingTech] = useState<boolean>(false);
-  const [newTechInput, setNewTechInput] = useState<string>('');
   const [showStep3Info, setShowStep3Info] = useState<boolean>(false);
   const [showMachineHistory, setShowMachineHistory] = useState<boolean>(true);
   const [targetAnimatrice, setTargetAnimatrice] = useState<string>('Natacha THOMAS');
@@ -124,19 +109,6 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
       })
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [selectedMachine, realisedControles]);
-
-  const handleAddTechnician = () => {
-    const clean = newTechInput.trim();
-    if (!clean) return;
-    const next = Array.from(new Set([...technicienOptions, clean]));
-    setTechnicienOptions(next);
-    setTechnicienName(clean);
-    setNewTechInput('');
-    setIsAddingTech(false);
-    try {
-      localStorage.setItem(TECHNICIANS_STORAGE_KEY, JSON.stringify(next));
-    } catch {}
-  };
 
   // Type et site de la machine sélectionnée
   const machineType = selectedMachine ? getCol(selectedMachine, 'color_mm8t2mn5') : '';
@@ -457,122 +429,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 >
                   Technicien :
                 </span>
-                {isAddingTech ? (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <input
-                      type="text"
-                      value={newTechInput}
-                      onChange={(e) => setNewTechInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddTechnician();
-                        } else if (e.key === 'Escape') {
-                          setIsAddingTech(false);
-                          setNewTechInput('');
-                        }
-                      }}
-                      placeholder="Nom technicien..."
-                      autoFocus
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: '8px',
-                        border: '1.5px solid #39A9DC',
-                        fontSize: '13px',
-                        fontFamily: 'inherit',
-                        outline: 'none',
-                        color: '#1B4565',
-                        fontWeight: 700,
-                        backgroundColor: '#FFFFFF',
-                        width: '140px',
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddTechnician}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: '#00C875',
-                        color: '#FFFFFF',
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      OK
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddingTech(false);
-                        setNewTechInput('');
-                      }}
-                      style={{
-                        padding: '6px 8px',
-                        borderRadius: '8px',
-                        border: '1px solid #C8DCE8',
-                        backgroundColor: '#FFFFFF',
-                        color: '#64748B',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                    <select
-                      value={technicienName}
-                      onChange={(e) => setTechnicienName(e.target.value)}
-                      style={{
-                        padding: '7px 10px',
-                        borderRadius: '8px',
-                        border: '1.5px solid #C8DCE8',
-                        fontSize: '13px',
-                        fontFamily: 'inherit',
-                        outline: 'none',
-                        color: '#1B4565',
-                        fontWeight: 700,
-                        backgroundColor: '#F8FCFE',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {!technicienOptions.includes(technicienName) && (
-                        <option value={technicienName}>{technicienName}</option>
-                      )}
-                      {technicienOptions.map((tech) => (
-                        <option key={tech} value={tech}>
-                          {tech}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingTech(true)}
-                      title="Ajouter un nouveau technicien à la liste"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        padding: '7px 9px',
-                        borderRadius: '8px',
-                        border: '1.5px solid #C8DCE8',
-                        backgroundColor: '#EFF6FF',
-                        color: '#0369A1',
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Plus size={13} />
-                      Ajouter
-                    </button>
-                  </div>
-                )}
+                <TechnicienSelect
+                  value={technicienName}
+                  onChange={(val) => setTechnicienName(val)}
+                />
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

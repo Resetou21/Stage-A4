@@ -34,6 +34,74 @@ export const MONTH_COLUMN_IDS: Record<number, { id: string; label: string; short
   12: { id: 'boolean_mm8t4bz2', label: 'Décembre', short: 'Déc' },
 };
 
+export interface TechnicienLabel {
+  name: string;
+  color?: string;
+  border?: string;
+}
+
+export const DEFAULT_TECHNICIEN_LABELS: TechnicienLabel[] = [
+  { name: 'Christophe', color: '#0073ea', border: '#0060b9' },
+  { name: 'Guillaume', color: '#00c875', border: '#00b461' },
+  { name: 'Technicien Externe', color: '#fdab3d', border: '#e99729' },
+];
+
+export async function fetchTechnicienStatusLabels(): Promise<TechnicienLabel[]> {
+  try {
+    const res: any = await (monday as any).api(
+      `query GetTechnicienColumn($boardId: [ID!]) {
+        boards(ids: $boardId) {
+          columns {
+            id
+            title
+            type
+            settings_str
+          }
+        }
+      }`,
+      { variables: { boardId: [MAINTENANCE_BOARD_IDS.FICHE_CONTROLE] } }
+    );
+    const cols: any[] = res?.data?.boards?.[0]?.columns || [];
+    const techCol = cols.find(
+      (c) =>
+        c.id === 'color_mm91aa35' ||
+        (c.title && c.title.toLowerCase().includes('technicien'))
+    );
+    if (techCol?.settings_str) {
+      const parsed = JSON.parse(techCol.settings_str);
+      const labelsObj = parsed?.labels || {};
+      const colorsObj = parsed?.labels_colors || {};
+      const list: TechnicienLabel[] = [];
+      for (const [key, name] of Object.entries(labelsObj)) {
+        const strName = String(name || '').trim();
+        if (!strName) continue;
+        const lower = strName.toLowerCase();
+        if (lower === 'test' || lower.startsWith('testet') || lower.includes('testtest')) {
+          continue;
+        }
+        const colorData = colorsObj[key] || {};
+        list.push({
+          name: strName,
+          color: colorData.color || '#0073ea',
+          border: colorData.border || '#0060b9',
+        });
+      }
+      if (list.length > 0) {
+        const existingNames = new Set(list.map((l) => l.name.toLowerCase()));
+        for (const def of DEFAULT_TECHNICIEN_LABELS) {
+          if (!existingNames.has(def.name.toLowerCase())) {
+            list.push(def);
+          }
+        }
+        return list;
+      }
+    }
+  } catch (err) {
+    console.warn('Erreur récupération étiquettes technicien depuis Monday:', err);
+  }
+  return DEFAULT_TECHNICIEN_LABELS;
+}
+
 export interface ReferentielSubItem {
   id: string;
   name: string;
