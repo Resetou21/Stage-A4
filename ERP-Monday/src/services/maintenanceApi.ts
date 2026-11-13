@@ -1332,7 +1332,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
         } catch (repairErr) {
           console.warn('Erreur lors de la gestion de la réparation curative:', repairErr);
         }
-      } else if (submission.machineId && submission.decisionFinale !== 'Non conforme / À réparer') {
+      } else if (submission.machineId && submission.decisionFinale !== 'Non conforme') {
         // =========================================================================
         // MACHINE CONFORME / RÉPARÉE (0 point non conforme)
         // Clôture automatique de tous les tickets curatifs ouverts pour cette machine

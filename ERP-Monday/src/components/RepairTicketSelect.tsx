@@ -508,3 +508,4 @@ export const RepairTicketSelect: React.FC<RepairTicketSelectProps> = React.memo(
     </div>
   );
 });
+
