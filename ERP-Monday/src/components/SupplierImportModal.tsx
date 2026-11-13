@@ -18,6 +18,7 @@ import {
 import monday from '../services/monday';
 import type { Machine } from '../types';
 import { MachineSelect } from './MachineSelect';
+import { RepairTicketSelect } from './RepairTicketSelect';
 import {
   MAINTENANCE_BOARD_IDS,
   RepairTicket,
@@ -793,35 +794,19 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                     )}
 
                     {/* Rattacher à un ticket existant (optionnel) */}
-                    {openTickets.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
-                        <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <Link2 size={13} color="#0073EA" />
-                          Action dans « Réparation machines » (5106693291) :
-                        </label>
-                        <select
-                          value={selectedExistingTicketId}
-                          onChange={(e) => setSelectedExistingTicketId(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            borderRadius: '8px',
-                            border: '1px solid #CBD5E1',
-                            backgroundColor: '#FFFFFF',
-                            fontSize: '12.5px',
-                            color: '#1B4565',
-                            fontWeight: 600,
-                          }}
-                        >
-                          <option value="">✨ Créer un nouveau ticket dans « Réparation machines »</option>
-                          {openTickets.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              🔗 Mettre à jour le ticket ouvert : {t.name} ({t.status} · {t.date || 'sans date'})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#1B4565', display: 'flex', alignItems: 'center', gap: '5px', fontFamily: "'Ruda', sans-serif" }}>
+                        <Link2 size={13} color="#0073EA" />
+                        Action dans « Réparation machines » (5106693291) :
+                      </label>
+                      <RepairTicketSelect
+                        tickets={repairTickets}
+                        selectedTicketId={selectedExistingTicketId}
+                        onSelectTicket={setSelectedExistingTicketId}
+                        selectedMachineId={selectedMachineId}
+                        selectedMachineName={selectedMachine?.name}
+                      />
+                    </div>
                   </div>
 
                   {/* Bloc 2 : Informations extraites & Garantie */}
