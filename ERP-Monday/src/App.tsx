@@ -8,6 +8,7 @@ import { InspectionForm } from './components/InspectionForm';
 import { MaintenanceMatrix } from './components/MaintenanceMatrix';
 import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
 import { isRealCleaningMachine, AlertContextSelect } from './components/MachineSelect';
+import { ResponsableSelect } from './components/ResponsableSelect';
 import {
   fetchReferentielPoints,
   fetchRealisedControles,
@@ -21,7 +22,6 @@ import {
   reschedulePlanningEvent,
   updateMachineStatus,
   syncAllHubColumns,
-  SECTEUR_RESPONSABLES,
   ReferentielPoint,
   RealisedControle,
   RepairTicket,
@@ -1797,25 +1797,12 @@ export const App = () => {
                   📢 Envoyer une alerte vers un Hub Responsable de Secteur
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <select
+                  <ResponsableSelect
                     value={alertRecipient}
-                    onChange={(e) => setAlertRecipient(e.target.value)}
-                    style={{
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      border: '1px solid #F7AC37',
-                      backgroundColor: '#FFFFFF',
-                      fontSize: '12.5px',
-                      fontWeight: 700,
-                      color: '#1B4565',
-                    }}
-                  >
-                    {SECTEUR_RESPONSABLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setAlertRecipient}
+                    accentColor="#F7AC37"
+                    fullWidth={true}
+                  />
                   <AlertContextSelect
                     machines={machines}
                     value={alertMachineInput}

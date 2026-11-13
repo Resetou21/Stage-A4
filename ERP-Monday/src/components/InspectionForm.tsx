@@ -25,13 +25,13 @@ import type { Machine } from '../types';
 import {
   ReferentielPoint,
   RealisedControle,
-  SECTEUR_RESPONSABLES,
   filterPointsByMachineType,
   submitFicheControle,
   FicheControleSubmission,
 } from '../services/maintenanceApi';
 import { MachineSelect } from './MachineSelect';
 import { TechnicienSelect } from './TechnicienSelect';
+import { ResponsableSelect } from './ResponsableSelect';
 
 interface InspectionFormProps {
   machines: Machine[];
@@ -2243,25 +2243,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#B86114' }}>
                     Destinataire de l&apos;alerte Hub :
                   </span>
-                  <select
+                  <ResponsableSelect
                     value={targetAnimatrice}
-                    onChange={(e) => setTargetAnimatrice(e.target.value)}
-                    style={{
-                      padding: '5px 10px',
-                      borderRadius: '8px',
-                      border: '1.5px solid #F3CE8A',
-                      backgroundColor: '#FFFFFF',
-                      fontSize: '12.5px',
-                      fontWeight: 700,
-                      color: '#1B4565',
-                    }}
-                  >
-                    {SECTEUR_RESPONSABLES.map((resp) => (
-                      <option key={resp} value={resp}>
-                        {resp}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setTargetAnimatrice}
+                    accentColor="#F7AC37"
+                  />
                 </div>
               )}
 
