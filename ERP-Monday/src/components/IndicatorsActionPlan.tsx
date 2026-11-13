@@ -324,9 +324,20 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
 
     scopedControles.forEach((c) => {
       const lower = (c.etatGeneral || '').toLowerCase();
-      if (lower.includes('nc') || lower.includes('non conforme') || lower.includes('rouge')) {
+      if (
+        lower.includes('nc') ||
+        lower.includes('non conforme') ||
+        lower.includes('rouge') ||
+        lower.includes('arret') ||
+        lower.includes('arrêt')
+      ) {
         rougeCount++;
-      } else if (lower.includes('moyen') || lower.includes('orange')) {
+      } else if (
+        lower.includes('moyen') ||
+        lower.includes('orange') ||
+        lower.includes('usure') ||
+        lower.includes('surveill')
+      ) {
         orangeCount++;
       } else {
         vertCount++;
@@ -341,8 +352,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
     const conformitePercent = totalControles > 0 ? Math.round((vertCount / totalControles) * 100) : 100;
 
     // Tickets curatifs & délais & coûts
-    const isRepairedTicket = (t: RepairTicket) =>
-      t.status.toLowerCase().includes('réparée') || t.status.toLowerCase().includes('reparee');
+    const isRepairedTicket = (t: RepairTicket) => isTicketRepaired(t.status, t.groupTitle);
 
     const allActiveRepairsCount = repairTickets.filter((t) => !isRepairedTicket(t)).length;
     const activeRepairs = scopedRepairs.filter((t) => !isRepairedTicket(t));

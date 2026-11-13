@@ -308,6 +308,7 @@ const FICHE_SUBITEM_SPECS: HubColumnSpec[] = [
 
 const hubColumnsPromiseCache: Record<string, Promise<Record<string, string>> | undefined> = {};
 const hubColumnsTypeByBoardId: Record<string, Record<string, string>> = {};
+const hubColumnLabelsByBoardId: Record<string, Record<string, string[]>> = {};
 
 function normalizeColMatch(str: string): string {
   return (str || '')
@@ -316,6 +317,48 @@ function normalizeColMatch(str: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+/**
+ * Résout intelligemment le libellé d'état à envoyer à Monday selon les étiquettes existantes sur la colonne.
+ * Si la colonne contient des libellés personnalisés (ex: "Machine conforme", "usure/surveillanc", "NC arrêt machine"),
+ * elle les sélectionne automatiquement sans créer de doublon.
+ */
+export function resolveBoardStatusLabel(
+  boardId: string,
+  columnId: string,
+  target: 'OK' | 'Moyen' | 'Non conforme'
+): string {
+  const existingLabels = hubColumnLabelsByBoardId[boardId]?.[columnId] || [];
+  const norm = (s: string) =>
+    (s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+  if (target === 'OK') {
+    const found = existingLabels.find((l) => {
+      const n = norm(l);
+      return n.includes('conforme') || n.includes('vert') || n.includes('ok') || n.includes('favorable') || n.includes('bon');
+    });
+    return found || 'Machine conforme';
+  }
+
+  if (target === 'Moyen') {
+    const found = existingLabels.find((l) => {
+      const n = norm(l);
+      return n.includes('usure') || n.includes('surveill') || n.includes('moyen') || n.includes('orange') || n.includes('revis');
+    });
+    return found || 'Usure / Surveillance';
+  }
+
+  // Non conforme
+  const found = existingLabels.find((l) => {
+    const n = norm(l);
+    return n.includes('nc') || n.includes('arret') || n.includes('non') || n.includes('rouge') || n.includes('panne') || n.includes('repar');
+  });
+  return found || 'NC arrêt machine';
 }
 
 export async function ensureHubBoardColumns(
@@ -331,6 +374,7 @@ export async function ensureHubBoardColumns(
   const run = (async () => {
     const resolved: Record<string, string> = {};
     if (!hubColumnsTypeByBoardId[boardId]) hubColumnsTypeByBoardId[boardId] = {};
+    if (!hubColumnLabelsByBoardId[boardId]) hubColumnLabelsByBoardId[boardId] = {};
     try {
       const res: any = await (monday as any).api(
         `query GetHubBoardCols($boardId: [ID!]) {
@@ -339,17 +383,29 @@ export async function ensureHubBoardColumns(
               id
               title
               type
+              settings_str
             }
           }
         }`,
         { variables: { boardId: [boardId] } }
       );
 
-      const existingCols: Array<{ id: string; title: string; type: string }> =
+      const existingCols: Array<{ id: string; title: string; type: string; settings_str?: string }> =
         res?.data?.boards?.[0]?.columns || [];
 
       for (const ec of existingCols) {
-        hubColumnsTypeByBoardId[boardId][String(ec.id)] = String(ec.type || '').toLowerCase();
+        const colId = String(ec.id);
+        hubColumnsTypeByBoardId[boardId][colId] = String(ec.type || '').toLowerCase();
+        if (ec.settings_str) {
+          try {
+            const parsed = JSON.parse(ec.settings_str);
+            const labelsObj = parsed.labels || {};
+            const labelsList = Object.values(labelsObj)
+              .map((l: any) => String(l).trim())
+              .filter(Boolean);
+            hubColumnLabelsByBoardId[boardId][colId] = labelsList;
+          } catch {}
+        }
       }
 
       for (const spec of specs) {
@@ -994,21 +1050,26 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
     const formattedDate = submission.date;
     const itemName = `Contrôle - ${submission.machineName} - ${formattedDate}`;
 
-    // Mapping de l'état général vers les labels réels Monday ('Vert', 'Orange', 'Rouge')
-    let etatLabel = 'Vert';
+    // Résolution intelligente de l'état général cible
     const etatRaw = (submission.etatGeneral || '').toLowerCase();
-    if (etatRaw.includes('rouge') || etatRaw.includes('non') || etatRaw === 'nc') {
-      etatLabel = 'Rouge';
-    } else if (etatRaw.includes('orange') || etatRaw.includes('moyen')) {
-      etatLabel = 'Orange';
-    }
+    const targetEtat: 'OK' | 'Moyen' | 'Non conforme' =
+      etatRaw.includes('rouge') || etatRaw.includes('non') || etatRaw === 'nc' || etatRaw.includes('arret') || etatRaw.includes('arrêt') || etatRaw.includes('panne')
+        ? 'Non conforme'
+        : etatRaw.includes('orange') || etatRaw.includes('moyen') || etatRaw.includes('usure') || etatRaw.includes('surveill')
+        ? 'Moyen'
+        : 'OK';
 
     const ficheCols = await ensureHubBoardColumns(MAINTENANCE_BOARD_IDS.FICHE_CONTROLE, FICHE_HUB_SPECS);
+    const ficheEtatLabel = resolveBoardStatusLabel(
+      MAINTENANCE_BOARD_IDS.FICHE_CONTROLE,
+      'color_mm8tmqfc',
+      targetEtat
+    );
 
     // Préparation des valeurs de colonnes sur Fiche de Contrôle (5107262948)
     const columnValuesObj: Record<string, any> = {
       date_mm8txw52: { date: formattedDate },
-      color_mm8tmqfc: { label: etatLabel },
+      color_mm8tmqfc: { label: ficheEtatLabel },
       // 4 critères d'inspection terrain
       dropdown_mm8ty165: { labels: [submission.categorieIntervention || 'Contrôle simple'] },
       color_mm8thp7f: { label: submission.proprete || 'Propre' },
@@ -1231,7 +1292,12 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
             machineUpdates[machineCols.derniereNote] = submission.noteSurDix;
           }
           if (machineCols.dernierEtat) {
-            machineUpdates[machineCols.dernierEtat] = { label: etatLabel };
+            const machineEtatLabel = resolveBoardStatusLabel(
+              MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+              machineCols.dernierEtat,
+              targetEtat
+            );
+            machineUpdates[machineCols.dernierEtat] = { label: machineEtatLabel };
           }
           if (machineCols.dateDernierControle && formattedDate) {
             machineUpdates[machineCols.dateDernierControle] = { date: formattedDate };

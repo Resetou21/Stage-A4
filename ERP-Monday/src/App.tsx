@@ -423,8 +423,17 @@ export const App = () => {
     realisedControles.forEach((c) => {
       if (!c.date) return;
       const lower = (c.etatGeneral || '').toLowerCase();
-      const isNC = lower.includes('nc') || lower.includes('non conforme') || lower.includes('rouge');
-      const isMoyen = lower.includes('moyen') || lower.includes('orange');
+      const isNC =
+        lower.includes('nc') ||
+        lower.includes('non conforme') ||
+        lower.includes('rouge') ||
+        lower.includes('arret') ||
+        lower.includes('arrêt');
+      const isMoyen =
+        lower.includes('moyen') ||
+        lower.includes('orange') ||
+        lower.includes('usure') ||
+        lower.includes('surveill');
 
       let dotBg = '#00C875';
       let dotBorder = '#0E7042';

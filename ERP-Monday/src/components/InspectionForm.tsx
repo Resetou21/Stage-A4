@@ -636,8 +636,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     ) : (
                       selectedMachineHistory.map((ctrl) => {
                         const etatLow = (ctrl.etatGeneral || '').toLowerCase();
-                        const isNC = etatLow.includes('rouge') || etatLow.includes('non');
-                        const isMid = etatLow.includes('orange') || etatLow.includes('moyen');
+                        const isNC =
+                          etatLow.includes('rouge') ||
+                          etatLow.includes('non') ||
+                          etatLow.includes('nc') ||
+                          etatLow.includes('arret') ||
+                          etatLow.includes('arrêt');
+                        const isMid =
+                          etatLow.includes('orange') ||
+                          etatLow.includes('moyen') ||
+                          etatLow.includes('usure') ||
+                          etatLow.includes('surveill');
                         const badgeColor = isNC ? '#961C2E' : isMid ? '#D66927' : '#0E7042';
                         const badgeBg = isNC ? '#FDECEE' : isMid ? '#FFF8EC' : '#E6F9F0';
                         return (
