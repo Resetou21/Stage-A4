@@ -678,7 +678,7 @@ export async function fetchReferentielPoints(forceRefresh = false): Promise<Refe
     return valChecked || txtChecked;
   };
 
-  return items.map((it: any) => {
+  const mapped: ReferentielPoint[] = items.map((it: any) => {
     const parsedSubitems: ReferentielSubItem[] = Array.isArray(it.subitems)
       ? it.subitems.map((sub: any) => {
           const subCols = sub.board?.columns || [];
