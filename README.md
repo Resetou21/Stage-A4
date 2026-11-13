@@ -1,27 +1,75 @@
-# 🎓 Stage A4 — Projets & Applications Groupe Facility
+# React + TypeScript + Vite
 
-Dépôt centralisant les applications et développements réalisés dans le cadre du stage A4 au sein du **Groupe Facility**.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
----
+Currently, two official plugins are available:
 
-## 📁 Projets Inclus
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-### 🏢 [Hub Responsable de Secteur](./Hub%20de%20responsable%20de%20secteur)
-Application sur-mesure déployée sur **Monday Code CDN** pour les Responsables de Secteur :
-* **Gestion des chantiers & contrôles qualité** (notation par étoiles, codes d'accès, historique).
-* **Stocks, consommables & économies** (calcul des stocks mini, surplus, avenants préconisés, économies directes et annuelles).
-* **Visites clients & plans d'action**.
-* **Centre d'alertes préventives automatisées**.
+## React Compiler
 
-👉 *Consultez le [README détaillé du Hub](./Hub%20de%20responsable%20de%20secteur/README.md) pour le guide d'installation, l'architecture du code, les explications pas-à-pas pour modifier l'application et les procédures de déploiement.*
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
----
+## Expanding the ESLint configuration
 
-### 🔧 [ERP Parc Matériel (`ERP-Monday`)](./ERP-Monday)
-Application Monday.com de gestion du parc machines, maintenance préventive/curative et stocks de pièces détachées :
-* **Contrôle Technique Terrain & Sous-éléments** : Saisie conforme / moyen / non conforme par machine, suivi compteur d'heures et création automatique des sous-éléments de contrôle dans Monday.
-* **Maintenance Préventive (Matrice 12 mois) & Agenda** : Planification annuelle par fréquence, calendrier interactif FullCalendar et suivi du parc (`En service`, `En réparation`, `À vérifier / Sortie`).
-* **Réparations Curatives & Import Bon Fournisseur (PDF)** : Parsing automatique de bons d'intervention PDF (`pdfjs-dist`), rattachement automatique aux machines/tickets ouverts et synchronisation des statuts.
-* **Stocks Pièces & Consommables** : Gestion en temps réel des seuils mini et mouvements de stock synchronisés sur Monday.
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-👉 *Consultez le [README de l'ERP Parc Matériel](./ERP-Monday/README.md) pour l'architecture, les tableaux Monday associés et la procédure de build/déploiement.*
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+
+```
+
+You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+
+```

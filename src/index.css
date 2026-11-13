@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Ruda:wght@600;700;800;900&display=swap');
+
+:root {
+  --font-title: 'Ruda', system-ui, -apple-system, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  --facility-blue: #39A9DC;
+  --facility-darkblue: #3989B7;
+  --facility-navy: #1B4565;
+  --facility-yellow: #F7AC37;
+  --facility-orange: #D66927;
+  
+  --facility-bg: #F8FAFC;
+  --facility-card-bg: #FFFFFF;
+  --facility-border: #E2EEF5;
+  --facility-text: #3989B7;
+  --facility-text-dark: #1B4565;
+  --facility-text-muted: #6C8CA3;
+  
+  --facility-green: #00C875;
+  --facility-green-dark: #0E7042;
+  --facility-green-bg: #E6F8F0;
+  
+  --facility-red: #E2445C;
+  --facility-red-dark: #961C2E;
+  --facility-red-bg: #FDECEE;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+textarea {
+  resize: none !important;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background-color: var(--facility-bg);
+  font-family: var(--font-body);
+  color: var(--facility-navy);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6, .font-title {
+  font-family: var(--font-title);
+  letter-spacing: -0.3px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F0F5F8;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #C2D8E6;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9BBFD5;
+}
+
+/* FullCalendar styling adapté au style Groupe Facility */
+.fc {
+  font-family: var(--font-body) !important;
+}
+
+.fc .fc-toolbar-title {
+  font-family: var(--font-title) !important;
+  font-size: 1.3rem !important;
+  font-weight: 800 !important;
+  color: var(--facility-navy) !important;
+  text-transform: capitalize;
+}
+
+.fc .fc-button-primary {
+  background-color: var(--facility-blue) !important;
+  border-color: var(--facility-blue) !important;
+  border-radius: 10px !important;
+  font-family: var(--font-body) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  padding: 7px 16px !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 6px rgba(57, 169, 220, 0.25) !important;
+}
+
+.fc .fc-button-primary:hover {
+  background-color: #2692C3 !important;
+  border-color: #2692C3 !important;
+  transform: translateY(-1px);
+}
+
+.fc .fc-button-primary:disabled {
+  background-color: #A2C3D7 !important;
+  border-color: #A2C3D7 !important;
+  opacity: 0.65 !important;
+  transform: none;
+}
+
+.fc-theme-standard th {
+  background-color: #F5F9FC !important;
+  color: var(--facility-darkblue) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  padding: 11px 0 !important;
+  border-color: var(--facility-border) !important;
+  text-transform: capitalize;
+}
+
+.fc-theme-standard td {
+  border-color: var(--facility-border) !important;
+}
+
+.fc-daygrid-day-number {
+  color: var(--facility-navy) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  padding: 6px 8px !important;
+}
+
+.fc .fc-day-today {
+  background-color: #F0F8FD !important;
+}
+
+.fc-daygrid-event {
+  border-radius: 6px !important;
+  padding: 3px 7px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  margin-top: 2px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: transform 0.12s ease;
+}
+
+.fc-daygrid-event:hover {
+  transform: scale(1.02);
+}
+
+/* Événements récurrents calculés : bordure en pointillé et fond clair */
+.fc-recurring-event {
+  border-style: dashed !important;
+  border-width: 1.5px !important;
+  font-style: italic !important;
+  box-shadow: none !important;
+}
