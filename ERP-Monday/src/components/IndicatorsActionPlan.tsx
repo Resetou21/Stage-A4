@@ -1482,24 +1482,51 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                     )}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDetailTicket(null)}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    backgroundColor: '#FFFFFF',
-                    color: '#57778E',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <X size={16} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {matchedMachine && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenInspection(matchedMachine.id)}
+                      title="Ouvrir la fiche de contrôle technique complète pour cette machine"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '7px 13px',
+                        borderRadius: '9px',
+                        backgroundColor: '#39A9DC',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: '12.5px',
+                        fontWeight: 800,
+                        fontFamily: "'Ruda', sans-serif",
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(57, 169, 220, 0.25)',
+                      }}
+                    >
+                      <ClipboardCheck size={15} />
+                      <span>Fiche de contrôle</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDetailTicket(null)}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#FFFFFF',
+                      color: '#57778E',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               <div style={{ padding: '18px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1857,11 +1884,37 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                   borderTop: '1px solid #E2E8F0',
                   backgroundColor: '#F8FBFD',
                   display: 'flex',
-                  justifyContent: 'flex-end',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
+                  flexWrap: 'wrap',
                   gap: '10px',
                 }}
               >
+                <div>
+                  {matchedMachine && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenInspection(matchedMachine.id)}
+                      style={{
+                        backgroundColor: '#39A9DC',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(57, 169, 220, 0.25)',
+                      }}
+                    >
+                      <ClipboardCheck size={15} />
+                      Ouvrir la fiche de contrôle technique
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setDetailTicket(null)}

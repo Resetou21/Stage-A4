@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Info,
   History,
+  X,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import {
@@ -38,6 +39,8 @@ interface InspectionFormProps {
   realisedControles?: RealisedControle[];
   initialMachineId?: string;
   onInspectionSuccess: (machineName: string, date: string) => void;
+  isModal?: boolean;
+  onCloseModal?: () => void;
 }
 
 export const InspectionForm: React.FC<InspectionFormProps> = ({
@@ -46,6 +49,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   realisedControles = [],
   initialMachineId,
   onInspectionSuccess,
+  isModal = false,
+  onCloseModal,
 }) => {
   const [selectedMachineId, setSelectedMachineId] = useState<string>(initialMachineId || '');
 
@@ -201,6 +206,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
     if (res.success) {
       setSubmitSuccess(true);
       onInspectionSuccess(selectedMachine.name, inspectionDate);
+      if (isModal && onCloseModal) {
+        setTimeout(() => {
+          onCloseModal();
+        }, 1600);
+      }
       setTimeout(() => {
         setSubmitSuccess(false);
         setRemarquesTerrain('');
@@ -223,7 +233,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   };
 
   return (
-    <div style={{ maxWidth: '880px', margin: '0 auto', padding: '6px 0 30px 0' }}>
+    <div style={{ maxWidth: '880px', margin: '0 auto', padding: isModal ? '0' : '6px 0 30px 0' }}>
       {/* ================= BANNIÈRE DE TITRE FACILITY ================= */}
       <div
         style={{
@@ -283,7 +293,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span
             style={{
               padding: '7px 14px',
@@ -305,6 +315,39 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
               year: 'numeric',
             })}
           </span>
+
+          {onCloseModal && (
+            <button
+              type="button"
+              onClick={onCloseModal}
+              title="Fermer la fiche de contrôle"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '10px',
+                border: '1.5px solid #CBD5E1',
+                backgroundColor: '#FFFFFF',
+                color: '#475569',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F1F5F9';
+                e.currentTarget.style.color = '#0F172A';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                e.currentTarget.style.color = '#475569';
+              }}
+            >
+              <X size={16} />
+              <span>Fermer</span>
+            </button>
+          )}
         </div>
       </div>
 

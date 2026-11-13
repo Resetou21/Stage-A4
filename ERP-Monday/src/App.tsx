@@ -149,6 +149,7 @@ export const App = () => {
 
   // Machine pré-sélectionnée (ex: lancée depuis l'agenda ou les indicateurs)
   const [preSelectedMachineId, setPreSelectedMachineId] = useState<string>('');
+  const [inspectionModalMachineId, setInspectionModalMachineId] = useState<string | null>(null);
   const [isRescheduling, setIsRescheduling] = useState<boolean>(false);
   const [updatingMachineId, setUpdatingMachineId] = useState<string | null>(null);
 
@@ -1476,7 +1477,7 @@ export const App = () => {
           }}
           onOpenInspection={(mId) => {
             setPreSelectedMachineId(mId);
-            setActiveTab('inspection');
+            setInspectionModalMachineId(mId);
           }}
         />
       )}
@@ -1608,10 +1609,12 @@ export const App = () => {
                   type="button"
                   onClick={() => {
                     if (selectedEvent.matchedMachineId) {
-                      setPreSelectedMachineId(selectedEvent.matchedMachineId);
+                      setInspectionModalMachineId(selectedEvent.matchedMachineId);
+                      setSelectedEvent(null);
+                    } else {
+                      setActiveTab('inspection');
+                      setSelectedEvent(null);
                     }
-                    setActiveTab('inspection');
-                    setSelectedEvent(null);
                   }}
                   style={{
                     backgroundColor: '#39A9DC',
@@ -1989,6 +1992,57 @@ export const App = () => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODALE OVERLAY : FICHE DE CONTRÔLE TECHNIQUE COMPLETE ================= */}
+      {inspectionModalMachineId !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '24px 16px',
+            overflowY: 'auto',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setInspectionModalMachineId(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '20px',
+              maxWidth: '940px',
+              width: '100%',
+              margin: 'auto',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.4)',
+              border: '1.5px solid #CBD5E1',
+              padding: '24px 20px',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <InspectionForm
+              machines={activeParcMachines}
+              referentielPoints={referentielPoints}
+              realisedControles={realisedControles}
+              initialMachineId={inspectionModalMachineId}
+              isModal={true}
+              onCloseModal={() => setInspectionModalMachineId(null)}
+              onInspectionSuccess={async (name, date) => {
+                await Promise.all([loadMaintenanceData(), fetchMachines()]);
+                setSuccessMessage(`Contrôle validé avec succès pour ${name} (${date}) !`);
+              }}
+            />
           </div>
         </div>
       )}
