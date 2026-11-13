@@ -434,6 +434,32 @@ export async function ensureReferentielColumnsExist(subBoardId?: string): Promis
   }
 }
 
+export function classifyPointCategories(pointName: string): {
+  controle: boolean;
+  nettoyage: boolean;
+  usee: boolean;
+  cassee: boolean;
+} {
+  const n = (pointName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const isNettoyage =
+    /nettoyage|filtre|cuve|propret|odeur|bac|reservoir|suceur|bavette|poussiere|eau\b|lavage|flotteur|lance|buse/i.test(n) &&
+    !/c[âa]ble|batterie|commande|timon|prise/i.test(n);
+
+  const isUsee =
+    /usure|usee?|brosse|disque|suceur|bavette|roue|roulette|lance|buse|filtre|flexible|tube|tampon|patin|c[âa]ble|batterie|niveau d'huile|fixation du plateau/i.test(n);
+
+  const isCassee =
+    /casse|panne|commande|c[âa]ble|batterie|chargeur|flexible|poignee|timon|fixation|fuite|serrage|frein|moteur|pompe|structure|fissur|perc|tiroir|prise|buse/i.test(n);
+
+  return {
+    controle: true,
+    nettoyage: isNettoyage,
+    usee: isUsee,
+    cassee: isCassee,
+  };
+}
+
 // 1. Récupérer l'intégralité du Référentiel des points de contrôle (groupé par type de machine + sous-éléments + colonnes de catégories)
 export async function fetchReferentielPoints(): Promise<ReferentielPoint[]> {
   // S'assurer d'abord que les 4 colonnes de tag existent sur Monday
@@ -552,8 +578,16 @@ export async function fetchReferentielPoints(): Promise<ReferentielPoint[]> {
   const isColChecked = (columnValues: any[], colId?: string) => {
     if (!colId || !columnValues) return false;
     const cv = columnValues.find((c: any) => c.id === colId);
+    let valChecked = false;
+    if (cv?.value) {
+      try {
+        const parsed = typeof cv.value === 'string' ? JSON.parse(cv.value) : cv.value;
+        valChecked = parsed?.checked === true || parsed?.checked === 'true' || parsed?.checked === 1;
+      } catch {}
+    }
     const txt = (cv?.text || '').toLowerCase().trim();
-    return txt.includes('v') || txt.includes('true') || txt === '1' || txt.includes('coch');
+    const txtChecked = txt.includes('v') || txt.includes('true') || txt === '1' || txt.includes('coch');
+    return valChecked || txtChecked;
   };
 
   return items.map((it: any) => {
@@ -561,30 +595,47 @@ export async function fetchReferentielPoints(): Promise<ReferentielPoint[]> {
       ? it.subitems.map((sub: any) => {
           const subCols = sub.board?.columns || [];
           const subColsMap = findCategoryCols(subCols);
+          const hasManualCheck =
+            isColChecked(sub.column_values, subColsMap.controle) ||
+            isColChecked(sub.column_values, subColsMap.nettoyage) ||
+            isColChecked(sub.column_values, subColsMap.usee) ||
+            isColChecked(sub.column_values, subColsMap.cassee);
+          const autoCat = classifyPointCategories(sub.name);
           return {
             id: sub.id,
             name: sub.name,
-            categories: {
-              controle: isColChecked(sub.column_values, subColsMap.controle),
-              nettoyage: isColChecked(sub.column_values, subColsMap.nettoyage),
-              usee: isColChecked(sub.column_values, subColsMap.usee),
-              cassee: isColChecked(sub.column_values, subColsMap.cassee),
-            },
+            categories: hasManualCheck
+              ? {
+                  controle: isColChecked(sub.column_values, subColsMap.controle),
+                  nettoyage: isColChecked(sub.column_values, subColsMap.nettoyage),
+                  usee: isColChecked(sub.column_values, subColsMap.usee),
+                  cassee: isColChecked(sub.column_values, subColsMap.cassee),
+                }
+              : autoCat,
           };
         })
       : [];
+
+    const hasParentManualCheck =
+      isColChecked(it.column_values, parentColsMap.controle) ||
+      isColChecked(it.column_values, parentColsMap.nettoyage) ||
+      isColChecked(it.column_values, parentColsMap.usee) ||
+      isColChecked(it.column_values, parentColsMap.cassee);
+    const parentAutoCat = classifyPointCategories(it.name);
 
     return {
       id: it.id,
       name: it.name,
       groupTitle: it.group?.title || 'Général',
       groupId: it.group?.id || '',
-      categories: {
-        controle: isColChecked(it.column_values, parentColsMap.controle),
-        nettoyage: isColChecked(it.column_values, parentColsMap.nettoyage),
-        usee: isColChecked(it.column_values, parentColsMap.usee),
-        cassee: isColChecked(it.column_values, parentColsMap.cassee),
-      },
+      categories: hasParentManualCheck
+        ? {
+            controle: isColChecked(it.column_values, parentColsMap.controle),
+            nettoyage: isColChecked(it.column_values, parentColsMap.nettoyage),
+            usee: isColChecked(it.column_values, parentColsMap.usee),
+            cassee: isColChecked(it.column_values, parentColsMap.cassee),
+          }
+        : parentAutoCat,
       subitems: parsedSubitems.length > 0 ? parsedSubitems : undefined,
     };
   });
@@ -644,7 +695,7 @@ export function filterPointsByMachineType(
     basePoints = fallback.length > 0 ? fallback : points;
   }
 
-  // 2. Filtrage par Catégorie d'intervention si spécifiée et si des coches existent sur Monday (parent OU sous-éléments)
+  // 2. Filtrage par Catégorie d'intervention si spécifiée
   if (selectedCategory && basePoints.length > 0) {
     const catLower = selectedCategory.toLowerCase();
     let matchingCat: 'controle' | 'nettoyage' | 'usee' | 'cassee' = 'controle';
@@ -652,26 +703,25 @@ export function filterPointsByMachineType(
     else if (catLower.includes('usée') || catLower.includes('usee')) matchingCat = 'usee';
     else if (catLower.includes('cassée') || catLower.includes('cassee') || catLower.includes('répar')) matchingCat = 'cassee';
 
-    const anyTagged = basePoints.some(
-      (p) =>
-        (p.categories && p.categories[matchingCat]) ||
-        (p.subitems && p.subitems.some((s) => s.categories && s.categories[matchingCat]))
-    );
+    if (matchingCat === 'controle') {
+      return basePoints;
+    }
 
-    if (anyTagged) {
-      return basePoints
-        .map((p) => {
-          const parentTagged = Boolean(p.categories && p.categories[matchingCat]);
-          const matchingSubitems = p.subitems?.filter((s) => s.categories && s.categories[matchingCat]);
-          if (parentTagged || (matchingSubitems && matchingSubitems.length > 0)) {
-            return {
-              ...p,
-              subitems: matchingSubitems && matchingSubitems.length > 0 ? matchingSubitems : p.subitems,
-            };
-          }
-          return null;
-        })
-        .filter(Boolean) as ReferentielPoint[];
+    const filtered: ReferentielPoint[] = basePoints.flatMap((p) => {
+      const parentTagged = Boolean(p.categories && p.categories[matchingCat]);
+      const matchingSubitems = p.subitems?.filter((s) => s.categories && s.categories[matchingCat]);
+      if (parentTagged || (matchingSubitems && matchingSubitems.length > 0)) {
+        const pointCopy: ReferentielPoint = {
+          ...p,
+          ...(p.subitems ? { subitems: matchingSubitems && matchingSubitems.length > 0 ? matchingSubitems : p.subitems } : {}),
+        };
+        return [pointCopy];
+      }
+      return [];
+    });
+
+    if (filtered.length > 0) {
+      return filtered;
     }
   }
 

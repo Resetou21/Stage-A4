@@ -141,12 +141,24 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   // Type et site de la machine sélectionnée
   const machineType = selectedMachine ? getCol(selectedMachine, 'color_mm8t2mn5') : '';
   const machineSite = selectedMachine ? getCol(selectedMachine, 'dropdown_mm8d4vj2') : '';
+  const [showAllPoints, setShowAllPoints] = useState<boolean>(false);
 
-  // Points de contrôle dynamiques pour ce type (filtrés aussi par catégorie d'intervention)
-  const dynamicChecklist = useMemo(() => {
+  // Tous les points de base pour ce type de machine (sans filtre de catégorie)
+  const allBasePoints = useMemo(() => {
+    if (!selectedMachine) return [];
+    return filterPointsByMachineType(referentielPoints, machineType);
+  }, [selectedMachine, machineType, referentielPoints]);
+
+  // Points ciblés selon la catégorie d'intervention choisie
+  const adaptedChecklist = useMemo(() => {
     if (!selectedMachine) return [];
     return filterPointsByMachineType(referentielPoints, machineType, categorieIntervention);
   }, [selectedMachine, machineType, referentielPoints, categorieIntervention]);
+
+  // Checklist effective affichée (ciblée par défaut selon la catégorie, ou complète si demandé)
+  const dynamicChecklist = useMemo(() => {
+    return showAllPoints ? allBasePoints : adaptedChecklist;
+  }, [showAllPoints, allBasePoints, adaptedChecklist]);
 
   // Points non conformes détectés
   const nonConformePoints = useMemo(() => {
@@ -225,6 +237,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
         setNcActions({});
         setHeuresCompteur(undefined);
         setCategorieIntervention('Contrôle simple');
+        setShowAllPoints(false);
         setProprete('Propre');
         setEntretienRegulier('Entretenue');
         setFicheSurSite('Oui');
@@ -606,6 +619,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
               setPastilleConforme(true);
               setNoteSurDix(8);
               setCategorieIntervention('Contrôle simple');
+        setShowAllPoints(false);
               setProprete('Propre');
               setEntretienRegulier('Entretenue');
               setFicheSurSite('Oui');
@@ -844,7 +858,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                       <button
                         key={cat.label}
                         type="button"
-                        onClick={() => setCategorieIntervention(cat.label)}
+                        onClick={() => {
+                          setCategorieIntervention(cat.label);
+                          setShowAllPoints(false);
+                        }}
                         style={{
                           padding: '8px 14px',
                           borderRadius: '10px',
@@ -868,6 +885,63 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     );
                   })}
                 </div>
+
+                {/* Retour visuel immédiat : points ciblés pour cette catégorie */}
+                {selectedMachine && (
+                  <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color:
+                          categorieIntervention === 'Nettoyage'
+                            ? '#00A389'
+                            : categorieIntervention === 'Pièce usée'
+                            ? '#D66927'
+                            : categorieIntervention === 'Pièce cassée'
+                            ? '#E2445C'
+                            : '#3989B7',
+                        backgroundColor:
+                          categorieIntervention === 'Nettoyage'
+                            ? '#E6F7F4'
+                            : categorieIntervention === 'Pièce usée'
+                            ? '#FFF8EC'
+                            : categorieIntervention === 'Pièce cassée'
+                            ? '#FDECEE'
+                            : '#EBF6FC',
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid currentColor',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span>🎯</span>
+                      <span>
+                        <b>{adaptedChecklist.length}</b> point(s) de contrôle ciblés pour « {categorieIntervention} » (sur {allBasePoints.length} au total)
+                      </span>
+                    </span>
+                    {allBasePoints.length > adaptedChecklist.length && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllPoints((v) => !v)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#3989B7',
+                          textDecoration: 'underline',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: '2px 4px',
+                        }}
+                      >
+                        {showAllPoints ? `← Revenir aux ${adaptedChecklist.length} points ciblés` : `Afficher tous les ${allBasePoints.length} points`}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Heures au compteur machine (Placé dès le haut de la fiche) */}
@@ -1335,7 +1409,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 gap: '10px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <span
                   style={{
                     backgroundColor: '#39A9DC',
@@ -1386,6 +1460,45 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     <Info size={13} />
                   </button>
                 </label>
+                {categorieIntervention !== 'Contrôle simple' && (
+                  <span
+                    style={{
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      backgroundColor: showAllPoints ? '#F3F4F6' : '#EFF6FF',
+                      color: showAllPoints ? '#4B5563' : '#1D4ED8',
+                      border: showAllPoints ? '1px solid #E5E7EB' : '1px solid #BFDBFE',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    🎯 {showAllPoints ? 'Tous les points affichés' : `Ciblé : « ${categorieIntervention} » (${adaptedChecklist.length}/${allBasePoints.length})`}
+                  </span>
+                )}
+                {allBasePoints.length > adaptedChecklist.length && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllPoints((v) => !v)}
+                    style={{
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      color: '#0284C7',
+                      backgroundColor: '#E0F2FE',
+                      border: '1px solid #BAE6FD',
+                      borderRadius: '8px',
+                      padding: '3px 9px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    {showAllPoints ? `← Revenir au ciblage « ${categorieIntervention} »` : `Voir tous les ${allBasePoints.length} points`}
+                  </button>
+                )}
               </div>
 
               <span
@@ -1452,11 +1565,26 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                           gap: '10px',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <Wrench size={15} color="#39A9DC" />
                           <span style={{ fontSize: '14px', fontWeight: 800, color: '#1B4565', fontFamily: "'Ruda', sans-serif" }}>
                             {pt.name}
                           </span>
+                          {pt.categories?.nettoyage && (
+                            <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#E6F7F4', color: '#00A389', border: '1px solid #A7F3D0' }}>
+                              Nettoyage
+                            </span>
+                          )}
+                          {pt.categories?.usee && (
+                            <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FFF8EC', color: '#D66927', border: '1px solid #FDE68A' }}>
+                              Pièce usée
+                            </span>
+                          )}
+                          {pt.categories?.cassee && (
+                            <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FDECEE', color: '#E2445C', border: '1px solid #FECACA' }}>
+                              Pièce cassée
+                            </span>
+                          )}
                         </div>
                         <span style={{ fontSize: '11px', fontWeight: 700, color: '#3989B7' }}>
                           {pt.subitems.length} sous-points
@@ -1545,13 +1673,31 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          flexShrink: 0,
                         }}
                       >
                         <Wrench size={16} color={currentStatus === 'NC' ? '#E2445C' : '#39A9DC'} />
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: 700, color: '#1B4565' }}>
-                        {pt.name}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#1B4565' }}>
+                          {pt.name}
+                        </span>
+                        {pt.categories?.nettoyage && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#E6F7F4', color: '#00A389', border: '1px solid #A7F3D0' }}>
+                            Nettoyage
+                          </span>
+                        )}
+                        {pt.categories?.usee && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FFF8EC', color: '#D66927', border: '1px solid #FDE68A' }}>
+                            Pièce usée
+                          </span>
+                        )}
+                        {pt.categories?.cassee && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FDECEE', color: '#E2445C', border: '1px solid #FECACA' }}>
+                            Pièce cassée
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
