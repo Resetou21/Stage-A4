@@ -86,6 +86,11 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
     'Réparée' | 'En cours de réparation' | 'En attente de devis' | 'À traiter'
   >('Réparée');
 
+  const selectedMachine = useMemo(
+    () => machines.find((m) => m.id === selectedMachineId) || null,
+    [machines, selectedMachineId]
+  );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedResult, setSubmittedResult] = useState<{
@@ -95,38 +100,6 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
     orderNumber: string;
     updatedExisting: boolean;
   } | null>(null);
-
-  // Tickets encore ouverts pour rattachement éventuel
-  const openTickets = useMemo(() => {
-    const active = repairTickets.filter((t) => {
-      const lower = (t.status || '').toLowerCase();
-      const grpLower = (t.groupTitle || '').toLowerCase();
-      return (
-        !lower.includes('réparée') &&
-        !lower.includes('reparee') &&
-        !grpLower.includes('réparé') &&
-        !grpLower.includes('repare')
-      );
-    });
-
-    if (!selectedMachineId) return active;
-
-    // Placer en premier les tickets ouverts liés à la machine sélectionnée
-    const selectedMachineObj = machines.find((m) => m.id === selectedMachineId);
-    const machineLabel = (selectedMachineObj?.name || '').toLowerCase().trim();
-
-    return [...active].sort((a, b) => {
-      const aMatch =
-        a.machineId === selectedMachineId ||
-        (machineLabel && a.machineName.toLowerCase().includes(machineLabel));
-      const bMatch =
-        b.machineId === selectedMachineId ||
-        (machineLabel && b.machineName.toLowerCase().includes(machineLabel));
-      if (aMatch && !bMatch) return -1;
-      if (!aMatch && bMatch) return 1;
-      return 0;
-    });
-  }, [repairTickets, selectedMachineId, machines]);
 
   // Trouver automatiquement un ticket ouvert existant pour une machine donnée
   const findBestOpenTicketIdForMachine = (machineId: string): string => {
