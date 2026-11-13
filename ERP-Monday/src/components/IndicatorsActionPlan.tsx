@@ -151,7 +151,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
   onOpenInspection,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'a_traiter' | 'en_cours' | 'reparee'>('a_traiter');
+  const [curatifTab, setCuratifTab] = useState<'a_traiter' | 'reparees'>('a_traiter');
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
@@ -428,27 +428,42 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
     });
   }, [machines, realisedControles, selectedPreventiveYear, currentCalendarYear]);
 
-  // 3. FILTRAGE DES TICKETS DE RÉPARATION
-  const filteredTickets = useMemo(() => {
+  // 3. COMPTEURS ET SÉPARATION DES TICKETS (PANNES ACTIVES VS HISTORIQUE RÉPARÉES)
+  const activeRepairsCount = useMemo(() => {
     return repairTickets.filter((t) => {
-      const searchMatch =
-        !searchTerm ||
-        t.machineName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const st = t.status.toLowerCase();
+      return !st.includes('réparée') && !st.includes('reparee');
+    }).length;
+  }, [repairTickets]);
 
-      if (!searchMatch) return false;
+  const repairedRepairsCount = useMemo(() => {
+    return repairTickets.filter((t) => {
+      const st = t.status.toLowerCase();
+      return st.includes('réparée') || st.includes('reparee');
+    }).length;
+  }, [repairTickets]);
 
-      const stLower = t.status.toLowerCase();
-      const isReparee = stLower.includes('réparée') || stLower.includes('reparee');
-      const isEnCours = stLower.includes('en cours') || stLower.includes('devis') || stLower.includes('attente');
+  const filteredTickets = useMemo(() => {
+    return repairTickets
+      .filter((t) => {
+        const stLower = t.status.toLowerCase();
+        const isReparee = stLower.includes('réparée') || stLower.includes('reparee');
 
-      if (statusFilter === 'reparee') return isReparee;
-      if (statusFilter === 'en_cours') return isEnCours;
-      if (statusFilter === 'a_traiter') return !isReparee;
-      return true;
-    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [repairTickets, searchTerm, statusFilter]);
+        // Séparation stricte des 2 onglets : Pannes à traiter vs Historique Réparées
+        if (curatifTab === 'a_traiter' && isReparee) return false;
+        if (curatifTab === 'reparees' && !isReparee) return false;
+
+        const searchMatch =
+          !searchTerm ||
+          t.machineName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (t.fournisseur && t.fournisseur.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        return searchMatch;
+      })
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [repairTickets, searchTerm, curatifTab]);
 
   // Action : Ranger un ticket déjà "Réparée" dans le groupe Monday "Machine Réparé"
   const handleMoveToRepairedGroup = async (ticket: RepairTicket) => {
@@ -921,24 +936,25 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
           boxShadow: '0 4px 16px rgba(27, 69, 101, 0.04)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
               style={{
-                backgroundColor: '#E2445C',
+                backgroundColor: curatifTab === 'a_traiter' ? '#E2445C' : '#00C875',
                 color: '#FFFFFF',
                 fontFamily: "'Ruda', sans-serif",
                 fontSize: '12px',
                 fontWeight: 800,
                 padding: '3px 9px',
                 borderRadius: '6px',
+                transition: 'background-color 0.2s ease',
               }}
             >
               03
             </span>
             <div>
               <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
-                Plan d'Action Curatif &amp; Réparations Machines
+                {curatifTab === 'a_traiter' ? "Plan d'Action Curatif · Pannes à Traiter" : "Historique des Réparations · Machines Remises en Service"}
               </h3>
               <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#57778E' }}>
                 Tableau Monday « Réparation machines » (5106693291) synchronisé en temps réel
@@ -946,7 +962,6 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
             </div>
           </div>
 
-          {/* Actions & Filtres par statut */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               type="button"
@@ -970,43 +985,146 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
               <FileUp size={14} />
               Intégrer Bon Fournisseur (PDF)
             </button>
-            {[
-              { key: 'all' as const, label: `Tous (${repairTickets.length})` },
-              { key: 'a_traiter' as const, label: `À traiter (${stats.activeRepairsCount})`, color: '#E2445C' },
-              { key: 'reparee' as const, label: 'Réparées', color: '#00C875' },
-            ].map((f) => {
-              const isSel = statusFilter === f.key;
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => setStatusFilter(f.key)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    border: isSel ? `1.5px solid ${f.color || '#39A9DC'}` : '1px solid #D2E9F6',
-                    backgroundColor: isSel ? (f.color || '#39A9DC') : '#FAFCFD',
-                    color: isSel ? '#FFFFFF' : '#1B4565',
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    fontFamily: "'Ruda', sans-serif",
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease',
-                  }}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
           </div>
         </div>
+
+        {/* 2 Onglets distincts : Pannes actives vs Machines Réparées */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            backgroundColor: '#F1F5F9',
+            padding: '5px',
+            borderRadius: '12px',
+            marginBottom: '18px',
+            width: 'fit-content',
+            flexWrap: 'wrap',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setCuratifTab('a_traiter')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: '9px',
+              border: 'none',
+              backgroundColor: curatifTab === 'a_traiter' ? '#FFFFFF' : 'transparent',
+              color: curatifTab === 'a_traiter' ? '#E2445C' : '#64748B',
+              boxShadow: curatifTab === 'a_traiter' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+              fontFamily: "'Ruda', sans-serif",
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Wrench size={15} />
+            <span>Pannes &amp; Réparations à Traiter</span>
+            <span
+              style={{
+                backgroundColor: activeRepairsCount > 0 ? '#E2445C' : '#DCFCE7',
+                color: activeRepairsCount > 0 ? '#FFFFFF' : '#166534',
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '2px 7px',
+                borderRadius: '8px',
+              }}
+            >
+              {activeRepairsCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCuratifTab('reparees')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: '9px',
+              border: 'none',
+              backgroundColor: curatifTab === 'reparees' ? '#FFFFFF' : 'transparent',
+              color: curatifTab === 'reparees' ? '#00A389' : '#64748B',
+              boxShadow: curatifTab === 'reparees' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+              fontFamily: "'Ruda', sans-serif",
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <CheckCircle2 size={15} />
+            <span>Historique Machines Réparées</span>
+            <span
+              style={{
+                backgroundColor: '#DCFCE7',
+                color: '#166534',
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '2px 7px',
+                borderRadius: '8px',
+              }}
+            >
+              {repairedRepairsCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Mini-dashboard analytique dans l'onglet des Machines Réparées */}
+        {curatifTab === 'reparees' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '12px',
+              marginBottom: '16px',
+              backgroundColor: '#F8FCFE',
+              border: '1px solid #D2E9F6',
+              borderRadius: '12px',
+              padding: '12px 18px',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>
+                Machines Réparées
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: '#00C875', fontFamily: "'Ruda', sans-serif" }}>
+                {repairedRepairsCount} clôturées
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>
+                Délai Moyen Résolution
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: '#1B4565', fontFamily: "'Ruda', sans-serif" }}>
+                {stats.avgResolutionDays !== null ? `${stats.avgResolutionDays} jours` : '—'}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>
+                Coût Cumulé Enregistré
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: '#3989B7', fontFamily: "'Ruda', sans-serif" }}>
+                {stats.totalCostHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Barre de recherche */}
         <div style={{ position: 'relative', marginBottom: '16px' }}>
           <Search size={16} color="#6C8CA3" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"
-            placeholder="Rechercher une machine, une panne, un numéro..."
+            placeholder={
+              curatifTab === 'a_traiter'
+                ? "Rechercher parmi les pannes en cours..."
+                : "Rechercher une machine réparée, un fournisseur, un numéro de bon..."
+            }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -1024,24 +1142,56 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
 
         {/* Liste des tickets de réparation */}
         {filteredTickets.length === 0 ? (
-          <div
-            style={{
-              padding: '36px 20px',
-              textAlign: 'center',
-              backgroundColor: '#F8FAFC',
-              borderRadius: '12px',
-              border: '1px dashed #D2E9F6',
-              color: '#57778E',
-            }}
-          >
-            <CheckCircle2 size={32} color="#00C875" style={{ marginBottom: '8px' }} />
-            <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#1B4565' }}>
-              Aucun ticket curatif à afficher pour ces critères.
-            </p>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
-              Les réparations se créent automatiquement dès qu'un contrôle technique relève un point Non Conforme (NC).
-            </p>
-          </div>
+          curatifTab === 'a_traiter' ? (
+            <div
+              style={{
+                padding: '40px 24px',
+                textAlign: 'center',
+                backgroundColor: '#F0FDF4',
+                borderRadius: '14px',
+                border: '1.5px solid #BBF7D0',
+                color: '#166534',
+              }}
+            >
+              <div
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '14px',
+                  backgroundColor: '#DCFCE7',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#16A34A',
+                  marginBottom: '12px',
+                }}
+              >
+                <CheckCircle2 size={32} />
+              </div>
+              <h4 style={{ margin: 0, fontWeight: 900, fontSize: '16px', fontFamily: "'Ruda', sans-serif", color: '#166534' }}>
+                Parc 100% Opérationnel · Aucune panne curative en cours !
+              </h4>
+              <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#15803D', maxWidth: '520px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+                Toutes les réparations curatives ont été traitées. Rendez-vous sur l'onglet <b>« Historique Machines Réparées »</b> ci-dessus pour consulter les interventions passées et leurs fiches techniques.
+              </p>
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '36px 20px',
+                textAlign: 'center',
+                backgroundColor: '#F8FAFC',
+                borderRadius: '12px',
+                border: '1px dashed #D2E9F6',
+                color: '#57778E',
+              }}
+            >
+              <CheckCircle2 size={32} color="#00C875" style={{ marginBottom: '8px' }} />
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#1B4565' }}>
+                Aucune machine réparée trouvée pour cette recherche.
+              </p>
+            </div>
+          )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredTickets.map((t) => {
@@ -1279,12 +1429,13 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                         <button
                           type="button"
                           onClick={() => onOpenInspection(matchedMachine.id)}
+                          title="Lancer une fiche de contrôle technique"
                           style={{
                             padding: '7px 12px',
                             borderRadius: '8px',
-                            backgroundColor: '#FAFCFD',
-                            color: '#39A9DC',
-                            border: '1px solid #D2E9F6',
+                            backgroundColor: isReparee ? '#F0FDF4' : '#FAFCFD',
+                            color: isReparee ? '#047857' : '#39A9DC',
+                            border: isReparee ? '1px solid #BBF7D0' : '1px solid #D2E9F6',
                             fontSize: '12px',
                             fontWeight: 700,
                             cursor: 'pointer',
@@ -1304,9 +1455,9 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                         style={{
                           padding: '7px 12px',
                           borderRadius: '8px',
-                          backgroundColor: '#EFF6FF',
-                          color: '#0369A1',
-                          border: '1px solid #BFDBFE',
+                          backgroundColor: isReparee ? '#ECFDF5' : '#EFF6FF',
+                          color: isReparee ? '#065F46' : '#0369A1',
+                          border: isReparee ? '1px solid #A7F3D0' : '1px solid #BFDBFE',
                           fontSize: '12px',
                           fontWeight: 800,
                           cursor: 'pointer',
@@ -1315,7 +1466,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                           gap: '4px',
                         }}
                       >
-                        Ouvrir fiche &amp; points NC
+                        {isReparee ? 'Consulter le rapport' : 'Ouvrir fiche & points NC'}
                       </button>
                     </div>
                   </div>
