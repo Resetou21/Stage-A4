@@ -617,35 +617,35 @@ export const App = () => {
 
   return (
     <div
+      className="facility-app-container"
       style={{
         fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: '#F8FAFC',
         minHeight: '100vh',
-        padding: '24px 28px',
         color: '#1B4565',
         boxSizing: 'border-box',
       }}
     >
       {/* ================= EN-TÊTE OFFICIEL GROUPE FACILITY ================= */}
       <div
+        className="facility-header-card"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '18px',
           marginBottom: '26px',
           backgroundColor: '#FFFFFF',
           borderRadius: '16px',
-          padding: '18px 24px',
           border: '1px solid #E2EEF5',
           boxShadow: '0 4px 16px rgba(27, 69, 101, 0.04)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           {/* Logo officiel Groupe Facility (Non déformé) */}
-          <div style={{ display: 'flex', alignItems: 'center', minWidth: '120px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', minWidth: '100px' }}>
             <img
+              className="facility-header-logo"
               src="https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg"
               alt="Logo Groupe Facility"
               style={{
@@ -657,14 +657,14 @@ export const App = () => {
             />
           </div>
 
-          <div style={{ width: '1.5px', height: '40px', backgroundColor: '#E2EEF5' }} />
+          <div className="facility-header-divider" />
 
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <h1
+                className="facility-header-title"
                 style={{
                   margin: 0,
-                  fontSize: '24px',
                   fontWeight: 900,
                   fontFamily: "'Ruda', sans-serif",
                   color: '#1B4565',
@@ -683,6 +683,7 @@ export const App = () => {
                   padding: '2px 8px',
                   borderRadius: '6px',
                   letterSpacing: '0.5px',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 FACILITY 2026
@@ -691,10 +692,11 @@ export const App = () => {
             <p
               style={{
                 margin: '4px 0 0 0',
-                fontSize: '13.5px',
+                fontSize: '13px',
                 color: '#3989B7',
                 fontWeight: 500,
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
+                lineHeight: 1.35,
               }}
             >
               Fiche de contrôle terrain, maintenance préventive (12 mois) &amp; agenda des interventions
@@ -773,35 +775,17 @@ export const App = () => {
       </div>
 
       {/* ================= BARRE DE NAVIGATION PAR ONGLETS DU HUB ================= */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '12px',
-          marginBottom: '26px',
-          borderBottom: '1.5px solid #E2EEF5',
-          paddingBottom: '14px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="facility-tabs-nav">
         {/* Onglet 1 : Fiche de Contrôle (Terrain) - Prioritaire */}
         <button
           type="button"
+          className="facility-tab-btn"
           onClick={() => setActiveTab('inspection')}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '9px',
-            padding: '11px 22px',
-            borderRadius: '12px',
             border: activeTab === 'inspection' ? '1.5px solid #39A9DC' : '1px solid #E2EEF5',
             backgroundColor: activeTab === 'inspection' ? '#39A9DC' : '#FFFFFF',
             color: activeTab === 'inspection' ? '#FFFFFF' : '#1B4565',
-            fontFamily: "'Ruda', sans-serif",
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
             boxShadow: activeTab === 'inspection' ? '0 4px 14px rgba(57, 169, 220, 0.3)' : 'none',
-            transition: 'all 0.15s ease',
           }}
         >
           <ClipboardCheck size={19} />
@@ -811,22 +795,13 @@ export const App = () => {
         {/* Onglet 2 : Maintenance Préventive (12 Mois) */}
         <button
           type="button"
+          className="facility-tab-btn"
           onClick={() => setActiveTab('matrix')}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '9px',
-            padding: '11px 22px',
-            borderRadius: '12px',
             border: activeTab === 'matrix' ? '1.5px solid #1B4565' : '1px solid #E2EEF5',
             backgroundColor: activeTab === 'matrix' ? '#1B4565' : '#FFFFFF',
             color: activeTab === 'matrix' ? '#FFFFFF' : '#1B4565',
-            fontFamily: "'Ruda', sans-serif",
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
             boxShadow: activeTab === 'matrix' ? '0 4px 14px rgba(27, 69, 101, 0.25)' : 'none',
-            transition: 'all 0.15s ease',
           }}
         >
           <LayoutGrid size={19} />
@@ -836,22 +811,13 @@ export const App = () => {
         {/* Onglet 3 : Historique des Passages (Agenda) */}
         <button
           type="button"
+          className="facility-tab-btn"
           onClick={() => setActiveTab('agenda')}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '9px',
-            padding: '11px 22px',
-            borderRadius: '12px',
             border: activeTab === 'agenda' ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
             backgroundColor: activeTab === 'agenda' ? '#F7AC37' : '#FFFFFF',
             color: activeTab === 'agenda' ? '#FFFFFF' : '#1B4565',
-            fontFamily: "'Ruda', sans-serif",
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
             boxShadow: activeTab === 'agenda' ? '0 4px 14px rgba(247, 172, 55, 0.3)' : 'none',
-            transition: 'all 0.15s ease',
           }}
         >
           <CalendarIcon size={19} />
@@ -861,22 +827,13 @@ export const App = () => {
         {/* Onglet 4 : Indicateurs & Plan d'action */}
         <button
           type="button"
+          className="facility-tab-btn"
           onClick={() => setActiveTab('indicators')}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '9px',
-            padding: '11px 22px',
-            borderRadius: '12px',
             border: activeTab === 'indicators' ? '1.5px solid #00A389' : '1px solid #E2EEF5',
             backgroundColor: activeTab === 'indicators' ? '#00A389' : '#FFFFFF',
             color: activeTab === 'indicators' ? '#FFFFFF' : '#1B4565',
-            fontFamily: "'Ruda', sans-serif",
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
             boxShadow: activeTab === 'indicators' ? '0 4px 14px rgba(0, 163, 137, 0.3)' : 'none',
-            transition: 'all 0.15s ease',
           }}
         >
           <BarChart3 size={19} />

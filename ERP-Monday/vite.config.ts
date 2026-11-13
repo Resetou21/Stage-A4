@@ -9,5 +9,13 @@ export default defineConfig({
     hmr: {
       clientPort: 443
     }
+  },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rolldownOptions: {
+      output: {
+        codeSplitting: true
+      }
+    }
   }
 })

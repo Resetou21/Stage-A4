@@ -169,3 +169,270 @@ h1, h2, h3, h4, h5, h6, .font-title {
   will-change: transform, opacity;
 }
 
+/* ==========================================================================
+   OPTIMISATIONS RESPONSIVES MOBILES (< 640px)
+   ========================================================================== */
+
+/* Conteneur principal */
+.facility-app-container {
+  padding: 24px 28px;
+}
+
+/* En-tête officiel */
+.facility-header-card {
+  padding: 18px 24px;
+  gap: 18px;
+}
+.facility-header-divider {
+  width: 1.5px;
+  height: 40px;
+  background-color: #E2EEF5;
+}
+.facility-header-logo {
+  height: 42px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+}
+.facility-header-title {
+  font-size: 24px;
+}
+
+/* Barre de navigation par onglets */
+.facility-tabs-nav {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 26px;
+  border-bottom: 1.5px solid #E2EEF5;
+  padding-bottom: 14px;
+  flex-wrap: wrap;
+}
+.facility-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 22px;
+  border-radius: 12px;
+  font-family: 'Ruda', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* Cartes d'étapes de la fiche de contrôle */
+.inspection-card {
+  padding: 22px 26px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+/* Grille de notation 1 à 10 */
+.note-sur-dix-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 6px;
+}
+.note-sur-dix-btn {
+  padding: 10px 4px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 900;
+  font-family: 'Ruda', sans-serif;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+/* Stepper de temps passé (+/- 15 min) */
+.time-stepper-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  border: 1.5px solid #E2EEF5;
+  box-sizing: border-box;
+}
+.time-stepper-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: 'Ruda', sans-serif;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.time-stepper-center {
+  padding: 10px 24px;
+  border-radius: 10px;
+  background-color: #EBF6FC;
+  border: 2px solid #39A9DC;
+  text-align: center;
+  min-width: 160px;
+  box-sizing: border-box;
+}
+
+/* Groupes de boutons d'évaluation (OK / Moyen / NC) */
+.inspection-eval-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inspection-eval-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 800;
+  font-family: 'Ruda', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* Grille de décision finale */
+.decision-finale-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+/* Bouton principal de soumission */
+.inspection-submit-container {
+  text-align: right;
+  margin-bottom: 30px;
+}
+.inspection-submit-btn {
+  background-color: #00C875;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  padding: 15px 32px;
+  font-size: 15.5px;
+  font-weight: 800;
+  font-family: 'Ruda', sans-serif;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 200, 117, 0.35);
+  transition: all 0.15s ease;
+}
+
+/* ================= MEDIA QUERY MOBILE (< 640px) ================= */
+@media (max-width: 640px) {
+  .facility-app-container {
+    padding: 12px 10px !important;
+  }
+
+  .facility-header-card {
+    padding: 14px 14px !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+  }
+  .facility-header-divider {
+    display: none !important;
+  }
+  .facility-header-logo {
+    height: 34px !important;
+    max-width: 120px !important;
+  }
+  .facility-header-title {
+    font-size: 18px !important;
+  }
+
+  /* Barre d'onglets défilable horizontalement au doigt */
+  .facility-tabs-nav {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 16px !important;
+    scrollbar-width: none; /* Firefox */
+  }
+  .facility-tabs-nav::-webkit-scrollbar {
+    display: none; /* Chrome / Safari */
+  }
+  .facility-tab-btn {
+    white-space: nowrap !important;
+    padding: 9px 14px !important;
+    font-size: 13px !important;
+    flex-shrink: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  /* Cartes d'étapes */
+  .inspection-card {
+    padding: 14px 12px !important;
+    border-radius: 12px !important;
+    margin-bottom: 14px !important;
+  }
+
+  /* Grille 1 à 10 en 2 rangées de 5 */
+  .note-sur-dix-grid {
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 6px !important;
+  }
+  .note-sur-dix-btn {
+    padding: 11px 4px !important;
+    font-size: 14px !important;
+  }
+
+  /* Stepper de temps fluide sans débordement */
+  .time-stepper-row {
+    padding: 8px !important;
+    gap: 6px !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  .time-stepper-btn {
+    padding: 9px 10px !important;
+    font-size: 12.5px !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+  .time-stepper-center {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    padding: 8px 6px !important;
+  }
+  .time-stepper-center span:first-child {
+    font-size: 16px !important;
+  }
+
+  /* Boutons d'évaluation sur mobile : prennent toute la largeur (1/3 chacun) */
+  .inspection-eval-group {
+    width: 100% !important;
+    display: flex !important;
+    gap: 4px !important;
+    margin-top: 6px !important;
+  }
+  .inspection-eval-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 7px 4px !important;
+    font-size: 11px !important;
+    text-align: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+
+  /* Décision finale en colonne complète pour éviter de tronquer le texte */
+  .decision-finale-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* Bouton soumission pleine largeur sur smartphone */
+  .inspection-submit-container {
+    text-align: center !important;
+  }
+  .inspection-submit-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 14px 20px !important;
+    font-size: 14.5px !important;
+  }
+}
+

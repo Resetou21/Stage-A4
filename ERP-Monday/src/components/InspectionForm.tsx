@@ -439,11 +439,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
       <form onSubmit={handleSubmit}>
         {/* ================= ÉTAPE 1 : SÉLECTION DE LA MACHINE (STYLE ANIMATRICES HUB) ================= */}
         <div
+          className="inspection-card"
           style={{
             backgroundColor: '#FFFFFF',
-            borderRadius: '16px',
-            padding: '22px 26px',
-            marginBottom: '20px',
             border: '1px solid #E2EEF5',
             boxShadow: '0 4px 14px rgba(27, 69, 101, 0.04)',
           }}
@@ -933,11 +931,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
         {/* ================= ÉTAPE 2 : ÉTAT GÉNÉRAL DE LA MACHINE ================= */}
         {selectedMachine && (
           <div
+            className="inspection-card"
             style={{
               backgroundColor: '#FFFFFF',
-              borderRadius: '16px',
-              padding: '22px 26px',
-              marginBottom: '20px',
               border: '1px solid #E2EEF5',
               boxShadow: '0 4px 14px rgba(27, 69, 101, 0.04)',
             }}
@@ -1075,7 +1071,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '6px' }}>
+              <div className="note-sur-dix-grid">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => {
                   const isSel = noteSurDix === val;
                   const tone = val <= 4 ? '#E2445C' : val <= 7 ? '#F7AC37' : '#00C875';
@@ -1083,18 +1079,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     <button
                       key={val}
                       type="button"
+                      className="note-sur-dix-btn"
                       onClick={() => setNoteSurDix(val)}
                       style={{
-                        padding: '10px 4px',
-                        borderRadius: '8px',
                         border: isSel ? `2px solid ${tone}` : '1px solid #C8DCE8',
                         backgroundColor: isSel ? tone : '#F8FCFE',
                         color: isSel ? '#FFFFFF' : '#1B4565',
-                        fontSize: '14px',
-                        fontWeight: 900,
-                        fontFamily: "'Ruda', sans-serif",
-                        cursor: 'pointer',
-                        transition: 'all 0.12s ease',
                         boxShadow: isSel ? `0 3px 10px ${tone}40` : 'none',
                       }}
                     >
@@ -1323,11 +1313,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
         {/* ================= ÉTAPE 3 : POINTS DE CONTRÔLE DYNAMIQUES DU RÉFÉRENTIEL ================= */}
         {selectedMachine && (
           <div
+            className="inspection-card"
             style={{
               backgroundColor: '#FFFFFF',
-              borderRadius: '16px',
-              padding: '22px 26px',
-              marginBottom: '20px',
               border: '1px solid #E2EEF5',
               boxShadow: '0 4px 14px rgba(27, 69, 101, 0.04)',
             }}
@@ -1566,7 +1554,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                   <Info size={11} />
                                 </span>
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div className="inspection-eval-group">
                                 {(['OK', 'Moyen', 'NC'] as const).map((st) => {
                                   const isChecked = subStatus === st;
                                   const bgMap = { OK: '#00C875', Moyen: '#F7AC37', NC: '#E2445C' };
@@ -1575,17 +1563,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                     <button
                                       key={st}
                                       type="button"
+                                      className="inspection-eval-btn"
                                       onClick={() => handleEvalChange(evalKey, st)}
                                       style={{
-                                        padding: '5px 12px',
-                                        borderRadius: '8px',
                                         border: isChecked ? `1.5px solid ${bgMap[st]}` : '1px solid #C8DCE8',
                                         backgroundColor: isChecked ? bgMap[st] : '#FFFFFF',
                                         color: isChecked ? '#FFFFFF' : '#3989B7',
-                                        fontSize: '12px',
-                                        fontWeight: 800,
-                                        fontFamily: "'Ruda', sans-serif",
-                                        cursor: 'pointer',
                                       }}
                                     >
                                       {labelMap[st]}
@@ -1673,7 +1656,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="inspection-eval-group">
                       {(['OK', 'Moyen', 'NC'] as const).map((st) => {
                         const isChecked = currentStatus === st;
                         const bgMap = { OK: '#00C875', Moyen: '#F7AC37', NC: '#E2445C' };
@@ -1682,18 +1665,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                           <button
                             key={st}
                             type="button"
+                            className="inspection-eval-btn"
                             onClick={() => handleEvalChange(pt.name, st)}
                             style={{
-                              padding: '6px 14px',
-                              borderRadius: '8px',
                               border: isChecked ? `1.5px solid ${bgMap[st]}` : '1px solid #C8DCE8',
                               backgroundColor: isChecked ? bgMap[st] : '#FFFFFF',
                               color: isChecked ? '#FFFFFF' : '#3989B7',
-                              fontSize: '12.5px',
-                              fontWeight: 800,
-                              fontFamily: "'Ruda', sans-serif",
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease',
                             }}
                           >
                             {labelMap[st]}
@@ -1711,11 +1688,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
         {/* ================= ÉTAPE 4 : TEMPS PASSÉ & ANOMALIES ================= */}
         {selectedMachine && (
           <div
+            className="inspection-card"
             style={{
               backgroundColor: '#FFFFFF',
-              borderRadius: '16px',
-              padding: '22px 26px',
-              marginBottom: '24px',
               border: '1px solid #E2EEF5',
               boxShadow: '0 4px 14px rgba(27, 69, 101, 0.04)',
             }}
@@ -1800,49 +1775,23 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
               </div>
 
               {/* Contrôle interactif +/- 15 min avec affichage central grand format */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '12px',
-                  marginBottom: '16px',
-                  padding: '12px',
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: '12px',
-                  border: '1.5px solid #E2EEF5',
-                }}
-              >
+              <div className="time-stepper-row">
                 <button
                   type="button"
+                  className="time-stepper-btn"
                   onClick={() => updateTempsPasse(Math.max(15, tempsPasse - 15))}
                   disabled={tempsPasse <= 15}
                   style={{
-                    padding: '10px 18px',
-                    borderRadius: '10px',
                     border: '1.5px solid #D2E9F6',
                     backgroundColor: tempsPasse <= 15 ? '#F5F9FC' : '#FAFCFD',
                     color: tempsPasse <= 15 ? '#A0B4C3' : '#1B4565',
-                    fontSize: '14px',
-                    fontWeight: 800,
-                    fontFamily: "'Ruda', sans-serif",
                     cursor: tempsPasse <= 15 ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.12s ease',
                   }}
                 >
                   − 15 min
                 </button>
 
-                <div
-                  style={{
-                    padding: '10px 24px',
-                    borderRadius: '10px',
-                    backgroundColor: '#EBF6FC',
-                    border: '2px solid #39A9DC',
-                    textAlign: 'center',
-                    minWidth: '160px',
-                  }}
-                >
+                <div className="time-stepper-center">
                   <span
                     style={{
                       display: 'block',
@@ -1861,19 +1810,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
                 <button
                   type="button"
+                  className="time-stepper-btn"
                   onClick={() => updateTempsPasse(tempsPasse + 15)}
                   style={{
-                    padding: '10px 18px',
-                    borderRadius: '10px',
                     border: '1.5px solid #39A9DC',
                     backgroundColor: '#39A9DC',
                     color: '#FFFFFF',
-                    fontSize: '14px',
-                    fontWeight: 800,
-                    fontFamily: "'Ruda', sans-serif",
-                    cursor: 'pointer',
                     boxShadow: '0 2px 6px rgba(57, 169, 220, 0.25)',
-                    transition: 'all 0.12s ease',
                   }}
                 >
                   + 15 min
@@ -2081,7 +2024,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565', marginBottom: '10px' }}>
                   🎯 Décision &amp; Suite donnée au contrôle
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                <div className="decision-finale-grid">
                   {[
                     { value: 'Favorable' as const, label: 'Favorable (Conforme)', color: '#00C875', bg: '#E6F8F0' },
                     { value: 'A voir animatrice' as const, label: 'À voir avec le Responsable de Secteur', color: '#F7AC37', bg: '#FFF8EC' },
@@ -2349,25 +2292,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
         {/* ================= BOUTON DE VALIDATION DU CONTRÔLE ================= */}
         {selectedMachine && (
-          <div style={{ textAlign: 'right', marginBottom: '30px' }}>
+          <div className="inspection-submit-container">
             <button
               type="submit"
+              className="inspection-submit-btn"
               disabled={isSubmitting}
               style={{
-                backgroundColor: '#00C875',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '12px',
-                padding: '15px 32px',
-                fontSize: '15.5px',
-                fontWeight: 800,
-                fontFamily: "'Ruda', sans-serif",
                 cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '10px',
-                boxShadow: '0 4px 16px rgba(0, 200, 117, 0.35)',
-                transition: 'all 0.15s ease',
                 opacity: isSubmitting ? 0.7 : 1,
               }}
             >
