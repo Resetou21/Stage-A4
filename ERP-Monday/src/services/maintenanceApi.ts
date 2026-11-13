@@ -1341,6 +1341,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
         try {
           const resRes = await resolveRepairTicketsForMachine(submission.machineId, {
             formattedDate,
+            machineName: submission.machineName,
             technicienName: submission.technicienName,
             noteSurDix: submission.noteSurDix,
           });
@@ -2542,6 +2543,7 @@ export async function resolveRepairTicketsForMachine(
   machineId: string,
   details: {
     formattedDate: string;
+    machineName?: string;
     technicienName?: string;
     noteSurDix?: number;
   }
@@ -2554,12 +2556,27 @@ export async function resolveRepairTicketsForMachine(
       fetchRepairBoardMeta(),
     ]);
 
+    const cleanMachineName = (details.machineName || '').toLowerCase().trim();
+    const cleanNoCode = cleanMachineName.replace(/^\d+\s*[-–]\s*/, '').trim();
+
     const openTicketsForMachine = allTickets.filter((t) => {
-      if (String(t.machineId || '') !== String(machineId)) return false;
       const stNorm = normalizeLabelMatch(t.status);
       const grpNorm = normalizeLabelMatch(t.groupTitle || '');
       const isClosed = stNorm.includes('repare') || grpNorm.includes('repare');
-      return !isClosed;
+      if (isClosed) return false;
+
+      // 1. Liaison relationnelle directe par ID machine
+      if (t.machineId && String(t.machineId) === String(machineId)) return true;
+
+      // 2. Correspondance textuelle sur les anciens tickets importés via Excel sans colonne liée
+      if (cleanNoCode && cleanNoCode.length >= 3) {
+        const tNorm = `${t.machineName || ''} ${t.name || ''}`.toLowerCase();
+        if (tNorm.includes(cleanNoCode) || (cleanMachineName && tNorm.includes(cleanMachineName))) {
+          return true;
+        }
+      }
+
+      return false;
     });
 
     if (openTicketsForMachine.length === 0) {
@@ -2581,6 +2598,12 @@ export async function resolveRepairTicketsForMachine(
       const colValues: Record<string, any> = {
         color_mm8vp2nd: { label: 'Réparée' },
       };
+
+      // Si le ticket n'avait pas encore la relation machine (ancien import Excel), l'associer automatiquement
+      if (!ticket.machineId && machineId) {
+        colValues.board_relation_mm8gc4mh = { item_ids: [Number(machineId)] };
+      }
+
       if (descWithDate.trim()) {
         const descColType = repairMeta.columnsById['text_mm8vhwst']?.type;
         colValues.text_mm8vhwst = descColType === 'long_text' ? { text: descWithDate } : descWithDate;
