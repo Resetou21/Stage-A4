@@ -314,7 +314,13 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
       : realisedControles.filter((c) => matchesKpiYear(c.date));
     const scopedRepairs = selectedKpiYear === 'all'
       ? repairTickets
-      : repairTickets.filter((t) => matchesKpiYear(t.date) || matchesKpiYear(t.repairedDate));
+      : repairTickets.filter((t) => {
+          if (isRepairedTicket(t)) {
+            return matchesKpiYear(t.repairedDate || t.date);
+          }
+          // Ticket encore actif (non réparé) : compte dans l'exercice en cours pour ne pas masquer les pannes en attente
+          return selectedKpiYear === currentCalendarYear || matchesKpiYear(t.date);
+        });
 
     const totalControles = scopedControles.length;
     let vertCount = 0;
@@ -479,24 +485,17 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
 
   // 3. COMPTEURS ET SÉPARATION DES TICKETS (PANNES ACTIVES VS HISTORIQUE RÉPARÉES)
   const activeRepairsCount = useMemo(() => {
-    return repairTickets.filter((t) => {
-      const st = t.status.toLowerCase();
-      return !st.includes('réparée') && !st.includes('reparee');
-    }).length;
+    return repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length;
   }, [repairTickets]);
 
   const repairedRepairsCount = useMemo(() => {
-    return repairTickets.filter((t) => {
-      const st = t.status.toLowerCase();
-      return st.includes('réparée') || st.includes('reparee');
-    }).length;
+    return repairTickets.filter((t) => isTicketRepaired(t.status, t.groupTitle)).length;
   }, [repairTickets]);
 
   const filteredTickets = useMemo(() => {
     return repairTickets
       .filter((t) => {
-        const stLower = t.status.toLowerCase();
-        const isReparee = stLower.includes('réparée') || stLower.includes('reparee');
+        const isReparee = isTicketRepaired(t.status, t.groupTitle);
 
         // Séparation stricte des 2 onglets : Pannes à traiter vs Historique Réparées
         if (curatifTab === 'a_traiter' && isReparee) return false;
@@ -1244,8 +1243,8 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredTickets.map((t) => {
-              const stLower = t.status.toLowerCase();
-              const isReparee = stLower.includes('réparée') || stLower.includes('reparee');
+              const isReparee = isTicketRepaired(t.status, t.groupTitle);
+              const stLower = (t.status || '').toLowerCase();
               const isEnCours = stLower.includes('en cours') || stLower.includes('devis');
 
               let badgeBg = '#FDECEE';

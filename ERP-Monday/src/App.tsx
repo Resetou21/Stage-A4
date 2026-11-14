@@ -847,7 +847,7 @@ export const App = () => {
         >
           <BarChart3 size={19} />
           Indicateurs &amp; Plan d'action
-          {repairTickets.filter((t) => !t.status.toLowerCase().includes('réparée') && !t.status.toLowerCase().includes('reparee')).length > 0 && (
+          {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length > 0 && (
             <span
               style={{
                 backgroundColor: activeTab === 'indicators' ? '#FFFFFF' : '#E2445C',
@@ -859,7 +859,7 @@ export const App = () => {
                 marginLeft: '4px',
               }}
             >
-              {repairTickets.filter((t) => !t.status.toLowerCase().includes('réparée') && !t.status.toLowerCase().includes('reparee')).length}
+              {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length}
             </span>
           )}
         </button>
