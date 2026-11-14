@@ -1065,6 +1065,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
       'color_mm8tmqfc',
       targetEtat
     );
+    const etatLabel = ficheEtatLabel;
 
     // Préparation des valeurs de colonnes sur Fiche de Contrôle (5107262948)
     const columnValuesObj: Record<string, any> = {
