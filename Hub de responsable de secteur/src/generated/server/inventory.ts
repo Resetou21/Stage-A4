@@ -656,12 +656,14 @@ export function processSiteHistory(rawItems: any[]): SiteHistoryResult {
     const latestPassage = history[0];
     const surplusDernier = latestPassage.totalSurplus;
 
+    const curYear = new Date().getFullYear();
+    const nextYear = curYear + 1;
     if (surplusDernier > 0 || avgSurplus > 5) {
       trend = 'surstock';
-      recommendation = `Surstock récurrent constaté (~${surplusDernier || avgSurplus} unités en excédent lors des relevés). Pour le contrat 2027, préconisation d'un réajustement à la baisse d'environ 15 à 25 % sur les références excédentaires pour assainir les réserves sans risquer de rupture.`;
+      recommendation = `Surstock récurrent constaté (~${surplusDernier || avgSurplus} unités en excédent lors des relevés). Pour le contrat ${nextYear}, préconisation d'un réajustement à la baisse d'environ 15 à 25 % sur les références excédentaires pour assainir les réserves sans risquer de rupture.`;
     } else if (surplusDernier === 0 && avgSurplus === 0) {
       trend = 'equilibre';
-      recommendation = `Consommation saine et fluide. Le stock tourne régulièrement sans surplus résiduel : contrat 2026 parfaitement calibré, à reconduire à l'identique pour 2027.`;
+      recommendation = `Consommation saine et fluide. Le stock tourne régulièrement sans surplus résiduel : contrat ${curYear} parfaitement calibré, à reconduire à l'identique pour ${nextYear}.`;
     } else {
       trend = 'equilibre';
       recommendation = `Stock résiduel minime. La dotation actuelle répond aux besoins du chantier.`;

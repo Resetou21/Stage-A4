@@ -82,7 +82,7 @@ export default function SiteHistoryModal({
                   </div>
                   <div className="space-y-1">
                     <p className="font-extrabold text-xs uppercase tracking-wide text-primary flex items-center gap-1.5">
-                      Aide à l'anticipation — Contrat 2027 (Basé sur le réalisé 2026)
+                      Aide à l'anticipation — Contrat {new Date().getFullYear() + 1} (Basé sur le réalisé {new Date().getFullYear()})
                     </p>
                     <p className="text-xs text-foreground leading-relaxed">
                       {historyData.recommendation}

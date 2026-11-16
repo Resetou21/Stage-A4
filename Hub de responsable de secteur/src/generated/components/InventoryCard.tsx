@@ -115,7 +115,7 @@ function SiteRow({
           {/* Bouton élégant pour ouvrir la pop-up modale d'historique & analyse 2027 */}
           <div className="pt-2 flex items-center justify-between flex-wrap gap-2">
             <span className="text-xs text-muted-foreground italic">
-              Consommations annuelles prévues sous contrat 2026.
+              Consommations annuelles prévues sous contrat {new Date().getFullYear()}.
             </span>
             <button
               type="button"
