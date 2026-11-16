@@ -695,7 +695,7 @@ export const App = () => {
                   whiteSpace: 'nowrap',
                 }}
               >
-                FACILITY 2026
+                FACILITY {new Date().getFullYear()}
               </span>
             </div>
             <p

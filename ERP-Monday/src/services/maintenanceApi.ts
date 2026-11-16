@@ -1965,14 +1965,28 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
       }
       const statusRaw = getCol('color_mm8vp2nd');
       const feuilleOrigine = findColTextByTitle(colValues, ["feuille d'origine", 'feuille origine', 'origine']);
-      const isPastExcelArchive =
-        /2023|2024|archive/i.test(feuilleOrigine) ||
-        Boolean(dateStr && (dateStr.startsWith('2023') || dateStr.startsWith('2024')));
+      const anneeColText = findColTextByTitle(colValues, ['année', 'annee']);
+      const currentYear = new Date().getFullYear();
 
-      // Si le statut est vide ou non renseigné sur une ancienne ligne d'archive (2023/2024) déjà réalisée : classée d'office en "Réparée"
+      // Année déduite de la date, de la colonne Année, ou du nom de la feuille (ex: "Réparations 2023", "Dédé 2023")
+      const yearFromDate = Number((dateStr || '').slice(0, 4));
+      const yearFromCol = Number((anneeColText || '').trim());
+      const yearMatch = (feuilleOrigine || '').match(/\b(20\d\d)\b/);
+      const yearFromFeuille = yearMatch ? Number(yearMatch[1]) : NaN;
+
+      const ticketYear = !isNaN(yearFromDate) && yearFromDate > 2000
+        ? yearFromDate
+        : (!isNaN(yearFromCol) && yearFromCol > 2000 ? yearFromCol : yearFromFeuille);
+
+      const isPastYear = !isNaN(ticketYear) && ticketYear > 2000 && ticketYear < currentYear;
+      const isPastExcelArchive =
+        /archive|feuille|2023|2024|d[ée]d[ée]/i.test(feuilleOrigine) ||
+        isPastYear;
+
+      // Si le statut est vide ou resté "À traiter" sur une ancienne ligne d'archive (années antérieures ou feuille passée) : classée d'office en "Réparée"
       let statusStr = statusRaw;
       if (!statusStr || statusStr === 'À traiter') {
-        if (isPastExcelArchive && dateStr) {
+        if (isPastExcelArchive) {
           statusStr = 'Réparée';
         } else if (!statusStr) {
           statusStr = 'À traiter';
@@ -1981,7 +1995,9 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
 
       const desc = getCol('text_mm8vhwst');
       const updatedAt = it.updated_at ? String(it.updated_at) : undefined;
-      const repairedDate = extractRepairedDate(desc, statusStr, it.group?.title, updatedAt) || (isPastExcelArchive ? dateStr : undefined);
+      const repairedDate =
+        extractRepairedDate(desc, statusStr, it.group?.title, updatedAt) ||
+        (isPastExcelArchive ? (dateStr || (ticketYear ? `${ticketYear}-01-01` : undefined)) : undefined);
       const cost = extractCostFromRepairData(desc, colValues, boardColumns);
       const checklist = parseRepairChecklist(desc);
       const fournisseur = findColTextByTitle(colValues, ['fournisseur', 'prestataire']);
