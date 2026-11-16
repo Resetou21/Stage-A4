@@ -144,7 +144,38 @@ export default function App() {
         }
       })
       .catch(() => {});
+
+    // Pont bidirectionnel transparent Monday SDK :
+    // Relaye les requêtes postMessage de l'iframe enfant vers Monday parent,
+    // et renvoie les réponses de Monday à l'iframe enfant !
+    const handleBridgeMessage = (event: MessageEvent) => {
+      // 1. Requête SDK venant du sous-hub (enfant) vers Monday
+      if (event.source === iframeRef.current?.contentWindow) {
+        if (event.data && typeof event.data === 'object') {
+          window.parent.postMessage(event.data, '*');
+        }
+        return;
+      }
+
+      // 2. Réponse de Monday vers le sous-hub (enfant)
+      if (event.source === window.parent && iframeRef.current?.contentWindow) {
+        if (event.data && typeof event.data === 'object') {
+          iframeRef.current.contentWindow.postMessage(event.data, '*');
+        }
+      }
+    };
+
+    window.addEventListener('message', handleBridgeMessage);
+    return () => window.removeEventListener('message', handleBridgeMessage);
   }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   const handleSelectTab = (tab: ActiveHubId) => {
     if (tab !== activeTab) {
@@ -365,31 +396,27 @@ export default function App() {
                 <span>Actualiser</span>
               </button>
 
-              {activeModule?.liveUrl && (
-                <a
-                  href={activeModule.liveUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Ouvrir dans un nouvel onglet"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #CBD5E1',
-                    backgroundColor: '#FFFFFF',
-                    color: '#475569',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <ExternalLink size={13} />
-                  <span>Plein écran</span>
-                </a>
-              )}
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title="Basculer le plein écran"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                <Maximize2 size={13} />
+                <span>Plein écran</span>
+              </button>
             </>
           )}
 
@@ -868,11 +895,11 @@ export default function App() {
               </div>
             )}
 
-            {/* Iframe pleine page du Hub sélectionné */}
+            {/* Iframe pleine page du Hub sélectionné avec cache buster */}
             <iframe
               key={iframeKey}
               ref={iframeRef}
-              src={activeModule.liveUrl}
+              src={`${activeModule.liveUrl}?v=${iframeKey}&cache=20261116b`}
               title={activeModule.title}
               onLoad={() => setLoadingIframe(false)}
               style={{
