@@ -57,9 +57,12 @@ export default function App() {
       // 1. Détection Administrateur / Superviseur
       if (
         ADMIN_USER_IDS.includes(uid) ||
-        normEmail.includes('guillaume.daniel') ||
+        normEmail.includes('guillaume') ||
+        normName.includes('guillaume') ||
         normEmail.includes('lguillou') ||
-        normName.includes('laurent guillou')
+        normName.includes('laurent guillou') ||
+        normName.includes('laurent') ||
+        normName.includes('admin')
       ) {
         setIsAdmin(true);
         setUserDetected(true);
@@ -171,7 +174,16 @@ export default function App() {
         setUserDetected(true);
       });
 
+    // Sécurité anti-blocage immédiate : si après 1.5s le profil n'a pas répondu (ex: iframe imbriquée ou latence)
+    const fallbackTimer = setTimeout(() => {
+      if (!resolved) {
+        console.warn('[App] Timeout détection utilisateur (1.5s) -> passage en mode actif');
+        setUserDetected(true);
+      }
+    }, 1500);
+
     return () => {
+      clearTimeout(fallbackTimer);
       if (typeof unsubscribe === 'function') {
         try { (unsubscribe as any)(); } catch {}
       }
