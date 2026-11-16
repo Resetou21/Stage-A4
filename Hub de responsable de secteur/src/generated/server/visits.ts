@@ -908,7 +908,11 @@ export const getAlertContexts = createServerFn({ method: 'GET' })
                 items {
                   id
                   name
-                  column_values(ids: ["color_mm8t2mn5", "dropdown_mm8d4vj2"]) {
+                  group {
+                    id
+                    title
+                  }
+                  column_values(ids: ["color_mm8t2mn5", "dropdown_mm8d4vj2", "color_mm8dremb"]) {
                     id
                     text
                   }
@@ -922,9 +926,23 @@ export const getAlertContexts = createServerFn({ method: 'GET' })
         for (const it of items) {
           const name = String(it.name || '').trim();
           if (!name) continue;
+
+          // Exclure les groupes d'archivage ou de mise au rebut
+          const groupTitle = norm(String(it.group?.title || ''));
+          if (groupTitle.includes('sortie') || groupTitle.includes('rebut') || groupTitle.includes('archive') || groupTitle.includes('detruit')) {
+            continue;
+          }
+
           const cols = it.column_values || [];
           const type = String(cols.find((c: any) => c.id === 'color_mm8t2mn5')?.text || '').trim();
           const site = String(cols.find((c: any) => c.id === 'dropdown_mm8d4vj2')?.text || '').trim();
+          const status = norm(String(cols.find((c: any) => c.id === 'color_mm8dremb')?.text || ''));
+
+          // Exclure les machines qui ne sont plus sur le parc (sorties, détruites, réformées, hors parc)
+          if (status.includes('sortie') || status.includes('hors') || status.includes('rebut') || status.includes('detruit') || status.includes('reform')) {
+            continue;
+          }
+
           const typeLow = norm(type);
           const nameLow = norm(name);
           if (excludedTypes.some((kw) => typeLow.includes(kw))) continue;

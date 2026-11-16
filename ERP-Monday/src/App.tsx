@@ -2257,7 +2257,7 @@ export const App = () => {
                     fullWidth={true}
                   />
                   <AlertContextSelect
-                    machines={machines}
+                    machines={activeParcMachines}
                     value={alertMachineInput}
                     onChange={setAlertMachineInput}
                     getCol={getColText}

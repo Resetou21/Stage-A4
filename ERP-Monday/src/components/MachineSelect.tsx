@@ -694,7 +694,14 @@ export const AlertContextSelect: React.FC<AlertContextSelectProps> = React.memo(
 
   const sortedMachines = useMemo(() => {
     return machines
-      .filter((m) => isRealCleaningMachine(m, getCol))
+      .filter((m) => {
+        if (!isRealCleaningMachine(m, getCol)) return false;
+        const status = getCol(m, 'color_mm8dremb').toLowerCase();
+        if (status.includes('sortie') || status.includes('hors') || status.includes('rebut') || status.includes('detruit')) {
+          return false;
+        }
+        return true;
+      })
       .sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' }));
   }, [machines, getCol]);
 

@@ -36,6 +36,7 @@ export default function AlertContextSelect({
 }: AlertContextSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterTab, setFilterTab] = useState<'all' | 'chantiers' | 'machines'>('all');
   const containerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -104,7 +105,15 @@ export default function AlertContextSelect({
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <Search className="h-3.5 w-3.5 shrink-0 text-[#3989B7]" />
+          {value ? (
+            value.startsWith('Site :') ? (
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-[#39A9DC]" />
+            ) : (
+              <Wrench className="h-3.5 w-3.5 shrink-0 text-[#39A9DC]" />
+            )
+          ) : (
+            <Search className="h-3.5 w-3.5 shrink-0 text-[#3989B7]" />
+          )}
           <span className={cn('truncate', value ? 'font-bold text-[#1B4565]' : 'text-[#57778E]')}>
             {value || placeholder}
           </span>
@@ -131,7 +140,7 @@ export default function AlertContextSelect({
 
       {open && (
         <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 rounded-xl border border-[#39A9DC] bg-white p-2 shadow-xl">
-          <div className="relative mb-2">
+          <div className="relative mb-1.5">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#39A9DC]" />
             <input
               ref={searchRef}
@@ -152,15 +161,58 @@ export default function AlertContextSelect({
             )}
           </div>
 
+          {/* Onglets rapides pour filtrer soit par Chantier soit par Machine */}
+          <div className="mb-2 flex items-center gap-1 border-b border-[#E2EEF5] pb-1.5 pt-0.5">
+            <button
+              type="button"
+              onClick={() => setFilterTab('all')}
+              className={cn(
+                'rounded-md px-2 py-0.5 text-[10.5px] font-bold transition-all cursor-pointer',
+                filterTab === 'all'
+                  ? 'bg-[#39A9DC] text-white shadow-xs'
+                  : 'bg-[#F0F5F8] text-[#57778E] hover:text-[#1B4565]'
+              )}
+            >
+              Tous ({filteredChantiers.length + filteredMachines.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('chantiers')}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-bold transition-all cursor-pointer',
+                filterTab === 'chantiers'
+                  ? 'bg-[#39A9DC] text-white shadow-xs'
+                  : 'bg-[#F0F5F8] text-[#57778E] hover:text-[#1B4565]'
+              )}
+            >
+              <MapPin className="h-3 w-3" />
+              Chantiers / Sites ({filteredChantiers.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('machines')}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-bold transition-all cursor-pointer',
+                filterTab === 'machines'
+                  ? 'bg-[#39A9DC] text-white shadow-xs'
+                  : 'bg-[#F0F5F8] text-[#57778E] hover:text-[#1B4565]'
+              )}
+            >
+              <Wrench className="h-3 w-3" />
+              Machines actives ({filteredMachines.length})
+            </button>
+          </div>
+
           <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5">
             {loading && chantiers.length === 0 && machines.length === 0 && (
               <p className="py-3 text-center text-xs text-[#57778E]">Chargement des chantiers et machines…</p>
             )}
 
-            {filteredChantiers.length > 0 && (
+            {filterTab !== 'machines' && filteredChantiers.length > 0 && (
               <div>
-                <div className="px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#3989B7]">
-                  Chantiers / Sites ({filteredChantiers.length})
+                <div className="flex items-center justify-between px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#3989B7]">
+                  <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />Chantiers / Sites</span>
+                  <span>{filteredChantiers.length}</span>
                 </div>
                 {filteredChantiers.slice(0, 30).map((site) => {
                   const formatted = `Site : ${site}`;
@@ -186,10 +238,11 @@ export default function AlertContextSelect({
               </div>
             )}
 
-            {filteredMachines.length > 0 && (
-              <div>
-                <div className="px-1.5 pt-1 pb-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#3989B7]">
-                  Machines du parc ({filteredMachines.length})
+            {filterTab !== 'chantiers' && filteredMachines.length > 0 && (
+              <div className={cn(filterTab === 'all' && filteredChantiers.length > 0 && 'border-t border-[#E2EEF5] pt-1.5 mt-1')}>
+                <div className="flex items-center justify-between px-1.5 pt-1 pb-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#3989B7]">
+                  <span className="inline-flex items-center gap-1"><Wrench className="h-3 w-3" />Machines du parc en service</span>
+                  <span>{filteredMachines.length}</span>
                 </div>
                 {filteredMachines.slice(0, 60).map((m) => {
                   const formatted = m.site ? `${m.name} (${m.site})` : m.name;
