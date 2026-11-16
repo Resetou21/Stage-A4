@@ -1,5 +1,18 @@
-import React, { useState, useMemo } from 'react';
-import { X, Plus, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import {
+  X,
+  Plus,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  ChevronDown,
+  Check,
+  Search,
+  MapPin,
+  Wrench,
+  Calendar,
+  Tag,
+} from 'lucide-react';
 import { createNewMachine, CreateMachineParams } from '../services/maintenanceApi';
 
 interface CreateMachineModalProps {
@@ -52,14 +65,56 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
   const [modelName, setModelName] = useState<string>('');
   const [type, setType] = useState<string>('Autolaveuse');
   const [site, setSite] = useState<string>('GROUPE FACILITY');
-  const [customSite, setCustomSite] = useState<string>('');
-  const [isCustomSite, setIsCustomSite] = useState<boolean>(false);
   const [frequence, setFrequence] = useState<string>('1 fois par trimestre');
   const [maintenancePreventive, setMaintenancePreventive] = useState<boolean>(true);
   const [pastilleConforme, setPastilleConforme] = useState<boolean>(true);
   const [heuresCompteur, setHeuresCompteur] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Gestion des dropdowns personnalisés (un seul ouvert à la fois)
+  const [openDropdown, setOpenDropdown] = useState<'type' | 'freq' | 'site' | null>(null);
+  const [siteSearch, setSiteSearch] = useState<string>('');
+
+  const typeContainerRef = useRef<HTMLDivElement>(null);
+  const freqContainerRef = useRef<HTMLDivElement>(null);
+  const siteContainerRef = useRef<HTMLDivElement>(null);
+  const siteSearchInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus sur la recherche quand le dropdown site s'ouvre
+  useEffect(() => {
+    if (openDropdown === 'site') {
+      setTimeout(() => siteSearchInputRef.current?.focus(), 50);
+    }
+  }, [openDropdown]);
+
+  // Fermeture au clic extérieur
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        !typeContainerRef.current?.contains(target) &&
+        !freqContainerRef.current?.contains(target) &&
+        !siteContainerRef.current?.contains(target)
+      ) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtrage des sites avec la recherche
+  const filteredSites = useMemo(() => {
+    const q = siteSearch.trim().toLowerCase();
+    if (!q) return existingSites;
+    return existingSites.filter((s) => s.toLowerCase().includes(q));
+  }, [existingSites, siteSearch]);
+
+  const isExactSiteMatch = useMemo(() => {
+    const q = siteSearch.trim().toLowerCase();
+    return existingSites.some((s) => s.toLowerCase() === q);
+  }, [existingSites, siteSearch]);
 
   // Nom complet généré
   const fullName = useMemo(() => {
@@ -80,12 +135,10 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
     setIsSubmitting(true);
     setError(null);
 
-    const targetSite = isCustomSite ? customSite.trim() : site.trim();
-
     const params: CreateMachineParams = {
       name: fullName,
       type,
-      site: targetSite || undefined,
+      site: site.trim() || undefined,
       statut: 'En service',
       frequence,
       maintenancePreventive,
@@ -130,10 +183,11 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           maxWidth: '560px',
           boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25)',
           border: '1.5px solid #D2E9F6',
-          overflow: 'hidden',
+          overflow: 'visible',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '92vh',
+          maxHeight: '94vh',
+          position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -143,6 +197,8 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
             padding: '16px 20px',
             backgroundColor: '#F8FCFE',
             borderBottom: '1px solid #E2EEF5',
+            borderTopLeftRadius: '16px',
+            borderTopRightRadius: '16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -151,9 +207,9 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
                 backgroundColor: '#E8F5FC',
                 display: 'flex',
                 alignItems: 'center',
@@ -167,7 +223,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
               <h3
                 style={{
                   margin: 0,
-                  fontSize: '15px',
+                  fontSize: '15.5px',
                   fontWeight: 800,
                   color: '#1B4565',
                   fontFamily: "'Ruda', sans-serif",
@@ -183,7 +239,17 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#94A3B8',
+              padding: '4px',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             <X size={18} />
           </button>
@@ -229,29 +295,30 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                   fontWeight: 800,
                   color: '#1B4565',
                   marginBottom: '5px',
+                  fontFamily: "'Ruda', sans-serif",
                 }}
               >
                 N° Facility
               </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  value={machineNumber}
-                  onChange={(e) => setMachineNumber(e.target.value)}
-                  placeholder="Ex: 108"
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #CBD5E1',
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    color: '#0369A1',
-                    backgroundColor: '#F0F9FF',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
+              <input
+                type="text"
+                value={machineNumber}
+                onChange={(e) => setMachineNumber(e.target.value)}
+                placeholder="Ex: 108"
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #CBD5E1',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  color: '#0369A1',
+                  backgroundColor: '#F0F9FF',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  transition: 'border 0.15s ease',
+                }}
+              />
             </div>
 
             <div>
@@ -262,6 +329,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                   fontWeight: 800,
                   color: '#1B4565',
                   marginBottom: '5px',
+                  fontFamily: "'Ruda', sans-serif",
                 }}
               >
                 Modèle / Nom de la machine *
@@ -270,16 +338,18 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                 type="text"
                 value={modelName}
                 onChange={(e) => setModelName(e.target.value)}
-                placeholder="Ex: AUTOLAVEUSE SC351 NILFISK"
+                placeholder="Ex: TASKI ERGODISC 2000"
                 required
                 style={{
                   width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
                   border: '1.5px solid #CBD5E1',
                   fontSize: '13px',
                   color: '#1B4565',
                   boxSizing: 'border-box',
+                  outline: 'none',
+                  transition: 'border 0.15s ease',
                 }}
               />
             </div>
@@ -288,14 +358,14 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           {/* Aperçu du libellé exact sur Monday */}
           <div
             style={{
-              padding: '8px 12px',
+              padding: '9px 14px',
               backgroundColor: '#F8FCFE',
               border: '1px solid #E2EEF5',
-              borderRadius: '8px',
+              borderRadius: '10px',
               fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '8px',
               color: '#3989B7',
             }}
           >
@@ -303,9 +373,10 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
             <span>Nom affiché : <b>{fullName}</b></span>
           </div>
 
-          {/* Type de machine & Fréquence */}
+          {/* Type de machine & Fréquence (Menu personnalisés avec beau design) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
+            {/* 1. SELECT PERSONNALISÉ : TYPE DE MACHINE */}
+            <div ref={typeContainerRef} style={{ position: 'relative' }}>
               <label
                 style={{
                   display: 'block',
@@ -313,32 +384,108 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                   fontWeight: 800,
                   color: '#1B4565',
                   marginBottom: '5px',
+                  fontFamily: "'Ruda', sans-serif",
                 }}
               >
                 Type de machine
               </label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
+              <button
+                type="button"
+                onClick={() => setOpenDropdown((prev) => (prev === 'type' ? null : 'type'))}
                 style={{
                   width: '100%',
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '12.5px',
-                  color: '#1B4565',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: openDropdown === 'type' ? '1.5px solid #39A9DC' : '1px solid #C8DCE8',
                   backgroundColor: '#FFFFFF',
+                  color: '#1B4565',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                  boxShadow: openDropdown === 'type' ? '0 0 0 3px rgba(57, 169, 220, 0.15)' : 'none',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                {MACHINE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Wrench size={13} color="#39A9DC" />
+                  {type}
+                </span>
+                <ChevronDown
+                  size={15}
+                  color="#57778E"
+                  style={{
+                    transform: openDropdown === 'type' ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.15s ease',
+                    flexShrink: 0,
+                  }}
+                />
+              </button>
+
+              {/* Menu déroulant Type */}
+              {openDropdown === 'type' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '12px',
+                    border: '1.5px solid #D2E9F6',
+                    boxShadow: '0 10px 30px rgba(27, 69, 101, 0.2)',
+                    zIndex: 100,
+                    maxHeight: '230px',
+                    overflowY: 'auto',
+                    padding: '5px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                  }}
+                >
+                  {MACHINE_TYPES.map((t) => {
+                    const isSelected = type === t;
+                    return (
+                      <div
+                        key={t}
+                        onClick={() => {
+                          setType(t);
+                          setOpenDropdown(null);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
+                          color: isSelected ? '#0073EA' : '#1B4565',
+                          fontSize: '12px',
+                          fontWeight: isSelected ? 800 : 600,
+                          transition: 'background 0.1s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = '#F8FAFC';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <span>{t}</span>
+                        {isSelected && <Check size={14} color="#0073EA" strokeWidth={3} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            <div>
+            {/* 2. SELECT PERSONNALISÉ : FRÉQUENCE DE MAINTENANCE */}
+            <div ref={freqContainerRef} style={{ position: 'relative' }}>
               <label
                 style={{
                   display: 'block',
@@ -346,97 +493,305 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                   fontWeight: 800,
                   color: '#1B4565',
                   marginBottom: '5px',
+                  fontFamily: "'Ruda', sans-serif",
                 }}
               >
                 Fréquence maintenance
               </label>
-              <select
-                value={frequence}
-                onChange={(e) => setFrequence(e.target.value)}
+              <button
+                type="button"
+                onClick={() => setOpenDropdown((prev) => (prev === 'freq' ? null : 'freq'))}
                 style={{
                   width: '100%',
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '12.5px',
-                  color: '#1B4565',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: openDropdown === 'freq' ? '1.5px solid #39A9DC' : '1px solid #C8DCE8',
                   backgroundColor: '#FFFFFF',
+                  color: '#1B4565',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                  boxShadow: openDropdown === 'freq' ? '0 0 0 3px rgba(57, 169, 220, 0.15)' : 'none',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                {FREQUENCES.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Calendar size={13} color="#39A9DC" />
+                  {frequence}
+                </span>
+                <ChevronDown
+                  size={15}
+                  color="#57778E"
+                  style={{
+                    transform: openDropdown === 'freq' ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.15s ease',
+                    flexShrink: 0,
+                  }}
+                />
+              </button>
+
+              {/* Menu déroulant Fréquence */}
+              {openDropdown === 'freq' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '12px',
+                    border: '1.5px solid #D2E9F6',
+                    boxShadow: '0 10px 30px rgba(27, 69, 101, 0.2)',
+                    zIndex: 100,
+                    padding: '5px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                  }}
+                >
+                  {FREQUENCES.map((f) => {
+                    const isSelected = frequence === f;
+                    return (
+                      <div
+                        key={f}
+                        onClick={() => {
+                          setFrequence(f);
+                          setOpenDropdown(null);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
+                          color: isSelected ? '#0073EA' : '#1B4565',
+                          fontSize: '12px',
+                          fontWeight: isSelected ? 800 : 600,
+                          transition: 'background 0.1s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = '#F8FAFC';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <span>{f}</span>
+                        {isSelected && <Check size={14} color="#0073EA" strokeWidth={3} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Site d'affectation */}
-          <div>
-            <div
+          {/* 3. SELECT PERSONNALISÉ AVEC RECHERCHE : SITE D'AFFECTATION */}
+          <div ref={siteContainerRef} style={{ position: 'relative' }}>
+            <label
               style={{
+                display: 'block',
+                fontSize: '11.5px',
+                fontWeight: 800,
+                color: '#1B4565',
+                marginBottom: '5px',
+                fontFamily: "'Ruda', sans-serif",
+              }}
+            >
+              Site ou Véhicule d&apos;affectation
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setOpenDropdown((prev) => (prev === 'site' ? null : 'site'));
+                setSiteSearch('');
+              }}
+              style={{
+                width: '100%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: '5px',
+                padding: '9px 12px',
+                borderRadius: '10px',
+                border: openDropdown === 'site' ? '1.5px solid #39A9DC' : '1px solid #C8DCE8',
+                backgroundColor: '#FFFFFF',
+                color: '#1B4565',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                boxShadow: openDropdown === 'site' ? '0 0 0 3px rgba(57, 169, 220, 0.15)' : 'none',
+                transition: 'all 0.15s ease',
               }}
             >
-              <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#1B4565' }}>
-                Site ou Véhicule d&apos;affectation
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsCustomSite((v) => !v)}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <MapPin size={14} color="#39A9DC" />
+                <span style={{ fontWeight: 800, color: '#1B4565' }}>{site || 'Sélectionner un site...'}</span>
+              </span>
+              <ChevronDown
+                size={15}
+                color="#57778E"
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#39A9DC',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                }}
-              >
-                {isCustomSite ? 'Choisir dans la liste' : '+ Nouveau site'}
-              </button>
-            </div>
-
-            {isCustomSite ? (
-              <input
-                type="text"
-                value={customSite}
-                onChange={(e) => setCustomSite(e.target.value)}
-                placeholder="Saisir le nom du nouveau site..."
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '12.5px',
-                  boxSizing: 'border-box',
+                  transform: openDropdown === 'site' ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s ease',
+                  flexShrink: 0,
                 }}
               />
-            ) : (
-              <select
-                value={site}
-                onChange={(e) => setSite(e.target.value)}
+            </button>
+
+            {/* Menu déroulant Site avec recherche intégrée */}
+            {openDropdown === 'site' && (
+              <div
                 style={{
-                  width: '100%',
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '12.5px',
-                  color: '#1B4565',
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  left: 0,
+                  right: 0,
                   backgroundColor: '#FFFFFF',
+                  borderRadius: '12px',
+                  border: '1.5px solid #D2E9F6',
+                  boxShadow: '0 12px 35px rgba(27, 69, 101, 0.22)',
+                  zIndex: 200,
+                  padding: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
                 }}
               >
-                {existingSites.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                {/* Barre de recherche dans les sites */}
+                <div style={{ position: 'relative' }}>
+                  <Search
+                    size={15}
+                    color="#39A9DC"
+                    style={{ position: 'absolute', left: '10px', top: '10px' }}
+                  />
+                  <input
+                    ref={siteSearchInputRef}
+                    type="text"
+                    placeholder={`Filtrer parmi les ${existingSites.length} sites ou taper un nouveau...`}
+                    value={siteSearch}
+                    onChange={(e) => setSiteSearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px 8px 32px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12.5px',
+                      color: '#1B4565',
+                      backgroundColor: '#F8FCFE',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {siteSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSiteSearch('')}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '8px',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94A3B8',
+                        cursor: 'pointer',
+                        padding: '2px',
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Option de création rapide si le site saisi n'existe pas encore */}
+                {siteSearch.trim() && !isExactSiteMatch && (
+                  <div
+                    onClick={() => {
+                      setSite(siteSearch.trim());
+                      setOpenDropdown(null);
+                      setSiteSearch('');
+                    }}
+                    style={{
+                      padding: '9px 12px',
+                      backgroundColor: '#E6F8F0',
+                      border: '1px dashed #00C875',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      color: '#0E7042',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Plus size={14} strokeWidth={3} />
+                    <span>Créer et affecter à : « <b>{siteSearch.trim()}</b> »</span>
+                  </div>
+                )}
+
+                {/* Liste scrollable des sites existants */}
+                <div
+                  style={{
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                  }}
+                >
+                  {filteredSites.length === 0 && !siteSearch.trim() ? (
+                    <div style={{ padding: '12px', textAlign: 'center', color: '#64748B', fontSize: '12px' }}>
+                      Aucun site disponible
+                    </div>
+                  ) : (
+                    filteredSites.map((s) => {
+                      const isSelected = site === s;
+                      return (
+                        <div
+                          key={s}
+                          onClick={() => {
+                            setSite(s);
+                            setOpenDropdown(null);
+                            setSiteSearch('');
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
+                            color: isSelected ? '#0073EA' : '#1B4565',
+                            fontSize: '12.5px',
+                            fontWeight: isSelected ? 800 : 600,
+                            transition: 'background 0.1s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.backgroundColor = '#F8FAFC';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <MapPin size={12} color={isSelected ? '#0073EA' : '#94A3B8'} />
+                            {s}
+                          </span>
+                          {isSelected && <Check size={14} color="#0073EA" strokeWidth={3} />}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
@@ -447,9 +802,9 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
               gridTemplateColumns: '1fr 1fr',
               gap: '10px',
               padding: '12px 14px',
-              backgroundColor: '#F8FAFC',
+              backgroundColor: '#F8FCFE',
               borderRadius: '10px',
-              border: '1px solid #E2E8F0',
+              border: '1px solid #E2EEF5',
             }}
           >
             <label
@@ -502,6 +857,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                 fontWeight: 800,
                 color: '#1B4565',
                 marginBottom: '5px',
+                fontFamily: "'Ruda', sans-serif",
               }}
             >
               Heures compteur initiales (Optionnel)
@@ -514,11 +870,12 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
               min="0"
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
+                padding: '9px 12px',
+                borderRadius: '10px',
                 border: '1px solid #CBD5E1',
                 fontSize: '12.5px',
                 boxSizing: 'border-box',
+                outline: 'none',
               }}
             />
           </div>
@@ -530,7 +887,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
               alignItems: 'center',
               justifyContent: 'flex-end',
               gap: '10px',
-              marginTop: '10px',
+              marginTop: '6px',
               paddingTop: '14px',
               borderTop: '1px solid #E2EEF5',
             }}
@@ -541,7 +898,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
               disabled={isSubmitting}
               style={{
                 padding: '9px 16px',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 border: '1px solid #CBD5E1',
                 backgroundColor: '#FFFFFF',
                 color: '#64748B',
@@ -558,9 +915,9 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '7px',
                 padding: '9px 18px',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 border: 'none',
                 backgroundColor: isSubmitting ? '#94A3B8' : '#00C875',
                 color: '#FFFFFF',
@@ -568,6 +925,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                 fontWeight: 800,
                 cursor: isSubmitting ? 'wait' : 'pointer',
                 boxShadow: '0 2px 8px rgba(0, 200, 117, 0.35)',
+                transition: 'all 0.15s ease',
               }}
             >
               <CheckCircle2 size={16} />
