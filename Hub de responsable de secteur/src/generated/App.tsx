@@ -19,7 +19,6 @@ const PROFILES = {
   Emilie: { fullName: 'Emilie Tobie', initials: 'ET' },
   Ketty: { fullName: 'Ketty Paulin', initials: 'KP' },
   Natacha: { fullName: 'Natacha Thomas', initials: 'NT' },
-  Andre: { fullName: 'André Levesque', initials: 'AL' },
 } as const;
 
 type ProfileKey = keyof typeof PROFILES;
@@ -132,14 +131,7 @@ export default function App() {
         resolved = true;
         return;
       }
-      if (normName.includes('andre') || normName.includes('andré')) {
-        setCurrentUser('Andre');
-        setIsAdmin(false);
-        setUserDetected(true);
-        setDebugInfo(`Connecté: Andre (Nom: ${normName})`);
-        resolved = true;
-        return;
-      }
+
 
       // Par défaut
       setDebugInfo(`Utilisateur non reconnu: UID=${uid || '?'}, Nom=${name || '?'}, Email=${email || '?'}`);

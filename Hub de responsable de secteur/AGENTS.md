@@ -37,7 +37,7 @@ Il est chargé automatiquement à chaque session et pour chaque agent intervenan
 ## 3. Architecture des Tableaux Monday.com & Colonnes Clés
 
 ### A. Tableau Complet Chantier (`1976599627`)
-* **Animateur** : `color_mkrbk3jy` (`Natacha THOMAS`, `Ketty PAULIN`, `Emilie TOBIE`, `Andre LEVESQUE`).
+* **Animateur** : `color_mkrbk3jy` (`Natacha THOMAS`, `Ketty PAULIN`, `Emilie TOBIE`). *(Note : André LEVESQUE n'est plus dans l'entreprise).*
 * **Groupe chantiers en cours** : `topics`.
 * **Contrôles qualité** :
   * `c1` : `color_mkzyz3ay` (Dernier contrôle)
