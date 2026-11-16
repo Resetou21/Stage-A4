@@ -3641,5 +3641,75 @@ export async function reassignMachineNumber(
   }
 }
 
+export interface CreateMachineParams {
+  name: string;
+  type: string;
+  site?: string;
+  statut?: string;
+  frequence?: string;
+  maintenancePreventive?: boolean;
+  pastilleConforme?: boolean;
+  heuresCompteur?: number;
+}
+
+/**
+ * Crée une nouvelle machine directement sur le tableau Liste des machines (5106585240)
+ * dans le groupe actif "Liste des machines en cours d'utilisation".
+ */
+export async function createNewMachine(
+  params: CreateMachineParams
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    const colValues: Record<string, any> = {
+      color_mm8t2mn5: { label: params.type || 'Autolaveuse' },
+      color_mm8dremb: { label: params.statut || 'En service' },
+      color_mm8t3v6z: { label: params.frequence || '1 fois par trimestre' },
+      boolean_mm8tv8zy: { checked: params.maintenancePreventive !== false ? 'true' : 'false' },
+      color_mm91vxtj: { label: params.pastilleConforme !== false ? 'Conforme' : 'À vérifier' },
+    };
+
+    if (params.site && params.site.trim()) {
+      colValues.dropdown_mm8d4vj2 = { labels: [params.site.trim()] };
+    }
+
+    if (params.heuresCompteur !== undefined && !Number.isNaN(params.heuresCompteur)) {
+      colValues.numeric_mm8v97ja = String(params.heuresCompteur);
+    }
+
+    const mutation = `
+      mutation CreateParcMachine($boardId: ID!, $groupId: String, $itemName: String!, $columnValues: JSON!) {
+        create_item(
+          board_id: $boardId,
+          group_id: $groupId,
+          item_name: $itemName,
+          column_values: $columnValues,
+          create_labels_if_missing: true
+        ) {
+          id
+          name
+        }
+      }
+    `;
+
+    const res: any = await (monday as any).api(mutation, {
+      variables: {
+        boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+        groupId: 'topics', // Liste des machines en cours d'utilisation
+        itemName: params.name.trim(),
+        columnValues: JSON.stringify(colValues),
+      },
+    });
+
+    if (res?.data?.create_item?.id) {
+      return { success: true, id: String(res.data.create_item.id) };
+    }
+    return { success: false, error: formatMondayError(res) };
+  } catch (err: any) {
+    console.error('Erreur création nouvelle machine:', err);
+    return { success: false, error: err?.message || 'Erreur réseau ou permission' };
+  }
+}
+
+
 
 

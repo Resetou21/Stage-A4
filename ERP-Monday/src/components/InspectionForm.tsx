@@ -78,6 +78,7 @@ interface InspectionFormProps {
   onInspectionSuccess: (machineName: string, date: string, resolvedRepairsCount?: number) => void;
   isModal?: boolean;
   onCloseModal?: () => void;
+  onOpenCreateMachineModal?: () => void;
 }
 
 export const InspectionForm: React.FC<InspectionFormProps> = ({
@@ -89,6 +90,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   onInspectionSuccess,
   isModal = false,
   onCloseModal,
+  onOpenCreateMachineModal,
 }) => {
   const [selectedMachineId, setSelectedMachineId] = useState<string>(initialMachineId || '');
 
@@ -601,6 +603,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
               setPhotoPreview(null);
             }}
             getCol={getCol}
+            onAddNewMachine={onOpenCreateMachineModal}
           />
 
           {selectedMachine && (

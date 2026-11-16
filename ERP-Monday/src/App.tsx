@@ -7,6 +7,7 @@ import type { Machine, PlanningItem, PlanningEventDetail } from './types';
 import { InspectionForm } from './components/InspectionForm';
 import { MaintenanceMatrix } from './components/MaintenanceMatrix';
 import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
+import { CreateMachineModal } from './components/CreateMachineModal';
 import { isRealCleaningMachine, AlertContextSelect } from './components/MachineSelect';
 import { ResponsableSelect } from './components/ResponsableSelect';
 import {
@@ -50,6 +51,7 @@ import {
   Car,
   MapPin,
   Trash2,
+  Plus,
 } from 'lucide-react';
 
 type KpiFilter = 'all' | 'service' | 'reparation' | 'verifier_sortie';
@@ -157,6 +159,9 @@ export const App = () => {
   const [reassigningData, setReassigningData] = useState<{ machine: Machine; number: string } | null>(null);
   const [replacementMachineId, setReplacementMachineId] = useState<string>('');
   const [isReassigning, setIsReassigning] = useState<boolean>(false);
+
+  // Modal d'ajout d'une nouvelle machine au parc
+  const [isCreateMachineModalOpen, setIsCreateMachineModalOpen] = useState<boolean>(false);
 
   // Notifications
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -337,6 +342,18 @@ export const App = () => {
   const realMachines = useMemo(() => {
     return machines.filter((m) => isRealCleaningMachine(m, getColText));
   }, [machines]);
+
+  // Liste des sites existants pour les sélecteurs
+  const existingSitesList = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of realMachines) {
+      const s = getColText(m, 'dropdown_mm8d4vj2');
+      if (s && s.trim()) set.add(s.trim());
+    }
+    if (!set.has('GROUPE FACILITY')) set.add('GROUPE FACILITY');
+    if (!set.has('EPF')) set.add('EPF');
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [realMachines, getColText]);
 
   // Machines actives pour les contrôles et maintenances (hors machines marquées "Sortie")
   const activeParcMachines = useMemo(() => {
@@ -1049,6 +1066,33 @@ export const App = () => {
             </span>
           )}
         </button>
+
+        {/* Bouton d'action directe : Ajouter une machine au parc */}
+        <button
+          type="button"
+          onClick={() => setIsCreateMachineModalOpen(true)}
+          style={{
+            marginLeft: 'auto',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 18px',
+            borderRadius: '12px',
+            border: 'none',
+            backgroundColor: '#00C875',
+            color: '#FFFFFF',
+            fontSize: '13px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow: '0 3px 12px rgba(0, 200, 117, 0.35)',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+          }}
+          title="Ajouter une nouvelle machine directement sur le tableau Monday Liste des machines"
+        >
+          <Plus size={16} strokeWidth={3} />
+          <span>➕ Ajouter une machine</span>
+        </button>
       </div>
 
       {/* Toast Notification Flottant (Pop-up moderne en bas à droite) */}
@@ -1147,6 +1191,7 @@ export const App = () => {
           referentielPoints={referentielPoints}
           realisedControles={realisedControles}
           initialMachineId={preSelectedMachineId}
+          onOpenCreateMachineModal={() => setIsCreateMachineModalOpen(true)}
           onInspectionSuccess={(name, date, resolvedCount) => {
             loadMaintenanceData();
             fetchMachines();
@@ -2433,6 +2478,7 @@ export const App = () => {
               initialMachineId={inspectionModalMachineId}
               targetTicketId={inspectionTargetTicketId || undefined}
               isModal={true}
+              onOpenCreateMachineModal={() => setIsCreateMachineModalOpen(true)}
               onCloseModal={() => {
                 setInspectionModalMachineId(null);
                 setInspectionTargetTicketId(null);
@@ -2643,6 +2689,18 @@ export const App = () => {
             </div>
           </div>
         </div>
+      )}
+      {/* Modal de création d'une nouvelle machine au parc */}
+      {isCreateMachineModalOpen && (
+        <CreateMachineModal
+          existingMachines={realMachines}
+          existingSites={existingSitesList}
+          onClose={() => setIsCreateMachineModalOpen(false)}
+          onSuccess={async (newMachineName) => {
+            setSuccessMessage(`Machine "${newMachineName}" ajoutée avec succès au parc et sur Monday !`);
+            await fetchMachines();
+          }}
+        />
       )}
     </div>
   );

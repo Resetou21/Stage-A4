@@ -14,6 +14,7 @@ interface MachineSelectProps {
   selectedMachineId: string;
   onSelectMachine: (machineId: string) => void;
   getCol: (m: Machine, colId: string) => string;
+  onAddNewMachine?: () => void;
 }
 
 export function isRealCleaningMachine(m: Machine, getCol: (m: Machine, colId: string) => string): boolean {
@@ -65,6 +66,7 @@ export const MachineSelect: React.FC<MachineSelectProps> = React.memo(({
   selectedMachineId,
   onSelectMachine,
   getCol,
+  onAddNewMachine,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -432,10 +434,37 @@ export const MachineSelect: React.FC<MachineSelectProps> = React.memo(({
                   textAlign: 'center',
                   color: '#6C8CA3',
                   fontSize: '13px',
-                  fontStyle: 'italic',
                 }}
               >
-                Aucune machine ne correspond à « {search} »
+                <div style={{ fontStyle: 'italic', marginBottom: '10px' }}>
+                  Aucune machine ne correspond à « {search} »
+                </div>
+                {onAddNewMachine && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsOpen(false);
+                      onAddNewMachine();
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#00C875',
+                      color: '#FFFFFF',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0, 200, 117, 0.3)',
+                    }}
+                  >
+                    ➕ Créer cette machine sur Monday
+                  </button>
+                )}
               </div>
             ) : (
               filteredMachines.map((m) => {
@@ -562,6 +591,37 @@ export const MachineSelect: React.FC<MachineSelectProps> = React.memo(({
                   </div>
                 );
               })
+            )}
+
+            {onAddNewMachine && filteredMachines.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                  onAddNewMachine();
+                }}
+                style={{
+                  marginTop: '8px',
+                  padding: '9px 14px',
+                  borderRadius: '10px',
+                  border: '1.5px dashed #39A9DC',
+                  backgroundColor: '#F0F9FF',
+                  color: '#0284C7',
+                  fontSize: '12.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                ➕ Ajouter une nouvelle machine au parc
+              </button>
             )}
           </div>
         </div>
