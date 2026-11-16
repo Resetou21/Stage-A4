@@ -53,6 +53,11 @@ const POINT_TIPS: Record<string, string> = {
   moteur: "Vérifier l'absence de bruit anormal, d'odeur d'échauffement ou d'étincelles.",
   roulement: "Écouter le moteur en marche : détecter tout bruit anormal de roulement usé, vibration inhabituelle ou frottement.",
   bruit: "Écouter le bloc moteur : déceler tout bruit anormal de roulement, vibration mécanique suspecte ou sifflement.",
+  electrovanne: "Vérifier l'ouverture/coupure électrique de l'eau, le débit d'injection vers les brosses et l'absence de fuite.",
+  turbine: "Tester l'étanchéité du circuit, le tirage et la puissance d'aspiration sur sol mouillé.",
+  aspiration: "Tester la puissance d'aspiration sur le sol, l'absence de perte de dépression et le bon tirage de la turbine.",
+  local: "Inspecter le local technique : encombrement, propreté du sol, ventilation, accès aux prises et bon rangement de la machine.",
+  stockage: "Contrôler la propreté de l'espace de stockage, l'absence de déchets ou produits dangereux à proximité et le stationnement de la machine.",
   purge: "Contrôler le bon écoulement et l'étanchéité du bouchon/tuyau de vidange.",
 };
 

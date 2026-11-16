@@ -296,6 +296,8 @@ export interface RealisedControle {
   tempsPasse?: string;
   anomalies?: string;
   evaluations?: Record<string, string>;
+  dateRevisite?: string;
+  besoinRevisite?: boolean;
 }
 
 type HubColumnType = 'numbers' | 'text' | 'long_text' | 'status' | 'date' | 'checkbox';
@@ -1068,6 +1070,8 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
           ficheSurSite: getCol('color_mm8tqegk') || 'Oui',
           tempsPasse: getCol('numeric_mm8tg9cz'),
           anomalies: getCol('long_text_mm8tjqkm'),
+          dateRevisite: getDateVal('date_mm91kevt') || (ficheCols.dateRevisite ? getDateVal(ficheCols.dateRevisite) : undefined),
+          besoinRevisite: Boolean(it.column_values?.find((c: any) => c.id === 'boolean_mm919t2y')?.value || (ficheCols.revisite ? it.column_values?.find((c: any) => c.id === ficheCols.revisite)?.value : false)),
         };
       })
       .filter((c: RealisedControle) => c.date); // Seulement ceux qui ont une date valide
@@ -1320,7 +1324,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
         updateOrganStatus('color_mm8t6n09', evalStatus);
       }
       // 3. Filtres et cuves
-      if (pLower.includes('filtre') || pLower.includes('cuve')) {
+      if (pLower.includes('filtre') || pLower.includes('cuve') || pLower.includes('aspiration') || pLower.includes('turbine')) {
         updateOrganStatus('color_mm8tkhav', evalStatus);
       }
       // 4. État des batteries / câbles
@@ -1342,6 +1346,8 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
         pLower.includes('poignée') ||
         pLower.includes('poignee') ||
         pLower.includes('moteur') ||
+        pLower.includes('electrovanne') ||
+        pLower.includes('électrovanne') ||
         pLower.includes('pompe') ||
         pLower.includes('réservoir') ||
         pLower.includes('reservoir') ||
@@ -3559,5 +3565,56 @@ export function extractMachineAffectations(
     };
   });
 }
+
+/**
+ * Réassigne le numéro d'une machine détruite / sortie à une machine remplaçante du parc actif.
+ * Renomme la machine remplaçante et archive l'ancienne ligne sur Liste des machines (5106585240).
+ */
+export async function reassignMachineNumber(
+  destroyedMachineId: string,
+  newMachineId: string,
+  facilityNumber: string,
+  replacementNewName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Renommer la nouvelle machine remplaçante avec le numéro Facility
+    await (monday as any).api(
+      `mutation RenameNewMachine($boardId: ID!, $itemId: ID!, $newName: String!) {
+        change_simple_column_value(board_id: $boardId, item_id: $itemId, column_id: "name", value: $newName) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+          itemId: newMachineId,
+          newName: replacementNewName,
+        },
+      }
+    );
+
+    // 2. Renommer l'ancienne machine détruite pour indiquer son remplacement
+    await (monday as any).api(
+      `mutation ArchiveDestroyedMachine($boardId: ID!, $itemId: ID!, $newName: String!) {
+        change_simple_column_value(board_id: $boardId, item_id: $itemId, column_id: "name", value: $newName) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+          itemId: destroyedMachineId,
+          newName: `[N°${facilityNumber} REMPLACÉ] Sortie`,
+        },
+      }
+    );
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Erreur réattribution numéro machine:', err);
+    return { success: false, error: err?.message || 'Erreur réseau ou permission' };
+  }
+}
+
 
 

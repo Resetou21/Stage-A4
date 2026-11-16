@@ -29,6 +29,7 @@ import {
   MaintenanceAlertMessage,
   isTicketRepaired,
   findMachineForTicket,
+  reassignMachineNumber,
 } from './services/maintenanceApi';
 import {
   ClipboardCheck,
@@ -141,6 +142,14 @@ export const App = () => {
   // Filtre tuile KPI
   const [activeTile, setActiveTile] = useState<KpiFilter | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Filtre géographique par secteur / commune dans l'Agenda
+  const [selectedSector, setSelectedSector] = useState<string>('all');
+
+  // Réattribution de numéro d'une machine sortie / détruite
+  const [reassigningData, setReassigningData] = useState<{ machine: Machine; number: string } | null>(null);
+  const [replacementMachineId, setReplacementMachineId] = useState<string>('');
+  const [isReassigning, setIsReassigning] = useState<boolean>(false);
 
   // Notifications
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -380,6 +389,39 @@ export const App = () => {
     setUpdatingMachineId(null);
   };
 
+  // Réattribution d'un numéro d'une machine détruite/sortie vers une remplaçante
+  const handleConfirmReassign = async () => {
+    if (!reassigningData || !replacementMachineId) return;
+    setIsReassigning(true);
+
+    const targetMachine = realMachines.find((m) => String(m.id) === String(replacementMachineId));
+    if (!targetMachine) {
+      setIsReassigning(false);
+      return;
+    }
+
+    const cleanTargetName = targetMachine.name.replace(/^\d{1,4}\s*[-–]\s*/, '').trim();
+    const replacementNewName = `${reassigningData.number} - ${cleanTargetName}`;
+
+    const res = await reassignMachineNumber(
+      String(reassigningData.machine.id),
+      String(targetMachine.id),
+      reassigningData.number,
+      replacementNewName
+    );
+
+    setIsReassigning(false);
+
+    if (res.success) {
+      setSuccessMessage(`✓ Le numéro Facility #${reassigningData.number} a été réattribué avec succès à ${replacementNewName} !`);
+      setReassigningData(null);
+      setReplacementMachineId('');
+      fetchMachines();
+    } else {
+      alert(`Erreur lors de la réattribution : ${res.error || 'Erreur inconnue'}`);
+    }
+  };
+
   // Statistiques KPI du parc de vraies machines
   const stats = useMemo(() => {
     let service = 0;
@@ -547,8 +589,112 @@ export const App = () => {
       });
     });
 
+    // 3. Revisites techniques planifiées sur 6 mois (groupées par secteur)
+    const processedRevisiteMachineIds = new Set<string>();
+
+    realisedControles.forEach((c) => {
+      if (!c.dateRevisite || !/^\d{4}-\d{2}-\d{2}/.test(c.dateRevisite.trim())) return;
+      const cleanMachineName = (c.machineName || c.name || '')
+        .replace(/^contr[oô]le\s*[-:]*\s*/gi, '')
+        .trim();
+      const matchedM = realMachines.find(
+        (m) =>
+          (c.machineId && String(m.id) === String(c.machineId)) ||
+          m.name.toLowerCase().trim() === cleanMachineName.toLowerCase().trim()
+      );
+      const eventSite = matchedM ? getColText(matchedM, 'dropdown_mm8d4vj2') : '—';
+      if (c.machineId) processedRevisiteMachineIds.add(String(c.machineId));
+
+      events.push({
+        id: `revisite-${c.id}`,
+        title: `🔄 Revisite : ${cleanMachineName}${eventSite && eventSite !== '—' ? ` • ${eventSite}` : ''}`,
+        start: c.dateRevisite.trim(),
+        allDay: true,
+        backgroundColor: '#8B5CF6',
+        borderColor: '#6D28D9',
+        textColor: '#FFFFFF',
+        extendedProps: {
+          isRevisite: true,
+          machine: cleanMachineName,
+          site: eventSite,
+          reservedBy: c.technicienName || 'Christophe',
+          type: 'Revisite Technique',
+          status: 'À vérifier sur site',
+          fromDate: c.dateRevisite.trim(),
+          toDate: c.dateRevisite.trim(),
+          isRecurring: false,
+          isMachineInRepair: false,
+        },
+      });
+    });
+
+    // Revisites inscrites directement sur les colonnes machines (date_mm9195h2)
+    realMachines.forEach((m) => {
+      if (processedRevisiteMachineIds.has(String(m.id))) return;
+      const dateRev = getColText(m, 'date_mm9195h2');
+      if (!dateRev || !/^\d{4}-\d{2}-\d{2}/.test(dateRev.trim())) return;
+      const cleanMachineName = m.name.replace(/^contr[oô]le\s*[-:]*\s*/gi, '').trim();
+      const mSite = getColText(m, 'dropdown_mm8d4vj2') || '—';
+
+      events.push({
+        id: `revisite-m-${m.id}`,
+        title: `🔄 Revisite : ${cleanMachineName}${mSite && mSite !== '—' ? ` • ${mSite}` : ''}`,
+        start: dateRev.trim(),
+        allDay: true,
+        backgroundColor: '#8B5CF6',
+        borderColor: '#6D28D9',
+        textColor: '#FFFFFF',
+        extendedProps: {
+          isRevisite: true,
+          machine: cleanMachineName,
+          site: mSite,
+          reservedBy: 'Christophe',
+          type: 'Revisite Technique',
+          status: 'À vérifier sur site',
+          fromDate: dateRev.trim(),
+          toDate: dateRev.trim(),
+          isRecurring: false,
+          isMachineInRepair: false,
+        },
+      });
+    });
+
     return events;
-  }, [realisedControles, planningItems]);
+  }, [realisedControles, planningItems, realMachines]);
+
+  // Secteurs / Communes disponibles pour regrouper les passages et tournées
+  const availableSectors = useMemo(() => {
+    const set = new Set<string>();
+    realMachines.forEach((m) => {
+      const s = getColText(m, 'dropdown_mm8d4vj2');
+      if (s && s !== '—' && s !== 'Non affecté / Dépôt') set.add(s.trim());
+    });
+    planningItems.forEach((p) => {
+      const s = getColText(p, 'dropdown_mm8dr9jz');
+      if (s && s !== '—') set.add(s.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [realMachines, planningItems]);
+
+  // Événements filtrés selon le secteur géographique choisi (Guérande, La Baule, etc.)
+  const filteredCalendarEvents = useMemo(() => {
+    if (selectedSector === 'all') return calendarEvents;
+    const target = selectedSector.toLowerCase().trim();
+    return calendarEvents.filter((ev) => {
+      const site = (ev.extendedProps?.site || '').toLowerCase();
+      const title = ev.title.toLowerCase();
+      return site.includes(target) || title.includes(target);
+    });
+  }, [calendarEvents, selectedSector]);
+
+  // Statistiques de la tournée pour le secteur choisi
+  const sectorTourneeStats = useMemo(() => {
+    const events = selectedSector === 'all' ? calendarEvents : filteredCalendarEvents;
+    const totalInterventions = events.length;
+    const revisitesCount = events.filter((e) => e.extendedProps?.isRevisite).length;
+    const controlesCount = events.filter((e) => e.extendedProps?.isControleRealise).length;
+    return { totalInterventions, revisitesCount, controlesCount };
+  }, [calendarEvents, filteredCalendarEvents, selectedSector]);
 
   // Clic sur un événement du calendrier (Ouverture modal interactif)
   const handleEventClick = (info: any) => {
@@ -1281,6 +1427,38 @@ export const App = () => {
                           </button>
                         )}
 
+                        {activeTile === 'verifier_sortie' && (() => {
+                          const numMatch = m.name.match(/^(\d{1,4})\s*[-–]/);
+                          const machineNumber = numMatch ? numMatch[1] : null;
+                          if (!machineNumber) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReassigningData({ machine: m, number: machineNumber });
+                                setReplacementMachineId('');
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '5px 10px',
+                                borderRadius: '8px',
+                                border: '1px solid #C8DCE8',
+                                backgroundColor: '#F0F8FD',
+                                color: '#1B4565',
+                                fontSize: '11.5px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={`Réattribuer le numéro #${machineNumber} à une machine remplaçante`}
+                            >
+                              ♻️ Réattribuer N° #{machineNumber}
+                            </button>
+                          );
+                        })()}
+
                         <select
                           aria-label={`Statut de ${m.name}`}
                           disabled={isUpdating}
@@ -1391,6 +1569,113 @@ export const App = () => {
                 <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#94A3B8' }} />
                 Intervention Terminée
               </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#8B5CF6' }} />
+                🔄 Revisite Programmée (6 mois)
+              </span>
+            </div>
+
+            {/* Barre de filtrage par secteur géographique (Guérande, La Baule, etc.) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                marginBottom: '16px',
+                padding: '12px 16px',
+                backgroundColor: '#F8FCFE',
+                borderRadius: '12px',
+                border: selectedSector !== 'all' ? '1.5px solid #39A9DC' : '1px solid #D2E9F6',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    fontFamily: "'Ruda', sans-serif",
+                    color: '#1B4565',
+                  }}
+                >
+                  <MapPin size={15} color="#39A9DC" />
+                  Regrouper les tournées par secteur / ville :
+                </span>
+
+                <select
+                  aria-label="Filtrer par secteur"
+                  value={selectedSector}
+                  onChange={(e) => setSelectedSector(e.target.value)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #C8DCE8',
+                    backgroundColor: '#FFFFFF',
+                    color: '#1B4565',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="all">📍 Tous les secteurs ({availableSectors.length} villes/sites)</option>
+                  {availableSectors.map((sec) => (
+                    <option key={sec} value={sec}>
+                      {sec}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedSector !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSector('all')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#E2445C',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                    }}
+                  >
+                    Effacer le filtre ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Résumé de la tournée par secteur */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {selectedSector !== 'all' ? (
+                  <span
+                    style={{
+                      backgroundColor: '#EBF6FC',
+                      color: '#1B4565',
+                      border: '1px solid #39A9DC',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      fontFamily: "'Ruda', sans-serif",
+                    }}
+                  >
+                    🎯 Tournée {selectedSector} : {sectorTourneeStats.totalInterventions} passage(s)
+                    {sectorTourneeStats.revisitesCount > 0 && ` dont ${sectorTourneeStats.revisitesCount} revisite(s)`}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '12px', color: '#57778E', fontWeight: 600 }}>
+                    {sectorTourneeStats.revisitesCount > 0
+                      ? `🔄 ${sectorTourneeStats.revisitesCount} revisite(s) programmée(s) sur 6 mois`
+                      : 'Regroupez vos vérifications par secteur pour optimiser vos trajets'}
+                  </span>
+                )}
+              </div>
             </div>
 
             <FullCalendar
@@ -1402,7 +1687,7 @@ export const App = () => {
                 center: 'title',
                 right: '',
               }}
-              events={calendarEvents}
+              events={filteredCalendarEvents}
               eventClick={handleEventClick}
               height="auto"
               dayMaxEvents={3}
@@ -2129,6 +2414,200 @@ export const App = () => {
                 }
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Réattribution du Numéro Facility d'une machine détruite / sortie */}
+      {reassigningData && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(27, 69, 101, 0.55)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '16px',
+          }}
+          onClick={() => setReassigningData(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '540px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25)',
+              border: '1.5px solid #D2E9F6',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: '16px 20px',
+                backgroundColor: '#F8FCFE',
+                borderBottom: '1px solid #E2EEF5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span
+                  style={{
+                    backgroundColor: '#39A9DC',
+                    color: '#FFFFFF',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    fontFamily: "'Ruda', sans-serif",
+                  }}
+                >
+                  N° {reassigningData.number}
+                </span>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: '16px',
+                    fontWeight: 800,
+                    fontFamily: "'Ruda', sans-serif",
+                    color: '#1B4565',
+                  }}
+                >
+                  Réattribuer le Numéro Facility
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReassigningData(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ fontSize: '13px', color: '#57778E', lineHeight: 1.45 }}>
+                La machine <b style={{ color: '#E2445C' }}>{reassigningData.machine.name}</b> est détruite ou sortie du parc. Vous pouvez rééditer son numéro <b>#{reassigningData.number}</b> pour le réattribuer à une machine remplaçante du parc actif.
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    color: '#1B4565',
+                    fontFamily: "'Ruda', sans-serif",
+                    marginBottom: '8px',
+                  }}
+                >
+                  Choisir la machine remplaçante parmi le parc actif :
+                </label>
+                <select
+                  value={replacementMachineId}
+                  onChange={(e) => setReplacementMachineId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #C8DCE8',
+                    fontSize: '13px',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    color: '#1B4565',
+                    backgroundColor: '#FAFCFD',
+                  }}
+                >
+                  <option value="">-- Sélectionner la machine qui recevra le numéro #{reassigningData.number} --</option>
+                  {activeParcMachines
+                    .filter((m) => String(m.id) !== String(reassigningData.machine.id))
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({getColText(m, 'color_mm8t2mn5') || 'Machine'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {replacementMachineId && (
+                <div
+                  style={{
+                    backgroundColor: '#E6F8F0',
+                    border: '1px solid #00C875',
+                    padding: '12px 14px',
+                    borderRadius: '10px',
+                    fontSize: '12.5px',
+                    color: '#0E7042',
+                  }}
+                >
+                  <b>Aperçu de la réattribution :</b>
+                  <div style={{ marginTop: '4px' }}>
+                    ➜ Nouveau nom remplaçante : <b>{reassigningData.number} - {activeParcMachines.find((m) => String(m.id) === String(replacementMachineId))?.name.replace(/^\d{1,4}\s*[-–]\s*/, '').trim()}</b>
+                  </div>
+                  <div style={{ marginTop: '2px', color: '#57778E', fontSize: '11.5px' }}>
+                    L&apos;ancienne ligne sortie sera archivée sous : [N°{reassigningData.number} REMPLACÉ] Sortie
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: '14px 20px',
+                backgroundColor: '#F8FCFE',
+                borderTop: '1px solid #E2EEF5',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setReassigningData(null)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  color: '#64748B',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={!replacementMachineId || isReassigning}
+                onClick={handleConfirmReassign}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: !replacementMachineId || isReassigning ? '#94A3B8' : '#39A9DC',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  cursor: !replacementMachineId || isReassigning ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(57, 169, 220, 0.3)',
+                }}
+              >
+                {isReassigning ? 'Réattribution en cours...' : `Valider l'attribution N° ${reassigningData.number}`}
+              </button>
+            </div>
           </div>
         </div>
       )}
