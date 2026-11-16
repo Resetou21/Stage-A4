@@ -393,7 +393,10 @@ export const App = () => {
       else verifier += 1;
     });
 
+    const parcActif = service + reparation;
+
     return {
+      parcActif,
       total: realMachines.length,
       service,
       reparation,
@@ -410,7 +413,7 @@ export const App = () => {
       const matchSearch = !searchTerm || name.includes(searchTerm.toLowerCase()) || type.includes(searchTerm.toLowerCase());
 
       if (!matchSearch) return false;
-      if (activeTile === 'all') return true;
+      if (activeTile === 'all') return getMachineKpiCategory(m) !== 'verifier_sortie';
       return getMachineKpiCategory(m) === activeTile;
     });
   }, [realMachines, activeTile, searchTerm, getMachineKpiCategory]);
@@ -585,8 +588,9 @@ export const App = () => {
     {
       key: 'all' as const,
       number: '01',
-      label: 'Total',
-      count: stats.total,
+      label: 'Parc actif',
+      sublabel: `+ ${stats.verifier} sorties`,
+      count: stats.parcActif,
       icon: <Monitor size={22} color="#39A9DC" />,
       color: '#39A9DC',
       borderActive: '#39A9DC',
@@ -596,6 +600,7 @@ export const App = () => {
       key: 'service' as const,
       number: '02',
       label: 'En service',
+      sublabel: undefined,
       count: stats.service,
       icon: <CheckCircle2 size={22} color="#00C875" />,
       color: '#00C875',
@@ -606,6 +611,7 @@ export const App = () => {
       key: 'reparation' as const,
       number: '03',
       label: 'En réparation',
+      sublabel: undefined,
       count: stats.reparation,
       icon: <Wrench size={22} color="#E2445C" />,
       color: '#E2445C',
@@ -615,7 +621,8 @@ export const App = () => {
     {
       key: 'verifier_sortie' as const,
       number: '04',
-      label: 'À vérifier / Sortie',
+      label: 'Machines sorties',
+      sublabel: undefined,
       count: stats.verifier,
       icon: <AlertTriangle size={22} color="#F7AC37" />,
       color: '#F7AC37',
@@ -1106,9 +1113,24 @@ export const App = () => {
                         fontFamily: "'Plus Jakarta Sans', sans-serif",
                         color: isActive ? '#1B4565' : '#3989B7',
                         marginTop: '8px',
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: '6px',
+                        flexWrap: 'wrap',
                       }}
                     >
-                      {tile.label}
+                      <span>{tile.label}</span>
+                      {tile.sublabel && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: '#8CA3B5',
+                          }}
+                        >
+                          ({tile.sublabel})
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1131,8 +1153,22 @@ export const App = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: '15px', fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
-                    Machines filtrées : {filteredMachines.length} résultat(s)
+                    {activeTile === 'all'
+                      ? `Machines du Parc Actif : ${filteredMachines.length} résultat(s)`
+                      : activeTile === 'verifier_sortie'
+                      ? `Machines Sorties du Parc : ${filteredMachines.length} résultat(s)`
+                      : `Machines filtrées : ${filteredMachines.length} résultat(s)`}
                   </div>
+                  {activeTile === 'all' && (
+                    <div style={{ fontSize: '12px', color: '#57778E', marginTop: '3px' }}>
+                      Ensemble des machines opérationnelles ou en réparation (hors matériels sortis du parc).
+                    </div>
+                  )}
+                  {activeTile === 'verifier_sortie' && (
+                    <div style={{ fontSize: '12px', color: '#57778E', marginTop: '3px' }}>
+                      Matériels mis au rebut, détruits ou sortis de l'exploitation.
+                    </div>
+                  )}
                   {activeTile === 'reparation' && (
                     <div style={{ fontSize: '12px', color: '#57778E', marginTop: '3px' }}>
                       Machines ayant une panne signalée ou une réparation en cours dans le tableau Réparations.
