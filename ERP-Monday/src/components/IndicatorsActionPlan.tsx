@@ -2121,6 +2121,31 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                   );
                 })()}
 
+                {detailTicket.photoUrl && (
+                  <div style={{ backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', fontWeight: 700, color: '#0369A1' }}>
+                      <span>📷 Preuve photo du dysfonctionnement</span>
+                      {detailTicket.photoName && <span style={{ fontSize: '11px', color: '#64748B' }}>({detailTicket.photoName})</span>}
+                    </div>
+                    <a
+                      href={detailTicket.photoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        backgroundColor: '#0284C7',
+                        color: '#FFFFFF',
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                      }}
+                    >
+                      Ouvrir la photo ↗
+                    </a>
+                  </div>
+                )}
+
                 {/* 4. Historique des contrôles de cette machine */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 800, color: '#1B4565', fontFamily: "'Ruda', sans-serif", marginBottom: '8px' }}>
@@ -2156,6 +2181,29 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                             <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '3px', whiteSpace: 'pre-line' }}>
                               {ctrl.anomalies}
                             </div>
+                          )}
+                          {ctrl.photoUrl && (
+                            <a
+                              href={ctrl.photoUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#0284C7',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                textDecoration: 'none',
+                                backgroundColor: '#E0F2FE',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                marginTop: '4px',
+                                width: 'fit-content',
+                              }}
+                            >
+                              📷 Preuve photo ({ctrl.photoName || 'Voir'}) ↗
+                            </a>
                           )}
                         </div>
                       ))}

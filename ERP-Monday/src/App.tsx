@@ -125,7 +125,14 @@ const getCalculatedStatus = (
 };
 
 export const App = () => {
-  const [machines, setMachines] = useState<Machine[]>([]);
+  // Chargement ultra-rapide instantané (0ms) depuis le cache local (SWR), puis rafraîchissement silencieux
+  const [machines, setMachines] = useState<Machine[]>(() => {
+    try {
+      const raw = localStorage.getItem('parc_machines_cache_v1');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  });
   const [planningItems, setPlanningItems] = useState<PlanningItem[]>([]);
 
   // Navigation par onglets du Hub : Fiche de Contrôle par défaut
@@ -163,10 +170,28 @@ export const App = () => {
     return () => clearTimeout(timer);
   }, [successMessage]);
 
-  // Référentiel points de contrôle & Contrôles réalisés
-  const [referentielPoints, setReferentielPoints] = useState<ReferentielPoint[]>([]);
-  const [realisedControles, setRealisedControles] = useState<RealisedControle[]>([]);
-  const [repairTickets, setRepairTickets] = useState<RepairTicket[]>([]);
+  // Référentiel points de contrôle, Contrôles réalisés & Réparations (initialisés instantanément depuis cache)
+  const [referentielPoints, setReferentielPoints] = useState<ReferentielPoint[]>(() => {
+    try {
+      const raw = localStorage.getItem('parc_referentiel_cache_v1');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  });
+  const [realisedControles, setRealisedControles] = useState<RealisedControle[]>(() => {
+    try {
+      const raw = localStorage.getItem('parc_controles_cache_v1');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  });
+  const [repairTickets, setRepairTickets] = useState<RepairTicket[]>(() => {
+    try {
+      const raw = localStorage.getItem('parc_repairs_cache_v1');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  });
 
   // Machine pré-sélectionnée (ex: lancée depuis l'agenda ou les indicateurs)
   const [preSelectedMachineId, setPreSelectedMachineId] = useState<string>('');
@@ -218,6 +243,9 @@ export const App = () => {
       const board = response?.data?.boards?.[0];
       if (board?.items_page?.items) {
         setMachines(board.items_page.items);
+        try {
+          localStorage.setItem('parc_machines_cache_v1', JSON.stringify(board.items_page.items));
+        } catch {}
       }
       if (board?.columns && board.columns.length > 0) {
         const map: Record<string, string> = {};
@@ -282,6 +310,11 @@ export const App = () => {
       setRealisedControles(ctrls);
       setRepairTickets(repairs);
       setMaintenanceAlerts(alerts);
+      try {
+        localStorage.setItem('parc_referentiel_cache_v1', JSON.stringify(pts));
+        localStorage.setItem('parc_controles_cache_v1', JSON.stringify(ctrls));
+        localStorage.setItem('parc_repairs_cache_v1', JSON.stringify(repairs));
+      } catch {}
       if (colsMeta && Object.keys(colsMeta).length > 0) {
         setMachineColsMeta((prev) => (Object.keys(prev).length > 0 ? prev : colsMeta));
       }

@@ -202,12 +202,23 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
       .map(([pointName]) => pointName);
   }, [evaluations]);
 
-  // Définir l'évaluation pour un point
+  // Définir l'évaluation pour un point (avec comportement Toggle : recliquer sur l'état actif le désélectionne)
   const handleEvalChange = (pointName: string, status: 'OK' | 'Moyen' | 'NC') => {
-    setEvaluations((prev) => ({
-      ...prev,
-      [pointName]: status,
-    }));
+    setEvaluations((prev) => {
+      const next = { ...prev };
+      if (next[pointName] === status) {
+        delete next[pointName];
+        setNcActions((prevNc) => {
+          if (!prevNc[pointName]) return prevNc;
+          const nextNc = { ...prevNc };
+          delete nextNc[pointName];
+          return nextNc;
+        });
+      } else {
+        next[pointName] = status;
+      }
+      return next;
+    });
   };
 
   const updateTempsPasse = (minutes: number) => {
@@ -733,6 +744,29 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                               <div style={{ fontSize: '11.5px', color: '#475569', whiteSpace: 'pre-line', marginTop: '2px', maxHeight: '54px', overflow: 'hidden' }}>
                                 {ctrl.anomalies}
                               </div>
+                            )}
+                            {ctrl.photoUrl && (
+                              <a
+                                href={ctrl.photoUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  color: '#0284C7',
+                                  fontWeight: 700,
+                                  fontSize: '11px',
+                                  textDecoration: 'none',
+                                  backgroundColor: '#E0F2FE',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  marginTop: '4px',
+                                  width: 'fit-content',
+                                }}
+                              >
+                                📷 Preuve photo ({ctrl.photoName || 'Voir'}) ↗
+                              </a>
                             )}
                           </div>
                         );

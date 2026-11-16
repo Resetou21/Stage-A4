@@ -298,6 +298,8 @@ export interface RealisedControle {
   evaluations?: Record<string, string>;
   dateRevisite?: string;
   besoinRevisite?: boolean;
+  photoUrl?: string;
+  photoName?: string;
 }
 
 type HubColumnType = 'numbers' | 'text' | 'long_text' | 'status' | 'date' | 'checkbox';
@@ -1000,6 +1002,12 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
           items {
             id
             name
+            assets {
+              id
+              name
+              public_url
+              url
+            }
             column_values {
               id
               text
@@ -1052,6 +1060,8 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
         }
         const rawNote = ficheCols.noteSurDix ? getCol(ficheCols.noteSurDix) : '';
         const parsedNote = rawNote !== '' && !Number.isNaN(Number(rawNote)) ? Number(rawNote) : undefined;
+        const photoUrl = it.assets?.[0]?.public_url || it.assets?.[0]?.url || undefined;
+        const photoName = it.assets?.[0]?.name || undefined;
 
         return {
           id: it.id,
@@ -1072,6 +1082,8 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
           anomalies: getCol('long_text_mm8tjqkm'),
           dateRevisite: getDateVal('date_mm91kevt') || (ficheCols.dateRevisite ? getDateVal(ficheCols.dateRevisite) : undefined),
           besoinRevisite: Boolean(it.column_values?.find((c: any) => c.id === 'boolean_mm919t2y')?.value || (ficheCols.revisite ? it.column_values?.find((c: any) => c.id === ficheCols.revisite)?.value : false)),
+          photoUrl,
+          photoName,
         };
       })
       .filter((c: RealisedControle) => c.date); // Seulement ceux qui ont une date valide
@@ -1920,6 +1932,8 @@ export interface RepairTicket {
   numeroBon?: string;
   site?: string;
   underWarranty?: boolean;
+  photoUrl?: string;
+  photoName?: string;
 }
 
 export function parseRepairChecklist(desc: string): RepairChecklistItem[] {
@@ -2030,6 +2044,12 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
             id
             name
             updated_at
+            assets {
+              id
+              name
+              public_url
+              url
+            }
             group {
               id
               title
@@ -2143,6 +2163,9 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
         warrantyText.toLowerCase().includes('true') ||
         desc.toLowerCase().includes('sous garantie');
 
+      const photoUrl = it.assets?.[0]?.public_url || it.assets?.[0]?.url || undefined;
+      const photoName = it.assets?.[0]?.name || undefined;
+
       return {
         id: it.id,
         name: it.name,
@@ -2162,6 +2185,8 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
         numeroBon: numeroBon || undefined,
         site: site || undefined,
         underWarranty,
+        photoUrl,
+        photoName,
       };
     });
   } catch (err) {
