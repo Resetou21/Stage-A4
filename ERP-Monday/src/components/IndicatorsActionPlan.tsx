@@ -303,6 +303,8 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
   }, [currentCalendarYear, realisedControles, repairTickets]);
 
   const stats = useMemo(() => {
+    const isRepairedTicket = (t: RepairTicket) => isTicketRepaired(t.status, t.groupTitle);
+
     const matchesKpiYear = (dateStr?: string) => {
       if (selectedKpiYear === 'all') return true;
       const y = Number((dateStr || '').slice(0, 4));
@@ -358,8 +360,6 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
     const conformitePercent = totalControles > 0 ? Math.round((vertCount / totalControles) * 100) : 100;
 
     // Tickets curatifs & délais & coûts
-    const isRepairedTicket = (t: RepairTicket) => isTicketRepaired(t.status, t.groupTitle);
-
     const allActiveRepairsCount = repairTickets.filter((t) => !isRepairedTicket(t)).length;
     const activeRepairs = scopedRepairs.filter((t) => !isRepairedTicket(t));
     const repairedTickets = scopedRepairs.filter((t) => isRepairedTicket(t));
