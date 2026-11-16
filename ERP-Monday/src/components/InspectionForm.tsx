@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Wrench,
   CheckCircle,
@@ -20,6 +20,8 @@ import {
   Info,
   History,
   X,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import {
@@ -49,6 +51,8 @@ const POINT_TIPS: Record<string, string> = {
   buse: "Contrôler le calibrage du jet et l'absence d'entartrage ou de bouchage.",
   commande: "Tester les contacteurs marche/arrêt, le timon de réglage et le bouton de sécurité.",
   moteur: "Vérifier l'absence de bruit anormal, d'odeur d'échauffement ou d'étincelles.",
+  roulement: "Écouter le moteur en marche : détecter tout bruit anormal de roulement usé, vibration inhabituelle ou frottement.",
+  bruit: "Écouter le bloc moteur : déceler tout bruit anormal de roulement, vibration mécanique suspecte ou sifflement.",
   purge: "Contrôler le bon écoulement et l'étanchéité du bouchon/tuyau de vidange.",
 };
 
@@ -117,6 +121,26 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Preuve photo terrain (Optionnel)
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handlePhotoSelect = (file: File | null) => {
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      return;
+    }
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setPhotoPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Helper pour extraire le texte d'une colonne
   const getCol = (m: Machine, colId: string) => {
@@ -227,6 +251,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
       ncActions,
       pointsEvaluations: evaluations,
       targetTicketId,
+      photoFile: photoFile || undefined,
     };
 
     const res = await submitFicheControle(submission);
@@ -254,6 +279,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
         setEntretienRegulier('Entretenue');
         setFicheSurSite('Oui');
         setBesoinRevisite(false);
+        setPhotoFile(null);
+        setPhotoPreview(null);
         setDateRevisite('');
         setMachineVetuste(false);
       }, 4000);
@@ -554,6 +581,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
               setProprete('Propre');
               setEntretienRegulier('Entretenue');
               setFicheSurSite('Oui');
+              setPhotoFile(null);
+              setPhotoPreview(null);
             }}
             getCol={getCol}
           />
@@ -2295,6 +2324,192 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                   backgroundColor: '#FFFFFF',
                 }}
               />
+            </div>
+
+            {/* Preuves photos terrain (Optionnel) */}
+            <div
+              style={{
+                marginTop: '16px',
+                backgroundColor: '#F8FCFE',
+                borderRadius: '14px',
+                border: photoFile ? '1.5px solid #00C875' : '1.5px solid #D2E9F6',
+                padding: '16px 18px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
+                  <Camera size={17} color={photoFile ? '#00A389' : '#39A9DC'} />
+                  Photo anomalie / Preuve visuelle terrain
+                </label>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '3px 9px',
+                    borderRadius: '12px',
+                    backgroundColor: photoFile ? '#E6F8F0' : '#EBF6FC',
+                    color: photoFile ? '#0E7042' : '#3989B7',
+                    border: photoFile ? '1px solid #00C875' : '1px solid #D2E9F6',
+                  }}
+                >
+                  {photoFile ? '✓ 1 photo jointe' : 'Optionnel'}
+                </span>
+              </div>
+
+              <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#57778E', lineHeight: 1.4 }}>
+                Prenez une photo directe de la pièce usée/cassée ou sélectionnez une photo depuis la galerie. Elle sera automatiquement rattachée à la fiche de contrôle et au ticket de réparation sur Monday.
+              </p>
+
+              {/* Hidden file inputs */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  handlePhotoSelect(f);
+                }}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  handlePhotoSelect(f);
+                }}
+              />
+
+              {!photoPreview ? (
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    style={{
+                      flex: '1 1 180px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '11px 16px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #39A9DC',
+                      backgroundColor: '#39A9DC',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      fontFamily: "'Ruda', sans-serif",
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(57, 169, 220, 0.25)',
+                    }}
+                  >
+                    <Camera size={16} />
+                    Prendre une photo (Appareil)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      flex: '1 1 180px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '11px 16px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #C8DCE8',
+                      backgroundColor: '#FFFFFF',
+                      color: '#1B4565',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      fontFamily: "'Ruda', sans-serif",
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <ImageIcon size={16} color="#3989B7" />
+                    Choisir dans la galerie
+                  </button>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    backgroundColor: '#FFFFFF',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #00C875',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <img
+                    src={photoPreview}
+                    alt="Aperçu anomalie"
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      border: '1px solid #D2E9F6',
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: '150px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', wordBreak: 'break-all' }}>
+                      {photoFile?.name || 'Photo capturée'}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#57778E', marginTop: '2px' }}>
+                      Taille : {photoFile ? Math.round(photoFile.size / 1024) : 0} Ko · Prête à être synchronisée
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      title="Reprendre une photo"
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #C8DCE8',
+                        backgroundColor: '#F0F8FD',
+                        color: '#1B4565',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Camera size={13} /> Reprendre
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePhotoSelect(null)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #F5C6CB',
+                        backgroundColor: '#FFF5F5',
+                        color: '#E2445C',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <X size={13} /> Retirer
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -275,6 +275,7 @@ export interface FicheControleSubmission {
   ncActions?: Record<string, string>;
   pointsEvaluations: Record<string, 'OK' | 'Moyen' | 'NC'>;
   targetTicketId?: string;
+  photoFile?: File;
 }
 
 export interface RealisedControle {
@@ -1076,6 +1077,72 @@ export async function fetchRealisedControles(): Promise<RealisedControle[]> {
   }
 }
 
+/**
+ * Upload d'une photo / fichier sur une colonne type 'file' de Monday.com
+ * Supporte le mode direct via SDK monday.api ou multipart via /v2/file
+ */
+export async function uploadFileToMonday(
+  itemId: string | number,
+  columnId: string,
+  file: File
+): Promise<boolean> {
+  const mutation = `mutation ($file: File!) {
+    add_file_to_column(item_id: ${itemId}, column_id: "${columnId}", file: $file) {
+      id
+      name
+      url
+    }
+  }`;
+
+  // 1. Essai via SDK monday.api
+  try {
+    const res: any = await (monday as any).api(mutation, {
+      variables: { file },
+    });
+    if (res?.data?.add_file_to_column?.id) {
+      return true;
+    }
+  } catch (sdkErr) {
+    console.warn('Tentative monday.api échouée, fallback multipart fetch:', sdkErr);
+  }
+
+  // 2. Fallback direct via fetch https://api.monday.com/v2/file
+  try {
+    let token = '';
+    try {
+      const sessionRes: any = await (monday as any).get('sessionToken');
+      token = sessionRes?.data || '';
+    } catch {
+      // ignore
+    }
+
+    const formData = new FormData();
+    formData.append('query', mutation);
+    formData.append('variables[file]', file);
+
+    const headers: Record<string, string> = {
+      'API-Version': '2024-04',
+    };
+    if (token) {
+      headers['Authorization'] = token;
+    }
+
+    const res = await fetch('https://api.monday.com/v2/file', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const json = await res.json();
+    if (json?.data?.add_file_to_column?.id) {
+      return true;
+    }
+  } catch (fetchErr) {
+    console.warn('Erreur fallback fetch /v2/file:', fetchErr);
+  }
+
+  return false;
+}
+
 // 3. Soumettre une Fiche de Contrôle (créer un item dans 5107262948)
 export async function submitFicheControle(submission: FicheControleSubmission): Promise<{
   success: boolean;
@@ -1310,6 +1377,15 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
     if (res?.data?.create_item?.id) {
       const createdId = res.data.create_item.id;
 
+      // Upload optionnel de la photo anomalie sur la fiche de contrôle (file_mm951jqy)
+      if (submission.photoFile) {
+        try {
+          await uploadFileToMonday(createdId, 'file_mm951jqy', submission.photoFile);
+        } catch (photoErr) {
+          console.warn('Erreur upload photo sur fiche de contrôle:', photoErr);
+        }
+      }
+
       // Créer les sous-éléments détaillés des points contrôlés sur la Fiche de Contrôle (évite 100 colonnes sur le tableau parent)
       try {
         await createFicheControlSubitems(String(createdId), submission);
@@ -1423,6 +1499,13 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
               }
             );
             await syncMachineRepairLifecycleStatus(submission.machineId, 'En réparation');
+            if (submission.photoFile) {
+              try {
+                await uploadFileToMonday(existingOpenTicket.id, 'file_mm95gtnd', submission.photoFile);
+              } catch (photoErr) {
+                console.warn('Erreur upload photo ticket existant:', photoErr);
+              }
+            }
           } else {
             // Aucun ticket ouvert : création normale du ticket curatif
             const repairColValues: Record<string, any> = {
@@ -1478,6 +1561,13 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
             if (repairRes?.data?.create_item?.id) {
               await syncMachineRepairLifecycleStatus(submission.machineId, 'En réparation');
               const repairItemId = repairRes.data.create_item.id;
+              if (submission.photoFile) {
+                try {
+                  await uploadFileToMonday(repairItemId, 'file_mm95gtnd', submission.photoFile);
+                } catch (photoErr) {
+                  console.warn('Erreur upload photo nouveau ticket réparation:', photoErr);
+                }
+              }
               const updateHtml = `🔧 <b>Intervention curative générée automatiquement suite au contrôle technique du ${formattedDate}</b><br><br>` +
                 `<b>Technicien :</b> ${submission.technicienName || 'Christophe'}<br>` +
                 `<b>Machine :</b> ${submission.machineName} (${submission.machineType})<br>` +
