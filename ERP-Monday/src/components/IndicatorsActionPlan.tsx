@@ -1478,36 +1478,11 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                       </span>
                     </div>
 
-                    {/* Actions rapides sur le ticket */}
+                    {/* Actions rapides sur le ticket : accès exclusif via la fiche & points NC */}
                     <div
                       style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {!isReparee && (
-                        <button
-                          type="button"
-                          disabled={updatingTicketId === t.id}
-                          onClick={() => handleUpdateTicketStatus(t, 'Réparée')}
-                          title="Marquer cette machine comme Réparée et la basculer dans l'historique"
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: '#ECFDF5',
-                            color: '#047857',
-                            border: '1px solid #A7F3D0',
-                            fontSize: '11.5px',
-                            fontWeight: 800,
-                            fontFamily: "'Ruda', sans-serif",
-                            cursor: updatingTicketId === t.id ? 'not-allowed' : 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                          }}
-                        >
-                          <CheckCircle2 size={13} color="#00C875" />
-                          {updatingTicketId === t.id ? 'Clôture...' : 'Marquer Réparée'}
-                        </button>
-                      )}
 
                       {isMisplacedInInRepairGroup && (
                         <button

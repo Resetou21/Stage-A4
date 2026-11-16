@@ -1963,10 +1963,25 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
           }
         } catch {}
       }
-      const statusStr = getCol('color_mm8vp2nd') || 'À traiter';
+      const statusRaw = getCol('color_mm8vp2nd');
+      const feuilleOrigine = findColTextByTitle(colValues, ["feuille d'origine", 'feuille origine', 'origine']);
+      const isPastExcelArchive =
+        /2023|2024|archive/i.test(feuilleOrigine) ||
+        Boolean(dateStr && (dateStr.startsWith('2023') || dateStr.startsWith('2024')));
+
+      // Si le statut est vide ou non renseigné sur une ancienne ligne d'archive (2023/2024) déjà réalisée : classée d'office en "Réparée"
+      let statusStr = statusRaw;
+      if (!statusStr || statusStr === 'À traiter') {
+        if (isPastExcelArchive && dateStr) {
+          statusStr = 'Réparée';
+        } else if (!statusStr) {
+          statusStr = 'À traiter';
+        }
+      }
+
       const desc = getCol('text_mm8vhwst');
       const updatedAt = it.updated_at ? String(it.updated_at) : undefined;
-      const repairedDate = extractRepairedDate(desc, statusStr, it.group?.title, updatedAt);
+      const repairedDate = extractRepairedDate(desc, statusStr, it.group?.title, updatedAt) || (isPastExcelArchive ? dateStr : undefined);
       const cost = extractCostFromRepairData(desc, colValues, boardColumns);
       const checklist = parseRepairChecklist(desc);
       const fournisseur = findColTextByTitle(colValues, ['fournisseur', 'prestataire']);
