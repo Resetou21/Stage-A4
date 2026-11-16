@@ -20,14 +20,47 @@ export function isTicketRepaired(status?: string, groupTitle?: string): boolean 
   );
 }
 
+const GENERIC_EQUIPMENT_STOP_WORDS = new Set([
+  'aspirateur',
+  'autolaveuse',
+  'monobrosse',
+  'balayeuse',
+  'injecteur',
+  'extracteur',
+  'nettoyeur',
+  'karcher',
+  'chariot',
+  'brosse',
+  'filtre',
+  'cable',
+  'flexible',
+  'machine',
+  'materiel',
+  'vehicule',
+  'atelier',
+  'facility',
+  'groupe',
+  'service',
+  'en service',
+  'reparation',
+  'panne',
+  'curative',
+  'preventive',
+  'oui',
+  'non',
+  'vnc',
+  'h2o',
+]);
+
 /**
  * Détection intelligente de la machine reliée à un ticket de réparation.
- * Fonctionne par ID relationnel direct, nom exact, code modèle ou nom de site.
+ * Fonctionne par ID relationnel direct, nom exact, code modèle précis ou numéro de machine.
  */
 export function findMachineForTicket(
   ticket: { machineId?: string; machineName?: string; name?: string },
   machinesList: Machine[]
 ): Machine | undefined {
+  // 1. Priorité absolue : lien direct via colonne relation Monday (100% fiable)
   if (ticket.machineId) {
     const direct = machinesList.find((m) => String(m.id) === String(ticket.machineId));
     if (direct) return direct;
@@ -39,35 +72,39 @@ export function findMachineForTicket(
     .replace(/\s*[-–]\s*\d{2}[\/\-]\d{2}[\/\-]\d{2,4}.*$/g, '')
     .trim();
 
-  // 1. Match exact sur le nom
+  if (!clean || clean.length < 3) return undefined;
+
+  // 2. Match par numéro de machine explicite en début de libellé (ex: "12 - ", "74 - ")
+  const numMatch = clean.match(/^(\d{1,3})\s*[-–]/) || clean.match(/\bmachine\s*(?:n°|#)?\s*(\d{1,3})\b/i);
+  if (numMatch) {
+    const code = numMatch[1];
+    const byCode = machinesList.find(
+      (m) => m.name.trim().startsWith(`${code} -`) || m.name.trim().startsWith(`${code}-`)
+    );
+    if (byCode) return byCode;
+  }
+
+  // 3. Match exact sur le nom complet de la machine
   const exact = machinesList.find((m) => m.name.toLowerCase().trim() === clean);
   if (exact) return exact;
 
-  // 2. Match sans le préfixe numérique de la machine (ex: "2 - TASKI ERGODISC 2000" -> "taski ergodisc 2000")
+  // 4. Match sur le nom de machine sans son code numérique (uniquement si ce n'est pas un mot générique comme "aspirateur")
   for (const m of machinesList) {
     const mNorm = m.name.toLowerCase().trim();
     const mNoCode = mNorm.replace(/^\d+\s*[-–]\s*/, '').trim();
-    if (mNoCode.length >= 3 && (clean.includes(mNoCode) || mNorm.includes(clean))) {
-      return m;
-    }
-  }
-
-  // 3. Match sur les codes modèles (ex: "SC 2000", "SC2000", "SC351", "344NX", "M3", "AX 14")
-  const modelToken = clean.match(/[a-z]{0,4}\s?\d{2,4}[a-z]{0,3}/i)?.[0]?.replace(/\s+/g, '') || '';
-  if (modelToken.length >= 3) {
-    for (const m of machinesList) {
-      const mNorm = m.name.toLowerCase().replace(/\s+/g, '');
-      if (mNorm.includes(modelToken)) {
+    if (mNoCode.length >= 6 && !GENERIC_EQUIPMENT_STOP_WORDS.has(mNoCode)) {
+      if (clean.includes(mNoCode)) {
         return m;
       }
     }
   }
 
-  // 4. Match par site client mentionné dans le nom du ticket
-  for (const m of machinesList) {
-    for (const cv of m.column_values || []) {
-      const txt = (cv.text || '').toLowerCase().trim();
-      if (txt.length >= 5 && clean.includes(txt)) {
+  // 5. Match sur les codes modèles distinctifs (au moins 4 caractères, non génériques)
+  const modelToken = clean.match(/\b([a-z]{1,4}\s?\d{2,4}[a-z]{0,3})\b/i)?.[0]?.replace(/\s+/g, '') || '';
+  if (modelToken.length >= 4 && !GENERIC_EQUIPMENT_STOP_WORDS.has(modelToken.toLowerCase())) {
+    for (const m of machinesList) {
+      const mNorm = m.name.toLowerCase().replace(/\s+/g, '');
+      if (mNorm.includes(modelToken.toLowerCase())) {
         return m;
       }
     }
