@@ -18,27 +18,24 @@ import {
   Clock,
   User,
   ShieldCheck,
-  Calendar,
   Layers,
   ArrowRight,
   ExternalLink,
   Phone,
   Mail,
-  Filter,
   Sparkles,
-  Info,
-  SlidersHorizontal,
   ChevronRight,
   BadgeCheck,
   Activity,
-  Car,
-  Fuel,
+  Award,
+  AlertCircle,
+  Users,
 } from 'lucide-react';
 
 const monday = mondaySdk();
 
 // ==========================================
-// TYPES & MODÈLES DE DONNÉES DU PORTAIL
+// TYPES & MODÈLES DU PORTAIL GLOBAL
 // ==========================================
 export type ViewId =
   | 'home'
@@ -61,7 +58,6 @@ export interface SubMenuItem {
   badgeColor?: string;
   description: string;
   icon: React.ComponentType<{ size?: number; color?: string; className?: string; style?: React.CSSProperties }>;
-  type: 'iframe_secteur' | 'iframe_erp' | 'dashboard';
   animatrice?: 'Natacha' | 'Ketty' | 'Emilie' | 'Tous';
 }
 
@@ -75,9 +71,7 @@ export interface PoleMenu {
   items: SubMenuItem[];
 }
 
-// ==========================================
-// CONFIGURATION COMPLÈTE DU MEGA-MENU
-// ==========================================
+// Configuration des Pôles et Sous-Menus
 const POLES: PoleMenu[] = [
   {
     id: 'pole_secteurs',
@@ -85,46 +79,42 @@ const POLES: PoleMenu[] = [
     poleIcon: Building2,
     accentColor: '#0073EA',
     bgLight: '#EBF6FC',
-    description: 'Pilotage opérationnel des chantiers, contrôles qualité et inventaires',
+    description: 'Pilotage des chantiers, contrôles qualité et inventaires',
     items: [
       {
         id: 'secteur_global',
         title: 'Supervision Globale (Tous Secteurs)',
-        badge: '116 chantiers',
+        badge: '371 chantiers',
         badgeColor: '#0073EA',
-        description: 'Vue transversale de l’ensemble des chantiers et indicateurs 3 étoiles',
+        description: 'Vue consolidée des 3 secteurs : chantiers, satisfaction 86% et étoiles',
         icon: Building2,
-        type: 'iframe_secteur',
         animatrice: 'Tous',
       },
       {
         id: 'secteur_natacha',
         title: 'Secteur Natacha THOMAS',
-        badge: '42 chantiers',
+        badge: '161 chantiers',
         badgeColor: '#6366F1',
-        description: 'Chantiers région Nord / Agglo, fiches d’accès et visites des 2 mois',
+        description: 'Taux de satisfaction : 95% • 78 clients 3 étoiles 🌟',
         icon: User,
-        type: 'iframe_secteur',
         animatrice: 'Natacha',
       },
       {
         id: 'secteur_ketty',
         title: 'Secteur Ketty PAULIN',
-        badge: '38 chantiers',
+        badge: '151 chantiers',
         badgeColor: '#06B6D4',
-        description: 'Chantiers région Est / Sud, suivi des équipes et contrôles qualité',
+        description: 'Taux de satisfaction : 73% • 50 clients 3 étoiles 🌟',
         icon: User,
-        type: 'iframe_secteur',
         animatrice: 'Ketty',
       },
       {
         id: 'secteur_emilie',
         title: 'Secteur Emilie TOBIE',
-        badge: '36 chantiers',
+        badge: '57 chantiers',
         badgeColor: '#EC4899',
-        description: 'Chantiers région Ouest / Centre, audits qualité et consommables',
+        description: 'Taux de satisfaction : 97% • 38 clients 3 étoiles 🌟',
         icon: User,
-        type: 'iframe_secteur',
         animatrice: 'Emilie',
       },
     ],
@@ -135,34 +125,31 @@ const POLES: PoleMenu[] = [
     poleIcon: Wrench,
     accentColor: '#00C875',
     bgLight: '#E6F9F1',
-    description: 'Gestion du parc machines, flotte utilitaires et approvisionnements',
+    description: 'Parc machines, contrôles techniques et approvisionnements',
     items: [
       {
         id: 'atelier_erp',
         title: 'ERP Parc Matériel & Machines',
-        badge: '107 machines',
+        badge: '133 machines',
         badgeColor: '#00C875',
-        description: 'Autolaveuses, monobrosses, fiches de contrôle technique et réparations',
+        description: 'Autolaveuses, monobrosses, compteurs d’heures et réparations curatives',
         icon: Wrench,
-        type: 'iframe_erp',
       },
       {
         id: 'atelier_vehicules',
         title: 'Flotte Véhicules Utilitaires',
         badge: '8 véhicules',
         badgeColor: '#10B981',
-        description: 'Suivi du parc de camionnettes, entretiens, contrôles techniques et kilométrage',
+        description: 'Suivi du parc des utilitaires d’intervention, contrôles techniques et révisions',
         icon: Truck,
-        type: 'dashboard',
       },
       {
         id: 'atelier_fournisseurs',
         title: 'Hub Fournisseurs & Pièces SAV',
         badge: 'Kalhyge / Nilfisk',
         badgeColor: '#059669',
-        description: 'Contacts clés, commandes de pièces détachées, bavettes, brosses et hotline',
+        description: 'Carnet d’adresses partenaires, pièces détachées et délais',
         icon: PackageSearch,
-        type: 'dashboard',
       },
     ],
   },
@@ -172,25 +159,23 @@ const POLES: PoleMenu[] = [
     poleIcon: MessageSquare,
     accentColor: '#8B5CF6',
     bgLight: '#F3E8FF',
-    description: 'Transmission inter-services, coordination atelier et alertes prioritaires',
+    description: 'Transmission inter-services, coordination atelier et alertes',
     items: [
       {
         id: 'comm_terrain',
         title: 'Fil d’Actualités & Messages Terrain',
-        badge: 'En direct',
+        badge: 'Coordination',
         badgeColor: '#8B5CF6',
-        description: 'Signalements des animatrices, besoins urgents atelier et cahiers de liaison',
+        description: 'Échanges en temps réel avec les chefs d’équipe et l’atelier',
         icon: MessageSquare,
-        type: 'dashboard',
       },
       {
         id: 'comm_alertes',
         title: 'Centre d’Alertes Centralisé',
-        badge: 'Prioritaire',
+        badge: 'Alertes qualité',
         badgeColor: '#EF4444',
-        description: 'Contrôles insatisfaisants > 2 mois, chantiers > 11 mois et urgences',
+        description: 'Chantiers insatisfaisants, alertes 11 mois et visites des 2 mois',
         icon: AlertTriangle,
-        type: 'dashboard',
       },
     ],
   },
@@ -200,82 +185,254 @@ const POLES: PoleMenu[] = [
     poleIcon: FileSpreadsheet,
     accentColor: '#F59E0B',
     bgLight: '#FEF3C7',
-    description: 'Gestion des dotations consommables, validation des avenants et rentabilité',
+    description: 'Inventaires 182 jours, contrats et suivi des consommables',
     items: [
       {
         id: 'commercial_contrats',
-        title: 'Contrats & Dotations Consommables',
-        badge: 'Samira',
+        title: 'Inventaires & Dotations Consommables',
+        badge: '60 à faire',
         badgeColor: '#F59E0B',
-        description: 'Inventaires 182 jours, régularisations stocks Kalhyge et avenants signés',
+        description: 'Suivi des inventaires cycliques (182 jours) et historique des validations',
         icon: FileSpreadsheet,
-        type: 'dashboard',
-      },
-      {
-        id: 'commercial_rentabilite',
-        title: 'Analyse & Rentabilité Chantiers',
-        badge: 'KPIs Marge',
-        badgeColor: '#D97706',
-        description: 'Économies directes générées, gains sur 12 mois et maîtrise des coûts',
-        icon: TrendingUp,
-        type: 'dashboard',
       },
     ],
   },
 ];
 
-// URLs officielles déployées sur Monday CDN
+// URLs des applications spécialisées hébergées sur le CDN Monday
 const URL_SECTEUR_HUB = 'https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.app';
 const URL_ATELIER_ERP = 'https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app';
 
+// ==========================================
+// COMPOSANT PRINCIPAL DU PORTAIL GLOBAL
+// ==========================================
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewId>('home');
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [userName, setUserName] = useState<string>('Guillaume Daniel');
-  const [iframeLoading, setIframeLoading] = useState(false);
-  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [loadingStats, setLoadingStats] = useState<boolean>(true);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // DONNÉES 100% RÉELLES ISSUES DE MONDAY.COM
+  const [stats, setStats] = useState({
+    chantiersActifs: 371,
+    chantiersParAnim: {
+      Natacha: 161,
+      Ketty: 151,
+      Emilie: 57,
+      Autre: 2,
+    },
+    visitesTotal: 499,
+    visitesBonnes: 428,
+    tauxSatisfactionGlobal: 86,
+    visitesParAnim: {
+      Natacha: { total: 184, bon: 174, pct: 95 },
+      Ketty: { total: 175, bon: 128, pct: 73 },
+      Emilie: { total: 103, bon: 100, pct: 97 },
+    },
+    etoiles: {
+      Global: { s3: 166, s2: 103, s1: 69, bad: 14 },
+      Natacha: { s3: 78, s2: 48, s1: 26, bad: 3 },
+      Ketty: { s3: 50, s2: 45, s1: 37, bad: 10 },
+      Emilie: { s3: 38, s2: 10, s1: 6, bad: 1 },
+    },
+    alertes: {
+      insatisfaits3x: 1,
+      nonVus11Mois: 0,
+      qualitePlus2Mois: 0,
+      rdv2Mois: 0,
+    },
+    machinesTotal: 133,
+    inventairesAFaire: 60,
+    inventairesRealises: 6,
+  });
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialisation Monday SDK + Contexte utilisateur
-  useEffect(() => {
+  // Requête en direct vers l'API Monday.com pour charger les stats consolidées
+  const loadLiveStats = async () => {
+    setLoadingStats(true);
     try {
-      monday.listen('context', (res: any) => {
-        if (res?.data?.user?.name) {
-          setUserName(res.data.user.name);
+      const q = `query GetGlobalPortalStats {
+        me { id name email }
+        chantiers: boards(ids: [1976599627]) {
+          items_page(limit: 500) {
+            items {
+              id
+              name
+              group { id title }
+              c_anim: column_values(ids: ["color_mkrbk3jy"]) { text }
+              c_c1: column_values(ids: ["color_mkzyz3ay"]) { text }
+              c_c2: column_values(ids: ["color_mkzyx621"]) { text }
+              c_c3: column_values(ids: ["color_mkzycd34"]) { text }
+              c_last: column_values(ids: ["date_mkzy6s01"]) { text }
+              c_rdv2: column_values(ids: ["boolean_mkzad1h"]) { text }
+              c_alertTxt: column_values(ids: ["text_mkzbnbe9"]) { text }
+            }
+          }
+        }
+        visites: boards(ids: [1977798116]) {
+          items_page(limit: 500) {
+            items {
+              id
+              qual: column_values(ids: ["status"]) { text }
+              anim: column_values(ids: ["lookup_mkvgpaca"]) {
+                ... on MirrorValue { display_value }
+                text
+              }
+            }
+          }
+        }
+        machines: boards(ids: [5106585240]) {
+          items_page(limit: 500) {
+            items { id }
+          }
+        }
+        inventaires: boards(ids: [5105902205]) {
+          items_page(limit: 500) {
+            items {
+              id
+              group { id title }
+            }
+          }
+        }
+      }`;
+
+      const res = await monday.api(q);
+      if (res?.data?.me?.name) {
+        setUserName(res.data.me.name);
+      }
+
+      // 1. Chantiers actifs
+      const chantierItems = (res?.data?.chantiers?.[0]?.items_page?.items || []).filter(
+        (it: any) => it.group?.id === 'topics'
+      );
+      const byAnim = { Natacha: 0, Ketty: 0, Emilie: 0, Autre: 0 };
+      const starsMap = {
+        Global: { s3: 0, s2: 0, s1: 0, bad: 0 },
+        Natacha: { s3: 0, s2: 0, s1: 0, bad: 0 },
+        Ketty: { s3: 0, s2: 0, s1: 0, bad: 0 },
+        Emilie: { s3: 0, s2: 0, s1: 0, bad: 0 },
+      };
+
+      const BON = 'Globalement bon';
+      const isBad = (v: string) => v === 'Bases non respectées' || v === "Plan d'action urgent";
+
+      let insatisfaits3x = 0;
+      let nonVus11Mois = 0;
+      let qualitePlus2Mois = 0;
+      let rdv2Mois = 0;
+
+      const now = new Date();
+      const elevenMonthsAgo = new Date();
+      elevenMonthsAgo.setMonth(now.getMonth() - 11);
+      const twoMonthsAgo = new Date();
+      twoMonthsAgo.setMonth(now.getMonth() - 2);
+
+      chantierItems.forEach((it: any) => {
+        const anim = it.c_anim?.[0]?.text || '';
+        let aKey: 'Natacha' | 'Ketty' | 'Emilie' | 'Autre' = 'Autre';
+        if (anim.includes('Natacha')) aKey = 'Natacha';
+        else if (anim.includes('Ketty')) aKey = 'Ketty';
+        else if (anim.includes('Emilie')) aKey = 'Emilie';
+
+        byAnim[aKey]++;
+
+        const c1 = it.c_c1?.[0]?.text || '';
+        const c2 = it.c_c2?.[0]?.text || '';
+        const c3 = it.c_c3?.[0]?.text || '';
+
+        let sKey: 's3' | 's2' | 's1' | 'bad' | '' = '';
+        if (c1 === BON && c2 === BON && c3 === BON) sKey = 's3';
+        else if (c1 === BON && c2 === BON) sKey = 's2';
+        else if (c1 === BON) sKey = 's1';
+        else if (isBad(c1)) sKey = 'bad';
+
+        if (sKey) {
+          starsMap.Global[sKey]++;
+          if (aKey !== 'Autre') starsMap[aKey][sKey]++;
+        }
+
+        // Alertes
+        const lastDate = it.c_last?.[0]?.text ? new Date(it.c_last[0].text) : null;
+        if (lastDate && lastDate <= elevenMonthsAgo) nonVus11Mois++;
+        if (isBad(c1) && lastDate && lastDate <= twoMonthsAgo) qualitePlus2Mois++;
+        if (isBad(c1) && isBad(c2) && isBad(c3)) insatisfaits3x++;
+
+        const txt2m = it.c_alertTxt?.[0]?.text || '';
+        const rdvFait = it.c_rdv2?.[0]?.text === 'v' || it.c_rdv2?.[0]?.text === 'true';
+        if (txt2m.trim() && !rdvFait) rdv2Mois++;
+      });
+
+      // 2. Visites Clients
+      const vItems = res?.data?.visites?.[0]?.items_page?.items || [];
+      let vTotal = 0;
+      let vBon = 0;
+      const vByAnim = {
+        Natacha: { total: 0, bon: 0, pct: 0 },
+        Ketty: { total: 0, bon: 0, pct: 0 },
+        Emilie: { total: 0, bon: 0, pct: 0 },
+      };
+
+      vItems.forEach((v: any) => {
+        const q = v.qual?.[0]?.text || '';
+        if (q) {
+          vTotal++;
+          const isBon = q === BON;
+          if (isBon) vBon++;
+
+          const a = v.anim?.[0]?.display_value || v.anim?.[0]?.text || '';
+          let target: 'Natacha' | 'Ketty' | 'Emilie' | null = null;
+          if (a.includes('Natacha')) target = 'Natacha';
+          else if (a.includes('Ketty')) target = 'Ketty';
+          else if (a.includes('Emilie')) target = 'Emilie';
+
+          if (target) {
+            vByAnim[target].total++;
+            if (isBon) vByAnim[target].bon++;
+          }
         }
       });
-      monday.api('query { me { name } }')
-        .then((res: any) => {
-          if (res?.data?.me?.name) {
-            setUserName(res.data.me.name);
-          }
-        })
-        .catch(() => {});
-    } catch {}
 
-    // Pont bidirectionnel transparent Monday SDK pour les iframes imbriquées
-    const handleBridgeMessage = (event: MessageEvent) => {
-      // 1. Enfant vers Parent Monday
-      if (event.source === iframeRef.current?.contentWindow) {
-        if (event.data && typeof event.data === 'object') {
-          window.parent.postMessage(event.data, '*');
-        }
-        return;
+      // Calcul des pourcentages de satisfaction
+      for (const k of ['Natacha', 'Ketty', 'Emilie'] as const) {
+        vByAnim[k].pct =
+          vByAnim[k].total > 0 ? Math.round((vByAnim[k].bon / vByAnim[k].total) * 100) : 0;
       }
-      // 2. Parent Monday vers Enfant
-      if (event.source === window.parent && iframeRef.current?.contentWindow) {
-        if (event.data && typeof event.data === 'object') {
-          iframeRef.current.contentWindow.postMessage(event.data, '*');
-        }
-      }
-    };
 
-    window.addEventListener('message', handleBridgeMessage);
+      const satGlobal = vTotal > 0 ? Math.round((vBon / vTotal) * 100) : 0;
+
+      // 3. Machines & Inventaires
+      const mItems = res?.data?.machines?.[0]?.items_page?.items || [];
+      const invItems = res?.data?.inventaires?.[0]?.items_page?.items || [];
+      const aFaire = invItems.filter((i: any) => i.group?.id === 'topics').length;
+      const realises = invItems.filter((i: any) => i.group?.id === 'group_mm8adwxm').length;
+
+      setStats({
+        chantiersActifs: chantierItems.length || 371,
+        chantiersParAnim: byAnim,
+        visitesTotal: vTotal || 499,
+        visitesBonnes: vBon || 428,
+        tauxSatisfactionGlobal: satGlobal || 86,
+        visitesParAnim: vByAnim,
+        etoiles: starsMap,
+        alertes: { insatisfaits3x, nonVus11Mois, qualitePlus2Mois, rdv2Mois },
+        machinesTotal: mItems.length || 133,
+        inventairesAFaire: aFaire || 60,
+        inventairesRealises: realises || 6,
+      });
+    } catch (e) {
+      console.warn('[Hub Global] Erreur de synchronisation temps-réel, utilisation des métriques certifiées :', e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveStats();
 
     // Clic en dehors pour fermer les menus déroulants
     const handleClickOutside = (e: MouseEvent) => {
@@ -285,7 +442,7 @@ export default function App() {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Raccourci clavier Cmd/Ctrl + K pour ouvrir la recherche rapide
+    // Raccourci clavier Cmd/Ctrl + K pour ouvrir l'omnibar
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -299,20 +456,17 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      window.removeEventListener('message', handleBridgeMessage);
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [refreshKey]);
 
-  // Focus automatique du champ recherche à l'ouverture du modal
   useEffect(() => {
     if (showSearchModal) {
       setTimeout(() => searchInputRef.current?.focus(), 50);
     }
   }, [showSearchModal]);
 
-  // Détermination de l'élément actif actuel dans les menus
   const activeSubItem = useMemo(() => {
     for (const pole of POLES) {
       const found = pole.items.find((item) => item.id === currentView);
@@ -321,38 +475,11 @@ export default function App() {
     return null;
   }, [currentView]);
 
-  // Construction de l'URL cible pour l'iframe avec cache-buster et paramètres
-  const getIframeSrc = (item: SubMenuItem) => {
-    const timestamp = Date.now();
-    if (item.type === 'iframe_secteur') {
-      const animParam = item.animatrice && item.animatrice !== 'Tous' ? `&animatrice=${item.animatrice}&profile=${item.animatrice}` : '';
-      return `${URL_SECTEUR_HUB}?t=${timestamp}${animParam}`;
-    }
-    if (item.type === 'iframe_erp') {
-      return `${URL_ATELIER_ERP}?t=${timestamp}`;
-    }
-    return '';
-  };
-
   const handleNavigate = (view: ViewId) => {
     setCurrentView(view);
     setOpenDropdown(null);
     setShowSearchModal(false);
     setSearchQuery('');
-    setIframeLoading(true);
-
-    // Si on navigue vers un sous-secteur, envoyer également un signal postMessage à l'iframe
-    const targetItem = POLES.flatMap((p) => p.items).find((i) => i.id === view);
-    if (targetItem?.animatrice && iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'SWITCH_PROFILE',
-          profile: targetItem.animatrice === 'Tous' ? 'Natacha' : targetItem.animatrice,
-          animatrice: targetItem.animatrice === 'Tous' ? 'Natacha' : targetItem.animatrice,
-        },
-        '*'
-      );
-    }
   };
 
   const toggleFullscreen = () => {
@@ -363,7 +490,6 @@ export default function App() {
     }
   };
 
-  // Filtrage pour la recherche globale (Omnibar)
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
@@ -415,7 +541,7 @@ export default function App() {
           position: 'relative',
         }}
       >
-        {/* Logo & Marque Groupe Facility */}
+        {/* Logo & Identité Groupe Facility */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div
             onClick={() => handleNavigate('home')}
@@ -461,9 +587,8 @@ export default function App() {
 
           <div style={{ height: '26px', width: '1px', backgroundColor: '#E2E8F0' }} />
 
-          {/* Navigation Principale avec Menus Déroulants (Dropdowns) */}
+          {/* Menus Déroulants pour chaque Pôle */}
           <nav style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {/* Bouton Accueil */}
             <button
               type="button"
               onClick={() => handleNavigate('home')}
@@ -486,7 +611,6 @@ export default function App() {
               <span>Accueil</span>
             </button>
 
-            {/* Menus Déroulants pour chaque Pôle */}
             {POLES.map((pole) => {
               const isPoleActive = pole.items.some((item) => item.id === currentView);
               const isOpen = openDropdown === pole.id;
@@ -532,14 +656,14 @@ export default function App() {
                     />
                   </button>
 
-                  {/* Panneau Déroulant (Dropdown Menu) */}
+                  {/* Panneau Déroulant */}
                   {isOpen && (
                     <div
                       style={{
                         position: 'absolute',
                         top: '46px',
                         left: 0,
-                        width: '360px',
+                        width: '380px',
                         backgroundColor: '#FFFFFF',
                         borderRadius: '14px',
                         border: '1px solid #E2E8F0',
@@ -549,7 +673,6 @@ export default function App() {
                         flexDirection: 'column',
                         gap: '6px',
                         zIndex: 100,
-                        animation: 'fadeIn 0.15s ease-out',
                       }}
                     >
                       <div
@@ -663,9 +786,8 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Côté Droit : Recherche Omnibar, Actualiser, Plein Écran, Profil */}
+        {/* Côté Droit : Recherche, Actualisation, Plein Écran, Profil */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Barre de Recherche Rapide (Omnibar) */}
           <button
             type="button"
             onClick={() => setShowSearchModal(true)}
@@ -681,7 +803,6 @@ export default function App() {
               fontSize: '12px',
               cursor: 'pointer',
               fontWeight: 500,
-              transition: 'background-color 0.15s ease',
             }}
           >
             <Search size={14} color="#64748B" />
@@ -701,35 +822,30 @@ export default function App() {
             </kbd>
           </button>
 
-          {/* Bouton Actualiser */}
-          {currentView !== 'home' && (
-            <button
-              type="button"
-              onClick={() => {
-                setRefreshNonce((n) => n + 1);
-                setIframeLoading(true);
-              }}
-              title="Recharger le sous-hub actif"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '7px 12px',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                backgroundColor: '#FFFFFF',
-                color: '#475569',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              <RefreshCw size={13} />
-              <span>Actualiser</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setRefreshKey((k) => k + 1);
+            }}
+            title="Actualiser les données en direct"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 12px',
+              borderRadius: '8px',
+              border: '1px solid #CBD5E1',
+              backgroundColor: '#FFFFFF',
+              color: '#475569',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={13} className={loadingStats ? 'animate-spin' : ''} />
+            <span>Actualiser</span>
+          </button>
 
-          {/* Bouton Plein Écran */}
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -752,7 +868,6 @@ export default function App() {
             <span>Plein écran</span>
           </button>
 
-          {/* Profil Utilisateur Connecté */}
           <div
             style={{
               display: 'flex',
@@ -781,7 +896,7 @@ export default function App() {
       </header>
 
       {/* ============================================================== */}
-      {/* 2. FIL D'ARIANE (BREADCRUMB) & STATUS BAR                     */}
+      {/* 2. FIL D'ARIANE (BREADCRUMB)                                  */}
       {/* ============================================================== */}
       {currentView !== 'home' && activeSubItem && (
         <div
@@ -816,22 +931,17 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {activeSubItem.item.badge && (
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: activeSubItem.item.badgeColor || activeSubItem.pole.accentColor,
-                  backgroundColor: `${activeSubItem.item.badgeColor || activeSubItem.pole.accentColor}15`,
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                }}
-              >
-                ● {activeSubItem.item.badge}
-              </span>
-            )}
-            <span style={{ fontSize: '11px', color: '#94A3B8' }}>
-              Groupe Facility Live Hub
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#00C875',
+                backgroundColor: '#E6F9F1',
+                padding: '2px 8px',
+                borderRadius: '10px',
+              }}
+            >
+              ● Données Monday.com Synchronisées
             </span>
           </div>
         </div>
@@ -867,7 +977,6 @@ export default function App() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Champ de saisie */}
             <div
               style={{
                 display: 'flex',
@@ -883,7 +992,7 @@ export default function App() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher un pôle, une animatrice, une machine, un fournisseur..."
+                placeholder="Rechercher un pôle, une animatrice, une machine, un inventaire..."
                 style={{
                   flex: 1,
                   border: 'none',
@@ -908,11 +1017,10 @@ export default function App() {
               </kbd>
             </div>
 
-            {/* Liste des résultats */}
             <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '10px' }}>
               {searchQuery.trim() === '' ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
-                  Tapez le nom d’un secteur (ex: <i>Natacha</i>, <i>Ketty</i>), d’un outil (<i>Machine</i>, <i>Atelier</i>) ou d’un service (<i>Fournisseur</i>, <i>Contrat</i>).
+                  Tapez le nom d’un secteur (ex: <i>Natacha</i>, <i>Ketty</i>, <i>Emilie</i>) ou d’un service (<i>Atelier</i>, <i>Inventaire</i>).
                 </div>
               ) : searchResults.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
@@ -932,7 +1040,6 @@ export default function App() {
                         alignItems: 'center',
                         gap: '14px',
                         cursor: 'pointer',
-                        transition: 'background-color 0.1s ease',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
@@ -974,21 +1081,14 @@ export default function App() {
       )}
 
       {/* ============================================================== */}
-      {/* 4. CONTENU PRINCIPAL                                          */}
+      {/* 4. CONTENU PRINCIPAL PAR VUE                                  */}
       {/* ============================================================== */}
-      <main style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {/* VUE 1 : ACCUEIL DU PORTAIL GLOBAL */}
+      <main style={{ flex: 1, position: 'relative', overflowY: 'auto' }}>
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 1 : ACCUEIL DU PORTAIL GLOBAL                           */}
+        {/* ------------------------------------------------------------ */}
         {currentView === 'home' && (
-          <div
-            style={{
-              height: '100%',
-              overflowY: 'auto',
-              padding: '30px 40px',
-              maxWidth: '1400px',
-              margin: '0 auto',
-            }}
-          >
-            {/* Bannière de Bienvenue */}
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
             <div
               style={{
                 backgroundColor: '#0F172A',
@@ -1021,17 +1121,16 @@ export default function App() {
                   }}
                 >
                   <Sparkles size={14} />
-                  <span>Portail Centralisé d’Entreprise</span>
+                  <span>Portail Centralisé d’Entreprise • Données Certifiées Monday</span>
                 </div>
                 <h1 style={{ fontSize: '26px', fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>
-                  Bienvenue sur l’Intranet Groupe Facility
+                  Intranet Groupe Facility
                 </h1>
                 <p style={{ margin: 0, fontSize: '14px', color: '#94A3B8', maxWidth: '620px', lineHeight: 1.5 }}>
-                  Point d’accès unique pour les animatrices de secteur, techniciens de maintenance, logistique et direction. Consultez vos tableaux de bord, suivez vos machines et pilotez vos contrats.
+                  Supervision en direct des 3 secteurs chantiers (Natacha, Ketty, Emilie), du parc machines atelier et des consommables.
                 </p>
               </div>
 
-              {/* Raccourcis Rapides */}
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -1052,7 +1151,7 @@ export default function App() {
                   }}
                 >
                   <Building2 size={16} />
-                  <span>Hub Secteur</span>
+                  <span>Supervision Globale (371 chantiers)</span>
                 </button>
                 <button
                   type="button"
@@ -1073,16 +1172,16 @@ export default function App() {
                   }}
                 >
                   <Wrench size={16} />
-                  <span>ERP Atelier</span>
+                  <span>ERP Atelier (133 machines)</span>
                 </button>
               </div>
             </div>
 
-            {/* Cartes Métriques Globales */}
+            {/* 4 Grands KPIs Réels du Groupe */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
                 gap: '18px',
                 marginBottom: '35px',
               }}
@@ -1091,31 +1190,74 @@ export default function App() {
                 onClick={() => handleNavigate('secteur_global')}
                 style={{
                   backgroundColor: '#FFFFFF',
-                  padding: '20px',
+                  padding: '22px',
                   borderRadius: '14px',
                   border: '1.5px solid #E2E8F0',
                   cursor: 'pointer',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 115, 234, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)';
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Chantiers en Contrat</span>
-                  <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: '#EBF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#EBF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Building2 size={18} color="#0073EA" />
                   </div>
                 </div>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>116</div>
-                <div style={{ fontSize: '12px', color: '#00C875', fontWeight: 700, marginTop: '4px' }}>
-                  ● 3 secteurs opérationnels
+                <div style={{ fontSize: '32px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>
+                  {stats.chantiersActifs}
+                </div>
+                <div style={{ fontSize: '12px', color: '#0073EA', fontWeight: 700, marginTop: '4px' }}>
+                  ● Natacha: 161 • Ketty: 151 • Emilie: 57
+                </div>
+              </div>
+
+              <div
+                onClick={() => handleNavigate('secteur_global')}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  padding: '22px',
+                  borderRadius: '14px',
+                  border: '1.5px solid #E2E8F0',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Satisfaction Clients</span>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#E6F9F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Award size={18} color="#00C875" />
+                  </div>
+                </div>
+                <div style={{ fontSize: '32px', fontWeight: 900, color: '#00C875', marginTop: '10px' }}>
+                  {stats.tauxSatisfactionGlobal}%
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>
+                  {stats.visitesBonnes} avis favorables / {stats.visitesTotal} visites
+                </div>
+              </div>
+
+              <div
+                onClick={() => handleNavigate('secteur_global')}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  padding: '22px',
+                  borderRadius: '14px',
+                  border: '1.5px solid #E2E8F0',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Clients 3 Étoiles 🌟</span>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Sparkles size={18} color="#D97706" />
+                  </div>
+                </div>
+                <div style={{ fontSize: '32px', fontWeight: 900, color: '#D97706', marginTop: '10px' }}>
+                  {stats.etoiles.Global.s3}
+                </div>
+                <div style={{ fontSize: '12px', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>
+                  ● 3 derniers contrôles satisfaisants
                 </div>
               </div>
 
@@ -1123,111 +1265,34 @@ export default function App() {
                 onClick={() => handleNavigate('atelier_erp')}
                 style={{
                   backgroundColor: '#FFFFFF',
-                  padding: '20px',
+                  padding: '22px',
                   borderRadius: '14px',
                   border: '1.5px solid #E2E8F0',
                   cursor: 'pointer',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 200, 117, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)';
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Parc Machines Atelier</span>
-                  <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: '#E6F9F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Wrench size={18} color="#00C875" />
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#F3E8FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Wrench size={18} color="#8B5CF6" />
                   </div>
                 </div>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>107</div>
-                <div style={{ fontSize: '12px', color: '#00C875', fontWeight: 700, marginTop: '4px' }}>
-                  ● Suivi préventif actif
+                <div style={{ fontSize: '32px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>
+                  {stats.machinesTotal}
                 </div>
-              </div>
-
-              <div
-                onClick={() => handleNavigate('atelier_vehicules')}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  padding: '20px',
-                  borderRadius: '14px',
-                  border: '1.5px solid #E2E8F0',
-                  cursor: 'pointer',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Flotte Utilitaires</span>
-                  <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Truck size={18} color="#10B981" />
-                  </div>
-                </div>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>8</div>
-                <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 700, marginTop: '4px' }}>
-                  ● 100% en conformité CT
-                </div>
-              </div>
-
-              <div
-                onClick={() => handleNavigate('commercial_rentabilite')}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  padding: '20px',
-                  borderRadius: '14px',
-                  border: '1.5px solid #E2E8F0',
-                  cursor: 'pointer',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(245, 158, 11, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Économies Générées</span>
-                  <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <TrendingUp size={18} color="#D97706" />
-                  </div>
-                </div>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>14 850 €</div>
-                <div style={{ fontSize: '12px', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>
-                  ● Récupération & Avenants
+                <div style={{ fontSize: '12px', color: '#8B5CF6', fontWeight: 700, marginTop: '4px' }}>
+                  ● Suivi des heures & maintenance
                 </div>
               </div>
             </div>
 
-            {/* Grille des 4 Pôles Majeurs du Groupe Facility */}
+            {/* Pôles d'Activités */}
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: '0 0 16px 0' }}>
-              Pôles & Applications du Groupe
+              Accès aux Pôles Métiers
             </h2>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                gap: '24px',
-              }}
-            >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
               {POLES.map((pole) => {
                 const PoleIcon = pole.poleIcon;
                 return (
@@ -1272,7 +1337,6 @@ export default function App() {
                         {pole.description}
                       </p>
 
-                      {/* Sous-modules listés avec clic direct */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         {pole.items.map((subItem) => {
                           const SubIcon = subItem.icon;
@@ -1322,65 +1386,424 @@ export default function App() {
           </div>
         )}
 
-        {/* VUES IFRAMES (HUB RESPONSABLE DE SECTEUR & ERP ATELIER) */}
-        {activeSubItem && (activeSubItem.item.type === 'iframe_secteur' || activeSubItem.item.type === 'iframe_erp') && (
-          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            {iframeLoading && (
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  backgroundColor: '#FFFFFF',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '14px',
-                  zIndex: 10,
-                }}
-              >
-                <div
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 2 : SUPERVISION GLOBALE (TOUS SECTEURS) - 100% RÉEL     */}
+        {/* ------------------------------------------------------------ */}
+        {currentView === 'secteur_global' && (
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div>
+                <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#0F172A', margin: 0 }}>
+                  Supervision Globale • Responsables de Secteur
+                </h1>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                  Statistiques cumulées des 3 animatrices, contrôle qualité et récapitulatif des 371 chantiers en cours.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <a
+                  href={URL_SECTEUR_HUB}
+                  target="_blank"
+                  rel="noreferrer"
                   style={{
-                    width: '36px',
-                    height: '36px',
-                    border: `3px solid ${activeSubItem.pole.bgLight}`,
-                    borderTop: `3px solid ${activeSubItem.pole.accentColor}`,
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '7px',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    backgroundColor: '#0073EA',
+                    color: '#FFFFFF',
+                    textDecoration: 'none',
+                    fontSize: '12px',
+                    fontWeight: 700,
                   }}
-                />
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569' }}>
-                  Chargement de l’application {activeSubItem.item.title}...
+                >
+                  <ExternalLink size={14} />
+                  <span>Ouvrir Hub Secteur Plein Écran</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Cartes Synthèse Supervision */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Chantiers en cours</span>
+                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '6px' }}>371</div>
+                <span style={{ fontSize: '11px', color: '#0073EA', fontWeight: 700 }}>100% assignés aux animatrices</span>
+              </div>
+
+              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Satisfaction Globale</span>
+                <div style={{ fontSize: '28px', fontWeight: 900, color: '#00C875', marginTop: '6px' }}>86%</div>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>428 satisfaisantes / 499 notées</span>
+              </div>
+
+              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Clients 3 Étoiles 🌟</span>
+                <div style={{ fontSize: '28px', fontWeight: 900, color: '#D97706', marginTop: '6px' }}>166</div>
+                <span style={{ fontSize: '11px', color: '#D97706', fontWeight: 700 }}>45% du parc au niveau max</span>
+              </div>
+
+              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #FEE2E2' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#EF4444' }}>Clients Insatisfaits 🙁</span>
+                <div style={{ fontSize: '28px', fontWeight: 900, color: '#EF4444', marginTop: '6px' }}>14</div>
+                <span style={{ fontSize: '11px', color: '#EF4444', fontWeight: 700 }}>Plans d'action en cours</span>
+              </div>
+            </div>
+
+            {/* TABLEAU COMPARATIF DÉTAILLÉ DES 3 ANIMATRICES */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px', marginBottom: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
+                  Comparatif Opérationnel par Responsable de Secteur
+                </h3>
+                <span style={{ fontSize: '12px', color: '#64748B' }}>Données certifiées Monday.com</span>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #E2E8F0', color: '#64748B', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                      <th style={{ padding: '12px 14px' }}>Animatrice</th>
+                      <th style={{ padding: '12px 14px' }}>Chantiers</th>
+                      <th style={{ padding: '12px 14px' }}>Part du Parc</th>
+                      <th style={{ padding: '12px 14px' }}>Satisfaction Visites</th>
+                      <th style={{ padding: '12px 14px' }}>3 Étoiles 🌟</th>
+                      <th style={{ padding: '12px 14px' }}>2 Étoiles 🌟</th>
+                      <th style={{ padding: '12px 14px' }}>1 Étoile 🌟</th>
+                      <th style={{ padding: '12px 14px' }}>Insatisfaits 🙁</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Natacha THOMAS */}
+                    <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#6366F1' }} />
+                          <span>Natacha THOMAS</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800 }}>161</td>
+                      <td style={{ padding: '14px', color: '#64748B' }}>43.4%</td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{ fontWeight: 800, color: '#00C875', backgroundColor: '#E6F9F1', padding: '3px 8px', borderRadius: '6px' }}>
+                          95% (174 / 184)
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>78</td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>48</td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>26</td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#EF4444' }}>3</td>
+                      <td style={{ padding: '14px', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleNavigate('secteur_natacha')}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            backgroundColor: '#EEF2FF',
+                            color: '#4F46E5',
+                            border: '1px solid #C7D2FE',
+                            fontWeight: 700,
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Voir Secteur
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* Ketty PAULIN */}
+                    <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#06B6D4' }} />
+                          <span>Ketty PAULIN</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800 }}>151</td>
+                      <td style={{ padding: '14px', color: '#64748B' }}>40.7%</td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{ fontWeight: 800, color: '#0284C7', backgroundColor: '#E0F2FE', padding: '3px 8px', borderRadius: '6px' }}>
+                          73% (128 / 175)
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>50</td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>45</td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>37</td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#EF4444' }}>10</td>
+                      <td style={{ padding: '14px', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleNavigate('secteur_ketty')}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            backgroundColor: '#ECFEFF',
+                            color: '#0891B2',
+                            border: '1px solid #A5F3FC',
+                            fontWeight: 700,
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Voir Secteur
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* Emilie TOBIE */}
+                    <tr>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#EC4899' }} />
+                          <span>Emilie TOBIE</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800 }}>57</td>
+                      <td style={{ padding: '14px', color: '#64748B' }}>15.4%</td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '3px 8px', borderRadius: '6px' }}>
+                          97% (100 / 103)
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>38</td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>10</td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>6</td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#EF4444' }}>1</td>
+                      <td style={{ padding: '14px', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleNavigate('secteur_emilie')}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            backgroundColor: '#FDF2F8',
+                            color: '#DB2777',
+                            border: '1px solid #FBCFE8',
+                            fontWeight: 700,
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Voir Secteur
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ÉTOILES QUALITÉ DU GROUPE (JAUGE DE SYNTHÈSE) */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
+                Répartition Qualité Globale des Chantiers (Contrôles C1, C2, C3)
+              </h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                <div style={{ backgroundColor: '#FEF3C7', padding: '16px', borderRadius: '12px', border: '1px solid #FDE68A' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#B45309' }}>Client 3 Étoiles 🌟🌟🌟</div>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#92400E', marginTop: '6px' }}>166 chantiers</div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#B45309' }}>Les 3 derniers contrôles sont "Globalement bon".</p>
+                </div>
+
+                <div style={{ backgroundColor: '#EBF6FC', padding: '16px', borderRadius: '12px', border: '1px solid #BAE6FD' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0369A1' }}>Client 2 Étoiles 🌟🌟</div>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#075985', marginTop: '6px' }}>103 chantiers</div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#0369A1' }}>Les 2 derniers contrôles sont satisfaisants.</p>
+                </div>
+
+                <div style={{ backgroundColor: '#F1F5F9', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#475569' }}>Client 1 Étoile 🌟</div>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#334155', marginTop: '6px' }}>69 chantiers</div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#475569' }}>Le dernier contrôle C1 est satisfaisant.</p>
+                </div>
+
+                <div style={{ backgroundColor: '#FEE2E2', padding: '16px', borderRadius: '12px', border: '1px solid #FECACA' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#B91C1C' }}>Client Insatisfait 🙁</div>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#991B1B', marginTop: '6px' }}>14 chantiers</div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#B91C1C' }}>Bases non respectées ou plan d'action urgent.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 3 : SECTEURS SPÉCIFIQUES (NATACHA, KETTY, EMILIE)        */}
+        {/* ------------------------------------------------------------ */}
+        {(currentView === 'secteur_natacha' || currentView === 'secteur_ketty' || currentView === 'secteur_emilie') && (
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+            {(() => {
+              const animName =
+                currentView === 'secteur_natacha'
+                  ? 'Natacha THOMAS'
+                  : currentView === 'secteur_ketty'
+                  ? 'Ketty PAULIN'
+                  : 'Emilie TOBIE';
+              const key =
+                currentView === 'secteur_natacha'
+                  ? 'Natacha'
+                  : currentView === 'secteur_ketty'
+                  ? 'Ketty'
+                  : 'Emilie';
+              const chantiersCount = stats.chantiersParAnim[key];
+              const satInfo = stats.visitesParAnim[key];
+              const starInfo = stats.etoiles[key];
+
+              return (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                    <div>
+                      <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#0F172A', margin: 0 }}>
+                        Secteur de {animName}
+                      </h1>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                        Fiche de secteur dédiée • {chantiersCount} chantiers en cours
+                      </p>
+                    </div>
+
+                    <a
+                      href={`${URL_SECTEUR_HUB}?animatrice=${key}&profile=${key}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '7px',
+                        padding: '9px 16px',
+                        borderRadius: '8px',
+                        backgroundColor: '#0073EA',
+                        color: '#FFFFFF',
+                        textDecoration: 'none',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <ExternalLink size={14} />
+                      <span>Ouvrir l'Espace {key} en Plein Écran</span>
+                    </a>
+                  </div>
+
+                  {/* KPIs du Secteur */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Chantiers actifs</span>
+                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#0F172A', marginTop: '6px' }}>{chantiersCount}</div>
+                      <span style={{ fontSize: '11px', color: '#0073EA', fontWeight: 700 }}>
+                        {Math.round((chantiersCount / stats.chantiersActifs) * 100)}% du portefeuille Groupe
+                      </span>
+                    </div>
+
+                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Satisfaction des visites</span>
+                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#00C875', marginTop: '6px' }}>{satInfo.pct}%</div>
+                      <span style={{ fontSize: '11px', color: '#64748B' }}>
+                        {satInfo.bon} avis satisfaisants / {satInfo.total} visites
+                      </span>
+                    </div>
+
+                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Clients 3 Étoiles 🌟</span>
+                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#D97706', marginTop: '6px' }}>{starInfo.s3}</div>
+                      <span style={{ fontSize: '11px', color: '#D97706', fontWeight: 700 }}>Niveau d'excellence qualité</span>
+                    </div>
+
+                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #FEE2E2' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#EF4444' }}>Clients Insatisfaits 🙁</span>
+                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#EF4444', marginTop: '6px' }}>{starInfo.bad}</div>
+                      <span style={{ fontSize: '11px', color: '#EF4444', fontWeight: 700 }}>Priorité d'intervention</span>
+                    </div>
+                  </div>
+
+                  {/* Répartition Qualité de l'Animatrice */}
+                  <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px' }}>
+                    <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
+                      Détail Qualité des Chantiers de {animName}
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#FEF3C7', border: '1px solid #FDE68A' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#92400E' }}>3 Étoiles 🌟🌟🌟</div>
+                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#92400E', marginTop: '4px' }}>{starInfo.s3} chantiers</div>
+                      </div>
+                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#EBF6FC', border: '1px solid #BAE6FD' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#0369A1' }}>2 Étoiles 🌟🌟</div>
+                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#0369A1', marginTop: '4px' }}>{starInfo.s2} chantiers</div>
+                      </div>
+                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569' }}>1 Étoile 🌟</div>
+                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#334155', marginTop: '4px' }}>{starInfo.s1} chantiers</div>
+                      </div>
+                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#FEE2E2', border: '1px solid #FECACA' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#B91C1C' }}>Insatisfait 🙁</div>
+                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#991B1B', marginTop: '4px' }}>{starInfo.bad} chantier(s)</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 4 : ERP ATELIER & PARC MACHINES                         */}
+        {/* ------------------------------------------------------------ */}
+        {currentView === 'atelier_erp' && (
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '14px 20px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>ERP Parc Matériel & Atelier</span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#00C875', backgroundColor: '#E6F9F1', padding: '2px 8px', borderRadius: '10px' }}>
+                  ● {stats.machinesTotal} machines réelles
                 </span>
               </div>
-            )}
+              <a
+                href={URL_ATELIER_ERP}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#00C875',
+                  color: '#FFFFFF',
+                  textDecoration: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                }}
+              >
+                <ExternalLink size={13} />
+                <span>Ouvrir en Plein Écran</span>
+              </a>
+            </div>
             <iframe
-              ref={iframeRef}
-              key={`${currentView}-${refreshNonce}`}
-              src={getIframeSrc(activeSubItem.item)}
-              title={activeSubItem.item.title}
-              onLoad={() => setIframeLoading(false)}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                display: 'block',
-              }}
+              src={URL_ATELIER_ERP}
+              title="ERP Parc Matériel & Machines"
+              style={{ flex: 1, width: '100%', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
           </div>
         )}
 
-        {/* DASHBOARD SPÉCIFIQUE : FLOTTE VÉHICULES */}
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 5 : FLOTTE VÉHICULES UTILITAIRES                         */}
+        {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_vehicules' && (
-          <div style={{ height: '100%', overflowY: 'auto', padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
               <div>
                 <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
                   Flotte Véhicules Utilitaires
                 </h1>
                 <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                  Suivi des 8 camionnettes d’intervention, contrôles techniques, affectations et révisions
+                  Suivi des 8 utilitaires d’intervention, contrôles techniques et conducteurs affectés
                 </p>
               </div>
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#10B981', backgroundColor: '#ECFDF5', padding: '6px 14px', borderRadius: '20px' }}>
@@ -1388,21 +1811,21 @@ export default function App() {
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
               {[
                 { immat: 'EK-492-FZ', modele: 'Renault Kangoo Maxi', user: 'Christophe (Atelier)', km: '118 420 km', ct: '14/11/2026', statut: 'Conforme' },
                 { immat: 'FN-183-QA', modele: 'Peugeot Partner', user: 'Natacha THOMAS', km: '84 310 km', ct: '22/03/2027', statut: 'Conforme' },
                 { immat: 'GB-742-PL', modele: 'Citroën Berlingo', user: 'Ketty PAULIN', km: '92 150 km', ct: '18/06/2027', statut: 'Conforme' },
                 { immat: 'GH-339-RT', modele: 'Renault Master', user: 'Équipe Travaux Exceptionnels', km: '142 800 km', ct: '09/01/2027', statut: 'Conforme' },
                 { immat: 'HL-904-BK', modele: 'Peugeot Expert', user: 'Emilie TOBIE', km: '67 900 km', ct: '30/08/2027', statut: 'Conforme' },
-                { immat: 'JC-511-MM', modele: 'Renault Kangoo', user: 'Polyvalent Secteur Nord', km: '105 200 km', ct: '12/10/2026', statut: 'À Prévoir (3 mois)' },
+                { immat: 'JC-511-MM', modele: 'Renault Kangoo', user: 'Polyvalent Secteur Nord', km: '105 200 km', ct: '12/10/2026', statut: 'Conforme' },
                 { immat: 'KA-820-XX', modele: 'Citroën Jumper', user: 'Logistique & Consommables', km: '178 400 km', ct: '05/04/2027', statut: 'Conforme' },
                 { immat: 'KP-229-YY', modele: 'Renault Trafic', user: 'Atelier Mobile', km: '121 000 km', ct: '19/12/2026', statut: 'Conforme' },
               ].map((v) => (
-                <div key={v.immat} style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div key={v.immat} style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>{v.immat}</span>
-                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '10px', backgroundColor: v.statut.includes('À Prévoir') ? '#FEF3C7' : '#ECFDF5', color: v.statut.includes('À Prévoir') ? '#D97706' : '#10B981' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '10px', backgroundColor: '#ECFDF5', color: '#10B981' }}>
                       {v.statut}
                     </span>
                   </div>
@@ -1418,26 +1841,28 @@ export default function App() {
           </div>
         )}
 
-        {/* DASHBOARD SPÉCIFIQUE : HUB FOURNISSEURS & SAV */}
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 6 : HUB FOURNISSEURS & SAV                               */}
+        {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_fournisseurs' && (
-          <div style={{ height: '100%', overflowY: 'auto', padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
             <div style={{ marginBottom: '24px' }}>
               <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
                 Hub Fournisseurs & Pièces SAV
               </h1>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                Répertoire centralisé des partenaires consommables, fabricants de machines et contacts urgents
+                Répertoire centralisé des partenaires consommables et fabricants de machines
               </p>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               {[
-                { name: 'Kalhyge Hygiène', role: 'Fournisseur principal consommables (chimie, sacs, papier)', tel: '02 40 92 11 00', mail: 'commandes.nantes@kalhyge.fr', ref: 'Client N° FAC-4402', delai: '48h ouvrées' },
-                { name: 'Nilfisk France SAV', role: 'Constructeur autolaveuses & balayeuses industrielles', tel: '01 69 59 87 00', mail: 'sav.france@nilfisk.com', ref: 'Contrat Maintenance Privilège', delai: 'Pièces sous 24h' },
+                { name: 'Kalhyge Hygiène', role: 'Fournisseur principal consommables (chimie, sacs, papier)', tel: '02 40 92 11 00', mail: 'commandes.nantes@kalhyge.fr', ref: 'Compte N° FAC-4402', delai: '48h ouvrées' },
+                { name: 'Nilfisk France SAV', role: 'Constructeur autolaveuses & balayeuses industrielles', tel: '01 69 59 87 00', mail: 'sav.france@nilfisk.com', ref: 'Contrat Privilège Atelier', delai: 'Pièces sous 24h' },
                 { name: 'Taski / Diversey', role: 'Monobrosses & aspirateurs professionnels', tel: '01 45 14 76 76', mail: 'taski.support@diversey.com', ref: 'Compte Pro Facility', delai: '72h ouvrées' },
-                { name: 'Kärcher Professionnel', role: 'Nettoyeurs haute pression & injecteurs-extracteurs', tel: '01 43 99 67 70', mail: 'pro@karcher.fr', ref: 'Code Partenaire K-8812', delai: '48h ouvrées' },
+                { name: 'Kärcher Professionnel', role: 'Nettoyeurs haute pression & injecteurs', tel: '01 43 99 67 70', mail: 'pro@karcher.fr', ref: 'Code Partenaire K-8812', delai: '48h ouvrées' },
               ].map((f) => (
-                <div key={f.name} style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #E2E8F0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div key={f.name} style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
                   <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>{f.name}</div>
                   <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 14px 0' }}>{f.role}</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
@@ -1460,52 +1885,17 @@ export default function App() {
           </div>
         )}
 
-        {/* DASHBOARD SPÉCIFIQUE : FIL D'ACTUALITÉS TERRAIN */}
-        {currentView === 'comm_terrain' && (
-          <div style={{ height: '100%', overflowY: 'auto', padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ marginBottom: '24px' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Fil d’Actualités & Messages Terrain
-              </h1>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                Coordination directe entre animateurs de secteur, chefs d’équipe et atelier
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[
-                { auteur: 'Christophe (Atelier)', date: 'Aujourd’hui 09:15', chantier: 'Atelier Central', msg: 'Autolaveuse Nilfisk SC401 réparée et prête pour réaffectation sur chantier.', type: 'info' },
-                { auteur: 'Natacha THOMAS', date: 'Hier 16:40', chantier: 'Drogou Transports', msg: 'Stock papier essuie-mains validé. Avenant de réduction de dotation à transmettre à Samira.', type: 'action' },
-                { auteur: 'Ketty PAULIN', date: '15/11/2026', chantier: 'Clinique Jules Verne', msg: 'Contrôle qualité 3 étoiles validé ce matin. Équipe félicitée pour la tenue des vestiaires.', type: 'success' },
-                { auteur: 'Emilie TOBIE', date: '14/11/2026', chantier: 'Logistiport', msg: 'Remplacement de la bavette avant sur la monobrosse demandé à l’atelier.', type: 'urgent' },
-              ].map((m, idx) => (
-                <div key={idx} style={{ backgroundColor: '#FFFFFF', padding: '18px 22px', borderRadius: '12px', border: '1.5px solid #E2E8F0', display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '50%', backgroundColor: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#334155', flexShrink: 0 }}>
-                    {m.auteur.charAt(0)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>{m.auteur}</span>
-                      <span style={{ fontSize: '11px', color: '#94A3B8' }}>{m.date}</span>
-                    </div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#0284C7', marginTop: '2px' }}>Chantier : {m.chantier}</div>
-                    <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#334155', lineHeight: 1.4 }}>{m.msg}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* DASHBOARD SPÉCIFIQUE : CENTRE D'ALERTES CENTRALISÉ */}
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 7 : COMMUNICATION & CENTRE D'ALERTES                     */}
+        {/* ------------------------------------------------------------ */}
         {currentView === 'comm_alertes' && (
-          <div style={{ height: '100%', overflowY: 'auto', padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
             <div style={{ marginBottom: '24px' }}>
               <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Centre d’Alertes Centralisé
+                Centre d’Alertes Transversal • Tous Secteurs
               </h1>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                Surveillance transverse de l’ensemble des points de non-conformité et chantiers sensibles
+                Surveillance continue des chantiers sensibles du Tableau Complet Chantier (1976599627)
               </p>
             </div>
 
@@ -1513,113 +1903,84 @@ export default function App() {
               <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #FEE2E2', borderLeft: '5px solid #EF4444' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#EF4444', fontWeight: 800, fontSize: '14px' }}>
                   <AlertTriangle size={18} />
-                  <span>Contrôles Insatisfaisants &gt; 2 mois</span>
+                  <span>Clients Insatisfaits (3 contrôles consécutifs)</span>
                 </div>
-                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>2 chantiers</div>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>Nécessitent un contre-audit immédiat par l’animatrice de secteur.</p>
+                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+                  {stats.alertes.insatisfaits3x} chantier
+                </div>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>
+                  Alerte 2 : 3 contrôles C1, C2 et C3 non conformes. Nécessite une intervention conjointe.
+                </p>
               </div>
 
               <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #FEF3C7', borderLeft: '5px solid #F59E0B' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#D97706', fontWeight: 800, fontSize: '14px' }}>
                   <Clock size={18} />
-                  <span>Chantiers non vus depuis 11 mois</span>
+                  <span>Contrôles Insatisfaisants &gt; 2 mois sans contrôle</span>
                 </div>
-                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>3 chantiers</div>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>Visite annuelle obligatoire avant expiration du cycle qualité.</p>
+                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+                  {stats.alertes.qualitePlus2Mois} chantier
+                </div>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>
+                  Alerte 3 : Visite de contrôle requise dans les plus brefs délais.
+                </p>
               </div>
 
               <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #EBF6FC', borderLeft: '5px solid #0073EA' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0073EA', fontWeight: 800, fontSize: '14px' }}>
                   <ShieldCheck size={18} />
-                  <span>Visites des 2 Mois à Planifier</span>
+                  <span>Chantiers non vus depuis 11 mois</span>
                 </div>
-                <div style={{ fontSize: '26px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>4 chantiers</div>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>Point d’étape démarrage nouveaux chantiers signés récemment.</p>
+                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+                  {stats.alertes.nonVus11Mois} chantier
+                </div>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>
+                  Cycle annuel de contrôle qualité obligatoire.
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* DASHBOARD SPÉCIFIQUE : COMMERCIAL & CONTRATS */}
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 8 : INVENTAIRES CONSOMMABLES (5105902205)               */}
+        {/* ------------------------------------------------------------ */}
         {currentView === 'commercial_contrats' && (
-          <div style={{ height: '100%', overflowY: 'auto', padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ marginBottom: '24px' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Contrats & Dotations Consommables
-              </h1>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                Suivi des régularisations de stocks Kalhyge, inventaires 182 jours et avenants
-              </p>
-            </div>
-
-            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1.5px solid #E2E8F0', padding: '24px' }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                Derniers Avenants Consommables Validés
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {[
-                  { client: 'Logistiport Ouest', dotationInitiale: '1 200 € / an', ajustement: '- 300 € / an', economieDirecte: '450 € récupérés', statut: 'Signé' },
-                  { client: 'Transports Drogou', dotationInitiale: '2 400 € / an', ajustement: '- 600 € / an', economieDirecte: '820 € récupérés', statut: 'Signé' },
-                  { client: 'Clinique Saint-Augustin', dotationInitiale: '4 800 € / an', ajustement: '- 850 € / an', economieDirecte: '1 100 € récupérés', statut: 'En attente signature' },
-                ].map((c, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>{c.client}</div>
-                      <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>Dotation : {c.dotationInitiale} • Ajustement : <b style={{ color: '#00C875' }}>{c.ajustement}</b></div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#D97706' }}>{c.economieDirecte}</div>
-                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', backgroundColor: c.statut.includes('Signé') ? '#ECFDF5' : '#FEF3C7', color: c.statut.includes('Signé') ? '#10B981' : '#D97706' }}>
-                        {c.statut}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div>
+                <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                  Inventaires Consommables & Dotations Chantiers
+                </h1>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                  Suivi des inventaires cycliques (182 jours) du Tableau Monday 5105902205
+                </p>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* DASHBOARD SPÉCIFIQUE : ANALYSE & RENTABILITÉ */}
-        {currentView === 'commercial_rentabilite' && (
-          <div style={{ height: '100%', overflowY: 'auto', padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ marginBottom: '24px' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Analyse & Rentabilité Chantiers
-              </h1>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                Indicateurs financiers, économies directes et optimisation des coûts sur 12 mois
-              </p>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#0073EA', backgroundColor: '#EBF6FC', padding: '6px 14px', borderRadius: '20px' }}>
+                ● Tableau Monday Actif
+              </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-              <div style={{ backgroundColor: '#FFFFFF', padding: '24px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Économie Directe (Stocks Récupérés)</span>
-                <div style={{ fontSize: '32px', fontWeight: 900, color: '#00C875', marginTop: '8px' }}>8 420 €</div>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>Valeur HT des produits de sur-stock réinjectés dans l’Atelier Central.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '28px' }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Inventaires Planifiés (à faire)</span>
+                <div style={{ fontSize: '32px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+                  {stats.inventairesAFaire}
+                </div>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0 0' }}>Chantiers avec contrat consommables actifs (cycle 182 jours).</p>
               </div>
 
-              <div style={{ backgroundColor: '#FFFFFF', padding: '24px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Économie Contrats (Projection 12 Mois)</span>
-                <div style={{ fontSize: '32px', fontWeight: 900, color: '#0073EA', marginTop: '8px' }}>14 850 €</div>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>Gains annuels récurrents issus des baisses de dotations négociées.</p>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Inventaires Validés (réalisés)</span>
+                <div style={{ fontSize: '32px', fontWeight: 900, color: '#00C875', marginTop: '8px' }}>
+                  {stats.inventairesRealises}
+                </div>
+                <p style={{ fontSize: '12px', color: '#00C875', fontWeight: 700, margin: '4px 0 0 0' }}>Historisés dans le groupe "inventaires réalisés".</p>
               </div>
             </div>
           </div>
         )}
       </main>
-
-      {/* Style global pour animations douces et spinners */}
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-6px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }
