@@ -44,73 +44,6 @@ export interface VisitItem {
 const visitsOverviewCache = new Map<string, { timestamp: number; data: any }>();
 const inFlightVisitsOverview = new Map<string, Promise<any>>();
 
-let rawVisitsItemsCache: { timestamp: number; items: any[] } | null = null;
-let inFlightRawVisits: Promise<any[]> | null = null;
-
-export async function fetchAllRawVisits(): Promise<any[]> {
-  if (rawVisitsItemsCache && Date.now() - rawVisitsItemsCache.timestamp < 180000) {
-    return rawVisitsItemsCache.items;
-  }
-  if (inFlightRawVisits) return inFlightRawVisits;
-
-  const promise = (async () => {
-    let cur: string | null = null;
-    const allItems: any[] = [];
-    do {
-      const q = cur
-        ? `query GetVisitsCursor($cursor: String!) {
-            boards(ids: [1977798116]) {
-              items_page(limit: 500, cursor: $cursor) {
-                cursor
-                items {
-                  id
-                  name
-                  date: column_values(ids: ["date_mkrcgy18"]) { text }
-                  anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
-                  qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
-                  chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
-                }
-              }
-            }
-          }`
-        : `query GetVisitsInit {
-            boards(ids: [1977798116]) {
-              items_page(limit: 500) {
-                cursor
-                items {
-                  id
-                  name
-                  date: column_values(ids: ["date_mkrcgy18"]) { text }
-                  anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
-                  qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
-                  chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
-                }
-              }
-            }
-          }`;
-
-      const res: any = cur
-        ? await callMondayApi(q, { variables: { cursor: cur } })
-        : await callMondayApi(q);
-
-      const page = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
-      if (!page) break;
-      allItems.push(...(page.items || []));
-      cur = page.cursor;
-    } while (cur);
-
-    rawVisitsItemsCache = { timestamp: Date.now(), items: allItems };
-    return allItems;
-  })();
-
-  inFlightRawVisits = promise;
-  try {
-    return await promise;
-  } finally {
-    inFlightRawVisits = null;
-  }
-}
-
 const chantierQualityCache = new Map<string, { timestamp: number; data: any }>();
 const inFlightChantierQuality = new Map<string, Promise<any>>();
 
@@ -121,7 +54,6 @@ const commsCache = new Map<string, { timestamp: number; data: any }>();
 const inFlightComms = new Map<string, Promise<any>>();
 
 export function clearVisitsOverviewCache() {
-  rawVisitsItemsCache = null;
   visitsOverviewCache.clear();
   chantierQualityCache.clear();
   visitsPlansCache.clear();
@@ -167,8 +99,70 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
       const lastMonday = new Date(t0Date.getTime() - (dow + 7) * DAY).toISOString().slice(0, 10);
       const recent: VisitItem[] = [];
 
-      // Récupération unique et ultra-rapide de l'ensemble des visites en 1 seule requête Monday (ou cache partagé)
-      const allItems = await fetchAllRawVisits();
+      const fetchRange = async (rangeFrom: string, rangeTo: string) => {
+        let curRange: string | null = null;
+        const rangeItems: any[] = [];
+        do {
+          const qInit = `
+            query GetVisitsRange {
+              boards(ids: [1977798116]) {
+                items_page(limit: 500, query_params: {
+                  rules: [
+                    { column_id: "date_mkrcgy18", compare_value: ["${rangeFrom}"], operator: greater_than_or_equals },
+                    { column_id: "date_mkrcgy18", compare_value: ["${rangeTo}"], operator: lower_than }
+                  ]
+                }) {
+                  cursor
+                  items {
+                    id
+                    name
+                    date: column_values(ids: ["date_mkrcgy18"]) { text }
+                    anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                    qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
+                    chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+                  }
+                }
+              }
+            }
+          `;
+          const qCursor = `
+            query GetVisitsRangeCursor($cursor: String!) {
+              boards(ids: [1977798116]) {
+                items_page(limit: 500, cursor: $cursor) {
+                  cursor
+                  items {
+                    id
+                    name
+                    date: column_values(ids: ["date_mkrcgy18"]) { text }
+                    anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                    qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
+                    chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
+                  }
+                }
+              }
+            }
+          `;
+
+          const apiRes: any = curRange
+            ? await callMondayApi(qCursor, { variables: { cursor: curRange } })
+            : await callMondayApi(qInit);
+
+          const page = apiRes?.data?.boards?.[0]?.items_page ?? apiRes?.boards?.[0]?.items_page;
+          if (!page) break;
+          rangeItems.push(...(page.items || []));
+          curRange = page.cursor;
+        } while (curRange);
+        return rangeItems;
+      };
+
+      const ranges = [
+        [`${year}-01-01`, `${year}-05-01`],
+        [`${year}-05-01`, `${year}-09-01`],
+        [`${year}-09-01`, `${year + 1}-01-01`],
+      ];
+
+      const parts = await Promise.all(ranges.map(([rf, rt]) => fetchRange(rf, rt)));
+      const allItems = parts.flat();
 
       for (const it of allItems) {
         const animCv = it.anim?.[0];
@@ -247,7 +241,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         const qInit = `
           query GetOpenSubsInit {
             boards(ids: [1978388826]) {
-              items_page(limit: 200, query_params: {
+              items_page(limit: 500, query_params: {
                 rules: [
                   { column_id: "color_mkv1tk6f", compare_value: [1, 3], operator: not_any_of }
                 ]
@@ -280,7 +274,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         const qCursor = `
           query GetOpenSubsCursor($cursor: String!) {
             boards(ids: [1978388826]) {
-              items_page(limit: 200, cursor: $cursor) {
+              items_page(limit: 500, cursor: $cursor) {
                 cursor
                 items {
                   id
@@ -330,7 +324,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         const qClosed = `
           query GetClosedSubs {
             boards(ids: [1978388826]) {
-              items_page(limit: 200, query_params: {
+              items_page(limit: 500, query_params: {
                 rules: [
                   { column_id: "date_mkwrr950", compare_value: ["${monthStart}"], operator: greater_than_or_equals }
                 ]
@@ -369,9 +363,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
       }
     })();
 
-    // Exécution séquentielle pour ne jamais surcharger la complexité instantanée Monday
-    const rawSubs = await pOpen;
-    const closedCount = await pClosed;
+    const [rawSubs, closedCount] = await Promise.all([pOpen, pClosed]);
 
     // Regrouper par visite parente / chantier
     const plansByParent = new Map<string, any>();

@@ -4,33 +4,8 @@ import { BOARD_IDS, COLUMN_MAP } from './columnMap';
 
 export const monday = mondaySdk();
 
-const memorySessionStorage = new Map<string, string>();
-export const safeSessionStorage = {
-  getItem: (key: string): string | null => {
-    try {
-      return window.sessionStorage.getItem(key);
-    } catch {
-      return memorySessionStorage.get(key) ?? null;
-    }
-  },
-  setItem: (key: string, value: string): void => {
-    try {
-      window.sessionStorage.setItem(key, value);
-    } catch {
-      memorySessionStorage.set(key, value);
-    }
-  },
-  removeItem: (key: string): void => {
-    try {
-      window.sessionStorage.removeItem(key);
-    } catch {
-      memorySessionStorage.delete(key);
-    }
-  },
-};
-
 let activeRequests = 0;
-const MAX_CONCURRENT = 3; // Débit optimal et protégé : 3 requêtes simultanées max pour préserver le budget Monday
+const MAX_CONCURRENT = 5;
 const waitQueue: Array<() => void> = [];
 
 const inFlightRequests = new Map<string, Promise<any>>();
@@ -134,18 +109,11 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
           }
           return res;
         } catch (err: any) {
-          const errorsList: any[] = err?.data?.errors || err?.errors || [];
-          const errStr = errorsList.length > 0 ? JSON.stringify(errorsList) : (err?.message || String(err));
-          const m = (String(err?.message || '') + ' ' + errStr).toLowerCase();
-          const isComplexityOrRate = m.includes('rate limit') || m.includes('complexity') || m.includes('429') || m.includes('graphql validation errors');
-          if (isComplexityOrRate && attempt < 3) {
-            const retryErr = errorsList.find((e: any) => e?.extensions?.retry_in_seconds) || err?.extensions;
-            const retrySec = retryErr?.retry_in_seconds || retryErr?.extensions?.retry_in_seconds;
-            const retryMatch = !retrySec ? errStr.match(/retry_in_seconds["']?:\s*(\d+)/i) : null;
-            const waitMs = retrySec ? (Number(retrySec) + 1) * 1000 : (retryMatch ? (Number(retryMatch[1]) + 1) * 1000 : Math.max(delay, 2500));
-            console.warn(`[BoardSDK] Budget complexité Monday (429) dépassé, attente de ${waitMs}ms avant réessai... (tentative ${attempt + 1}/3)`);
-            await new Promise((r) => setTimeout(r, waitMs));
-            delay = Math.max(delay * 1.5, 3000);
+          const m = String(err?.message || err).toLowerCase();
+          if ((m.includes('rate limit') || m.includes('complexity')) && attempt < 3) {
+            console.warn(`[BoardSDK] Rate limit exception, retrying in ${delay}ms... (attempt ${attempt + 1}/3)`);
+            await new Promise((r) => setTimeout(r, delay));
+            delay *= 1.5;
             continue;
           }
           if (attempt === 3) throw err;
