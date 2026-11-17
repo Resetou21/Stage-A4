@@ -510,10 +510,13 @@ export default function App() {
   }, [currentView]);
 
   const handleNavigate = (view: ViewId) => {
-    setCurrentView(view);
     setOpenDropdown(null);
     setShowSearchModal(false);
     setSearchQuery('');
+    if (view === currentView) {
+      return;
+    }
+    setCurrentView(view);
   };
 
   const toggleFullscreen = () => {
@@ -1668,117 +1671,124 @@ export default function App() {
         )}
 
         {/* ------------------------------------------------------------ */}
-        {/* VUE 3 : SECTEURS SPÉCIFIQUES (NATACHA, KETTY, EMILIE)        */}
+        {/* VUE 3 : SECTEURS EN DIRECT (NATACHA, KETTY, EMILIE)          */}
         {/* ------------------------------------------------------------ */}
         {(currentView === 'secteur_natacha' || currentView === 'secteur_ketty' || currentView === 'secteur_emilie') && (
-          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
             {(() => {
-              const animName =
-                currentView === 'secteur_natacha'
-                  ? 'Natacha THOMAS'
-                  : currentView === 'secteur_ketty'
-                  ? 'Ketty PAULIN'
-                  : 'Emilie TOBIE';
-              const key =
+              const animKey =
                 currentView === 'secteur_natacha'
                   ? 'Natacha'
                   : currentView === 'secteur_ketty'
                   ? 'Ketty'
                   : 'Emilie';
-              const chantiersCount = stats.chantiersParAnim[key];
-              const satInfo = stats.visitesParAnim[key];
-              const starInfo = stats.etoiles[key];
+              const animFullName =
+                currentView === 'secteur_natacha'
+                  ? 'Natacha THOMAS'
+                  : currentView === 'secteur_ketty'
+                  ? 'Ketty PAULIN'
+                  : 'Emilie TOBIE';
+              const chantiersCount = stats.chantiersParAnim[animKey];
+              const satPct = stats.visitesParAnim[animKey]?.pct || 0;
+              const iframeSrc = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}`;
 
               return (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                    <div>
-                      <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#0F172A', margin: 0 }}>
-                        Secteur de {animName}
-                      </h1>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                        Fiche de secteur dédiée • {chantiersCount} chantiers en cours
-                      </p>
-                    </div>
-
-                    <a
-                      href={`${URL_SECTEUR_HUB}?animatrice=${key}&profile=${key}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '7px',
-                        padding: '9px 16px',
-                        borderRadius: '8px',
-                        backgroundColor: '#0073EA',
-                        color: '#FFFFFF',
-                        textDecoration: 'none',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                      }}
-                    >
-                      <ExternalLink size={14} />
-                      <span>Ouvrir l'Espace {key} en Plein Écran</span>
-                    </a>
-                  </div>
-
-                  {/* KPIs du Secteur */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Chantiers actifs</span>
-                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#0F172A', marginTop: '6px' }}>{chantiersCount}</div>
-                      <span style={{ fontSize: '11px', color: '#0073EA', fontWeight: 700 }}>
-                        {Math.round((chantiersCount / stats.chantiersActifs) * 100)}% du portefeuille Groupe
+                <>
+                  <div
+                    style={{
+                      height: '44px',
+                      backgroundColor: '#FFFFFF',
+                      borderBottom: '1px solid #E2E8F0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 20px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                        Hub Secteur • {animFullName}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: '#0073EA',
+                          backgroundColor: '#EBF6FC',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        ● {chantiersCount} chantiers en cours
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: '#00C875',
+                          backgroundColor: '#E6F9F1',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        ● {satPct}% satisfaction
                       </span>
                     </div>
 
-                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Satisfaction des visites</span>
-                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#00C875', marginTop: '6px' }}>{satInfo.pct}%</div>
-                      <span style={{ fontSize: '11px', color: '#64748B' }}>
-                        {satInfo.bon} avis satisfaisants / {satInfo.total} visites
-                      </span>
-                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleNavigate('secteur_global')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: '#F1F5F9',
+                          color: '#475569',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Building2 size={12} />
+                        <span>Retour Supervision Globale</span>
+                      </button>
 
-                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Clients 3 Étoiles 🌟</span>
-                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#D97706', marginTop: '6px' }}>{starInfo.s3}</div>
-                      <span style={{ fontSize: '11px', color: '#D97706', fontWeight: 700 }}>Niveau d'excellence qualité</span>
-                    </div>
-
-                    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1.5px solid #FEE2E2' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#EF4444' }}>Clients Insatisfaits 🙁</span>
-                      <div style={{ fontSize: '30px', fontWeight: 900, color: '#EF4444', marginTop: '6px' }}>{starInfo.bad}</div>
-                      <span style={{ fontSize: '11px', color: '#EF4444', fontWeight: 700 }}>Priorité d'intervention</span>
+                      <a
+                        href={iframeSrc}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: '#0073EA',
+                          color: '#FFFFFF',
+                          textDecoration: 'none',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        <ExternalLink size={12} />
+                        <span>Plein Écran</span>
+                      </a>
                     </div>
                   </div>
 
-                  {/* Répartition Qualité de l'Animatrice */}
-                  <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px' }}>
-                    <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                      Détail Qualité des Chantiers de {animName}
-                    </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#FEF3C7', border: '1px solid #FDE68A' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#92400E' }}>3 Étoiles 🌟🌟🌟</div>
-                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#92400E', marginTop: '4px' }}>{starInfo.s3} chantiers</div>
-                      </div>
-                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#EBF6FC', border: '1px solid #BAE6FD' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#0369A1' }}>2 Étoiles 🌟🌟</div>
-                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#0369A1', marginTop: '4px' }}>{starInfo.s2} chantiers</div>
-                      </div>
-                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569' }}>1 Étoile 🌟</div>
-                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#334155', marginTop: '4px' }}>{starInfo.s1} chantiers</div>
-                      </div>
-                      <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: '#FEE2E2', border: '1px solid #FECACA' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#B91C1C' }}>Insatisfait 🙁</div>
-                        <div style={{ fontSize: '24px', fontWeight: 900, color: '#991B1B', marginTop: '4px' }}>{starInfo.bad} chantier(s)</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  <iframe
+                    key={animKey}
+                    src={iframeSrc}
+                    title={`Hub Secteur ${animFullName}`}
+                    style={{ flex: 1, width: '100%', height: 'calc(100% - 44px)', border: 'none' }}
+                    allow="clipboard-write; fullscreen; camera; microphone"
+                  />
+                </>
               );
             })()}
           </div>
