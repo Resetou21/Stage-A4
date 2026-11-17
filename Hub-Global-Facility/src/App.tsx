@@ -251,12 +251,18 @@ export default function App() {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const activeIframeRef = useRef<HTMLIFrameElement>(null);
 
   const CACHE_KEY = 'facility_portal_stats_v2';
   const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
   // Requête en direct vers l'API Monday.com pour charger les stats consolidées
   const loadLiveStats = async (force: boolean = false) => {
+    // Si l'utilisateur consulte un Hub dédié, ne pas saturer Monday avec la requête globale
+    if (!force && (currentView === 'secteur_natacha' || currentView === 'secteur_ketty' || currentView === 'secteur_emilie' || currentView === 'atelier_erp')) {
+      return;
+    }
+
     // 1. Vérification du cache local pour zéro latence et protection du budget Monday
     if (!force) {
       try {
@@ -469,11 +475,11 @@ export default function App() {
     loadLiveStats();
 
     // Pont bidirectionnel transparent Monday SDK (reprise exacte du commit 4662344) :
-    // Relaye les requêtes postMessage des sous-hubs vers Monday parent,
-    // et renvoie les réponses de Monday aux sous-hubs !
+    // Relaye les requêtes postMessage du sous-hub affiché vers Monday parent,
+    // et renvoie les réponses de Monday au sous-hub !
     const handleBridgeMessage = (event: MessageEvent) => {
-      // 1. Message venant d'un sous-hub enfant vers Monday parent
-      if (event.source !== window && event.source !== window.parent) {
+      // 1. Message venant du sous-hub enfant vers Monday parent
+      if (activeIframeRef.current?.contentWindow && event.source === activeIframeRef.current.contentWindow) {
         if (event.data && typeof event.data === 'object') {
           try {
             window.parent.postMessage(event.data, '*');
@@ -482,15 +488,12 @@ export default function App() {
         return;
       }
 
-      // 2. Message de réponse venant de Monday parent vers les sous-hubs
-      if (event.source === window.parent) {
+      // 2. Message de réponse venant de Monday parent vers le sous-hub actif
+      if (event.source === window.parent && activeIframeRef.current?.contentWindow) {
         if (event.data && typeof event.data === 'object') {
-          const iframes = document.querySelectorAll('iframe');
-          iframes.forEach((ifr) => {
-            try {
-              ifr.contentWindow?.postMessage(event.data, '*');
-            } catch {}
-          });
+          try {
+            activeIframeRef.current.contentWindow.postMessage(event.data, '*');
+          } catch {}
         }
       }
     };
@@ -1812,6 +1815,7 @@ export default function App() {
                   </div>
 
                   <iframe
+                    ref={activeIframeRef}
                     key={animKey}
                     src={iframeSrc}
                     title={`Hub Secteur ${animFullName}`}
@@ -1859,6 +1863,7 @@ export default function App() {
               </button>
             </div>
             <iframe
+              ref={activeIframeRef}
               src={URL_ATELIER_ERP}
               title="ERP Parc Matériel & Machines"
               style={{ flex: 1, width: '100%', border: 'none' }}
