@@ -319,7 +319,7 @@ export default function App() {
         }
       }`;
 
-      const res = await monday.api(q);
+      const res: any = await monday.api(q);
       if (res?.data?.me?.name) {
         setUserName(res.data.me.name);
       }
