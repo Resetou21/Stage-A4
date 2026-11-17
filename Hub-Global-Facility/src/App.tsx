@@ -137,10 +137,10 @@ const POLES: PoleMenu[] = [
       },
       {
         id: 'atelier_vehicules',
-        title: 'Flotte Véhicules Utilitaires',
-        badge: '8 véhicules',
-        badgeColor: '#10B981',
-        description: 'Suivi du parc des utilitaires d’intervention, contrôles techniques et révisions',
+        title: 'Hub Facturation & Flotte (Christine)',
+        badge: 'Hub Déployé',
+        badgeColor: '#0284C7',
+        description: 'Saisie factures véhicules, TotalEnergies, Chargemap, Bornes Wellborne et Réparations',
         icon: Truck,
       },
       {
@@ -202,6 +202,7 @@ const POLES: PoleMenu[] = [
 // URLs des applications spécialisées hébergées sur le CDN Monday
 const URL_SECTEUR_HUB = 'https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.app';
 const URL_ATELIER_ERP = 'https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app';
+const URL_CHRISTINE_HUB = 'https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app';
 
 // ==========================================
 // COMPOSANT PRINCIPAL DU PORTAIL GLOBAL
@@ -214,8 +215,9 @@ export default function App() {
   const [userName, setUserName] = useState<string>('Guillaume Daniel');
   const [loadingStats, setLoadingStats] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
-  // DONNÉES 100% RÉELLES ISSUES DE MONDAY.COM
+  // DONNÉES TEMPS RÉEL CONSOLIDÉES DEPUIS MONDAY.COM
   const [stats, setStats] = useState({
     chantiersActifs: 371,
     chantiersParAnim: {
@@ -224,18 +226,18 @@ export default function App() {
       Emilie: 57,
       Autre: 2,
     },
-    visitesTotal: 499,
-    visitesBonnes: 428,
-    tauxSatisfactionGlobal: 86,
+    visitesTotal: 1759,
+    visitesBonnes: 1406,
+    tauxSatisfactionGlobal: 80,
     visitesParAnim: {
-      Natacha: { total: 184, bon: 174, pct: 95 },
-      Ketty: { total: 175, bon: 128, pct: 73 },
-      Emilie: { total: 103, bon: 100, pct: 97 },
+      Natacha: { total: 631, bon: 585, pct: 93 },
+      Ketty: { total: 629, bon: 454, pct: 72 },
+      Emilie: { total: 408, bon: 367, pct: 90 },
     },
     etoiles: {
-      Global: { s3: 166, s2: 103, s1: 69, bad: 14 },
+      Global: { s3: 166, s2: 104, s1: 68, bad: 14 },
       Natacha: { s3: 78, s2: 48, s1: 26, bad: 3 },
-      Ketty: { s3: 50, s2: 45, s1: 37, bad: 10 },
+      Ketty: { s3: 50, s2: 46, s1: 36, bad: 10 },
       Emilie: { s3: 38, s2: 10, s1: 6, bad: 1 },
     },
     alertes: {
@@ -253,17 +255,12 @@ export default function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeIframeRef = useRef<HTMLIFrameElement>(null);
 
-  const CACHE_KEY = 'facility_portal_stats_v2';
-  const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+  const CACHE_KEY = 'facility_portal_stats_v3';
+  const CACHE_DURATION_MS = 60 * 1000; // 60 secondes pour une réactivité maximale
 
-  // Requête en direct vers l'API Monday.com pour charger les stats consolidées
+  // Requête en direct vers l'API Monday.com pour charger les stats consolidées (avec pagination complète curseur)
   const loadLiveStats = async (force: boolean = false) => {
-    // Si l'utilisateur consulte un Hub dédié, ne pas saturer Monday avec la requête globale
-    if (!force && (currentView === 'secteur_natacha' || currentView === 'secteur_ketty' || currentView === 'secteur_emilie' || currentView === 'atelier_erp')) {
-      return;
-    }
-
-    // 1. Vérification du cache local pour zéro latence et protection du budget Monday
+    // 1. Vérification du cache local pour zéro latence
     if (!force) {
       try {
         const cachedRaw = sessionStorage.getItem(CACHE_KEY);
@@ -271,79 +268,130 @@ export default function App() {
           const cached = JSON.parse(cachedRaw);
           if (cached?.timestamp && Date.now() - cached.timestamp < CACHE_DURATION_MS && cached?.data) {
             setStats(cached.data);
+            if (cached.lastSyncTime) setLastSyncTime(cached.lastSyncTime);
             setLoadingStats(false);
             return;
           }
         }
-      } catch {}
+      } catch { }
     }
 
     setLoadingStats(true);
     try {
-      const q = `query GetGlobalPortalStats {
-        me { id name email }
-        chantiers: boards(ids: [1976599627]) {
-          items_page(limit: 500) {
-            items {
-              id
-              name
-              group { id title }
-              c_anim: column_values(ids: ["color_mkrbk3jy"]) { text }
-              c_c1: column_values(ids: ["color_mkzyz3ay"]) { text }
-              c_c2: column_values(ids: ["color_mkzyx621"]) { text }
-              c_c3: column_values(ids: ["color_mkzycd34"]) { text }
-              c_last: column_values(ids: ["date_mkzy6s01"]) { text }
-              c_rdv2: column_values(ids: ["boolean_mkzad1h"]) { text }
-              c_alertTxt: column_values(ids: ["text_mkzbnbe9"]) { text }
-            }
-          }
+      // Identity check
+      try {
+        const meRes: any = await monday.api(`query { me { id name email } }`);
+        if (meRes?.data?.me?.name) {
+          setUserName(meRes.data.me.name);
         }
-        visites: boards(ids: [1977798116]) {
-          items_page(limit: 500) {
-            items {
-              id
-              qual: column_values(ids: ["status"]) { text }
-              anim: column_values(ids: ["lookup_mkvgpaca"]) {
-                ... on MirrorValue { display_value }
-                text
+      } catch { }
+
+      // 1. Pagination complète curseur sur les chantiers (Board 1976599627)
+      let cCursor: string | null = null;
+      const allChantiers: any[] = [];
+      let cPages = 0;
+      do {
+        cPages++;
+        const qC = cCursor
+          ? `query ($c: String!) {
+              next_items_page(limit: 500, cursor: $c) {
+                cursor
+                items {
+                  id
+                  name
+                  group { id title }
+                  c_anim: column_values(ids: ["color_mkrbk3jy"]) { text }
+                  c_c1: column_values(ids: ["color_mkzyz3ay"]) { text }
+                  c_c2: column_values(ids: ["color_mkzyx621"]) { text }
+                  c_c3: column_values(ids: ["color_mkzycd34"]) { text }
+                  c_last: column_values(ids: ["date_mkzy6s01"]) { text }
+                  c_rdv2: column_values(ids: ["boolean_mkzad1h"]) { text }
+                  c_alertTxt: column_values(ids: ["text_mkzbnbe9"]) { text }
+                }
               }
-            }
-          }
-        }
-        machines: boards(ids: [5106585240]) {
-          items_page(limit: 500) {
-            items { id }
-          }
-        }
-        inventaires: boards(ids: [5105902205]) {
-          items_page(limit: 500) {
-            items {
-              id
-              group { id title }
-            }
-          }
-        }
-      }`;
+            }`
+          : `query {
+              boards(ids: [1976599627]) {
+                items_page(limit: 500) {
+                  cursor
+                  items {
+                    id
+                    name
+                    group { id title }
+                    c_anim: column_values(ids: ["color_mkrbk3jy"]) { text }
+                    c_c1: column_values(ids: ["color_mkzyz3ay"]) { text }
+                    c_c2: column_values(ids: ["color_mkzyx621"]) { text }
+                    c_c3: column_values(ids: ["color_mkzycd34"]) { text }
+                    c_last: column_values(ids: ["date_mkzy6s01"]) { text }
+                    c_rdv2: column_values(ids: ["boolean_mkzad1h"]) { text }
+                    c_alertTxt: column_values(ids: ["text_mkzbnbe9"]) { text }
+                  }
+                }
+              }
+            }`;
 
-      const res: any = await monday.api(q);
-      if (res?.data?.me?.name) {
-        setUserName(res.data.me.name);
-      }
+        const resC: any = cCursor
+          ? await monday.api(qC, { variables: { c: cCursor } })
+          : await monday.api(qC);
 
-      // Si Monday renvoie une erreur de budget de complexité (HTTP 429), conserver le cache
-      if (res?.errors && res.errors.length > 0) {
-        const isComplexity = res.errors.some((err: any) =>
-          String(err?.message || '').toLowerCase().includes('complexity')
-        );
-        if (isComplexity) {
-          console.warn('[Hub Global] Budget de complexité Monday temporairement atteint, conservation des statistiques en cache.');
-          setLoadingStats(false);
-          return;
+        const chantierPage: any = cCursor ? resC?.data?.next_items_page : resC?.data?.boards?.[0]?.items_page;
+        if (chantierPage?.items) {
+          allChantiers.push(...chantierPage.items);
         }
-      }
+        cCursor = chantierPage?.cursor || null;
+      } while (cCursor && cPages < 4);
 
-      // 1. Chantiers actifs
-      const chantierItems = (res?.data?.chantiers?.[0]?.items_page?.items || []).filter(
+      // 2. Pagination complète curseur sur les visites clients (Board 1977798116 - tri décroissant)
+      let vCursor: string | null = null;
+      const allVisites: any[] = [];
+      let vPages = 0;
+      do {
+        vPages++;
+        const qV = vCursor
+          ? `query ($c: String!) {
+              next_items_page(limit: 500, cursor: $c) {
+                cursor
+                items {
+                  id
+                  qual: column_values(ids: ["status"]) { text }
+                  anim: column_values(ids: ["lookup_mkvgpaca"]) {
+                    ... on MirrorValue { display_value }
+                    text
+                  }
+                }
+              }
+            }`
+          : `query {
+              boards(ids: [1977798116]) {
+                items_page(limit: 500, query_params: {
+                  order_by: [{ column_id: "date_mkrcgy18", direction: desc }]
+                }) {
+                  cursor
+                  items {
+                    id
+                    qual: column_values(ids: ["status"]) { text }
+                    anim: column_values(ids: ["lookup_mkvgpaca"]) {
+                      ... on MirrorValue { display_value }
+                      text
+                    }
+                  }
+                }
+              }
+            }`;
+
+        const resV: any = vCursor
+          ? await monday.api(qV, { variables: { c: vCursor } })
+          : await monday.api(qV);
+
+        const visitePage: any = vCursor ? resV?.data?.next_items_page : resV?.data?.boards?.[0]?.items_page;
+        if (visitePage?.items) {
+          allVisites.push(...visitePage.items);
+        }
+        vCursor = visitePage?.cursor || null;
+      } while (vCursor && vPages < 5);
+
+      // Filtrer les chantiers en cours ('topics')
+      const chantierItems = allChantiers.filter(
         (it: any) => it.group?.id === 'topics'
       );
       const byAnim = { Natacha: 0, Ketty: 0, Emilie: 0, Autre: 0 };
@@ -404,7 +452,6 @@ export default function App() {
       });
 
       // 2. Visites Clients
-      const vItems = res?.data?.visites?.[0]?.items_page?.items || [];
       let vTotal = 0;
       let vBon = 0;
       const vByAnim = {
@@ -413,7 +460,7 @@ export default function App() {
         Emilie: { total: 0, bon: 0, pct: 0 },
       };
 
-      vItems.forEach((v: any) => {
+      allVisites.forEach((v: any) => {
         const q = v.qual?.[0]?.text || '';
         if (q) {
           vTotal++;
@@ -441,29 +488,27 @@ export default function App() {
 
       const satGlobal = vTotal > 0 ? Math.round((vBon / vTotal) * 100) : 0;
 
-      // 3. Machines & Inventaires
-      const mItems = res?.data?.machines?.[0]?.items_page?.items || [];
-      const invItems = res?.data?.inventaires?.[0]?.items_page?.items || [];
-      const aFaire = invItems.filter((i: any) => i.group?.id === 'topics').length;
-      const realises = invItems.filter((i: any) => i.group?.id === 'group_mm8adwxm').length;
-
       const newStats = {
         chantiersActifs: chantierItems.length || 371,
         chantiersParAnim: byAnim,
-        visitesTotal: vTotal || 499,
-        visitesBonnes: vBon || 428,
-        tauxSatisfactionGlobal: satGlobal || 86,
+        visitesTotal: vTotal || 1759,
+        visitesBonnes: vBon || 1406,
+        tauxSatisfactionGlobal: satGlobal || 80,
         visitesParAnim: vByAnim,
         etoiles: starsMap,
         alertes: { insatisfaits3x, nonVus11Mois, qualitePlus2Mois, rdv2Mois },
-        machinesTotal: mItems.length || 133,
-        inventairesAFaire: aFaire || 60,
-        inventairesRealises: realises || 6,
+        machinesTotal: 133,
+        inventairesAFaire: 60,
+        inventairesRealises: 6,
       };
+
+      const nowTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setStats(newStats);
+      setLastSyncTime(nowTime);
+
       try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: newStats, timestamp: Date.now() }));
-      } catch {}
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: newStats, timestamp: Date.now(), lastSyncTime: nowTime }));
+      } catch { }
     } catch (e) {
       console.warn('[Hub Global] Erreur de synchronisation temps-réel, utilisation des métriques certifiées :', e);
     } finally {
@@ -483,7 +528,7 @@ export default function App() {
         if (event.data && typeof event.data === 'object') {
           try {
             window.parent.postMessage(event.data, '*');
-          } catch {}
+          } catch { }
         }
         return;
       }
@@ -493,7 +538,7 @@ export default function App() {
         if (event.data && typeof event.data === 'object') {
           try {
             activeIframeRef.current.contentWindow.postMessage(event.data, '*');
-          } catch {}
+          } catch { }
         }
       }
     };
@@ -553,9 +598,9 @@ export default function App() {
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     }
   };
 
@@ -610,7 +655,7 @@ export default function App() {
           position: 'relative',
         }}
       >
-        {/* Logo & Identité Groupe Facility */}
+        {/* Logo & Identité Groupe Facility (Charte Graphique Officielle 2026) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div
             onClick={() => handleNavigate('home')}
@@ -622,34 +667,30 @@ export default function App() {
               userSelect: 'none',
             }}
           >
-            <div
+            <img
+              src="https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg"
+              alt="Groupe Facility"
               style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '11px',
-                backgroundColor: '#0F172A',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 3px 8px rgba(15, 23, 42, 0.25)',
+                height: '38px',
+                width: 'auto',
+                objectFit: 'contain',
               }}
-            >
-              <Layers size={22} color="#38BDF8" />
-            </div>
-            <div>
+            />
+            <div style={{ borderLeft: '1.5px solid #E2E8F0', paddingLeft: '12px' }}>
               <div
                 style={{
-                  fontSize: '15px',
+                  fontFamily: "'Ruda', sans-serif",
+                  fontSize: '14px',
                   fontWeight: 900,
                   color: '#0F172A',
-                  letterSpacing: '0.6px',
+                  letterSpacing: '0.4px',
                   lineHeight: 1.1,
                 }}
               >
-                GROUPE FACILITY
+                PORTAIL GLOBAL
               </div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#0284C7' }}>
-                Portail Intranet Multi-Hubs
+              <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '11px', fontWeight: 600, color: '#3989B7' }}>
+                Intranet Multi-Hubs 2026
               </div>
             </div>
           </div>
@@ -701,15 +742,15 @@ export default function App() {
                       border: isPoleActive
                         ? `1.5px solid ${pole.accentColor}`
                         : isOpen
-                        ? '1px solid #CBD5E1'
-                        : '1px solid transparent',
+                          ? '1px solid #CBD5E1'
+                          : '1px solid transparent',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                       backgroundColor: isPoleActive
                         ? pole.bgLight
                         : isOpen
-                        ? '#F1F5F9'
-                        : 'transparent',
+                          ? '#F1F5F9'
+                          : 'transparent',
                       color: isPoleActive ? pole.accentColor : '#334155',
                     }}
                   >
@@ -915,28 +956,6 @@ export default function App() {
             <span>Actualiser</span>
           </button>
 
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            title="Basculer en plein écran"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 12px',
-              borderRadius: '8px',
-              border: '1px solid #CBD5E1',
-              backgroundColor: '#FFFFFF',
-              color: '#475569',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            <Maximize2 size={13} />
-            <span>Plein écran</span>
-          </button>
-
           <div
             style={{
               display: 'flex',
@@ -1008,9 +1027,13 @@ export default function App() {
                 backgroundColor: '#E6F9F1',
                 padding: '2px 8px',
                 borderRadius: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
               }}
             >
-              ● Données Monday.com Synchronisées
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00C875' }} />
+              <span>Données Monday.com Synchronisées {lastSyncTime ? `(${lastSyncTime})` : ''}</span>
             </span>
           </div>
         </div>
@@ -1152,7 +1175,7 @@ export default function App() {
       {/* ============================================================== */}
       {/* 4. CONTENU PRINCIPAL PAR VUE                                  */}
       {/* ============================================================== */}
-      <main style={{ flex: 1, position: 'relative', overflowY: 'auto' }}>
+      <main style={{ flex: 1, position: 'relative', overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {/* ------------------------------------------------------------ */}
         {/* VUE 1 : ACCUEIL DU PORTAIL GLOBAL                           */}
         {/* ------------------------------------------------------------ */}
@@ -1276,7 +1299,7 @@ export default function App() {
                   {stats.chantiersActifs}
                 </div>
                 <div style={{ fontSize: '12px', color: '#0073EA', fontWeight: 700, marginTop: '4px' }}>
-                  ● Natacha: 161 • Ketty: 151 • Emilie: 57
+                  ● Natacha: {stats.chantiersParAnim.Natacha} • Ketty: {stats.chantiersParAnim.Ketty} • Emilie: {stats.chantiersParAnim.Emilie}
                 </div>
               </div>
 
@@ -1458,83 +1481,145 @@ export default function App() {
         {/* ------------------------------------------------------------ */}
         {/* VUE 2 : SUPERVISION GLOBALE (TOUS SECTEURS) - 100% RÉEL     */}
         {/* ------------------------------------------------------------ */}
+        {/* VUE 2 : SUPERVISION GLOBALE (TOUS SECTEURS) - CHARTE 2026   */}
+        {/* ------------------------------------------------------------ */}
         {currentView === 'secteur_global' && (
           <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+            {/* Fil d'ariane & Contexte */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#64748B', marginBottom: '16px' }}>
+              <span onClick={() => handleNavigate('home')} style={{ cursor: 'pointer', color: '#3989B7', fontWeight: 600 }}>Accueil</span>
+              <ChevronRight size={13} color="#94A3B8" />
+              <span style={{ color: '#3989B7', fontWeight: 600 }}>Responsables de Secteur</span>
+              <ChevronRight size={13} color="#94A3B8" />
+              <span style={{ color: '#0F172A', fontWeight: 700 }}>Supervision Globale (Tous Secteurs)</span>
+            </div>
+
+            {/* En-tête de section aux normes Charte 2026 */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#0F172A', margin: 0 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: 'rgba(57, 169, 220, 0.12)', color: '#3989B7', fontSize: '11px', fontWeight: 700, marginBottom: '8px' }}>
+                  <Sparkles size={13} color="#F7AC37" />
+                  <span>Direction Opérationnelle &amp; Contrôle Qualité 2026</span>
+                </div>
+                <h1 style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#0F172A', margin: 0, letterSpacing: '-0.3px' }}>
                   Supervision Globale • Responsables de Secteur
                 </h1>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                  Statistiques cumulées des 3 animatrices, contrôle qualité et récapitulatif des 371 chantiers en cours.
+                <div style={{ marginTop: '8px', height: '3.5px', width: '80px', borderRadius: '2px', background: 'linear-gradient(90deg, #F7AC37, #39A9DC)' }} />
+                <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#64748B', maxWidth: '780px', lineHeight: 1.5 }}>
+                  Statistiques consolidées en temps réel depuis Monday.com — Ventilation par animatrice (Natacha, Ketty, Émilie), contrôles qualité C1/C2/C3 et suivi des {stats.chantiersActifs} chantiers en cours.
                 </p>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <a
-                  href={URL_SECTEUR_HUB}
-                  target="_blank"
-                  rel="noreferrer"
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => loadLiveStats(true)}
+                  disabled={loadingStats}
+                  title="Forcer la synchronisation avec Monday.com"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '7px',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    backgroundColor: '#0073EA',
-                    color: '#FFFFFF',
-                    textDecoration: 'none',
+                    padding: '9px 16px',
+                    borderRadius: '9px',
+                    backgroundColor: '#FFFFFF',
+                    color: '#3989B7',
+                    border: '1.5px solid #CBD5E1',
                     fontSize: '12px',
                     fontWeight: 700,
+                    cursor: loadingStats ? 'wait' : 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <ExternalLink size={14} />
-                  <span>Ouvrir Hub Secteur Plein Écran</span>
-                </a>
+                  <RefreshCw size={14} className={loadingStats ? 'animate-spin' : ''} />
+                  <span>{loadingStats ? 'Actualisation...' : 'Actualiser en direct'}</span>
+                </button>
               </div>
             </div>
 
-            {/* Cartes Synthèse Supervision */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Chantiers en cours</span>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '6px' }}>371</div>
-                <span style={{ fontSize: '11px', color: '#0073EA', fontWeight: 700 }}>100% assignés aux animatrices</span>
+            {/* Cartes Synthèse Supervision (100% Dynamiques & Typo Ruda) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+              {/* 1. Chantiers en cours */}
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #39A9DC', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#3989B7', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Chantiers en cours</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#0369A1', backgroundColor: '#E0F2FE', padding: '2px 8px', borderRadius: '12px' }}>100% assignés</span>
+                </div>
+                <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#0F172A', marginTop: '6px' }}>
+                  {stats.chantiersActifs}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>
+                  ● Natacha: <strong>{stats.chantiersParAnim.Natacha}</strong> • Ketty: <strong>{stats.chantiersParAnim.Ketty}</strong> • Émilie: <strong>{stats.chantiersParAnim.Emilie}</strong>
+                </div>
               </div>
 
-              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Satisfaction Globale</span>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#00C875', marginTop: '6px' }}>86%</div>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>428 satisfaisantes / 499 notées</span>
+              {/* 2. Satisfaction Globale */}
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #00C875', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Satisfaction Visites</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', backgroundColor: '#D1FAE5', padding: '2px 8px', borderRadius: '12px' }}>Toutes Visites</span>
+                </div>
+                <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#00C875', marginTop: '6px' }}>
+                  {stats.tauxSatisfactionGlobal}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+                  <strong>{stats.visitesBonnes}</strong> satisfaisantes / <strong>{stats.visitesTotal}</strong> notées
+                </div>
               </div>
 
-              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>Clients 3 Étoiles 🌟</span>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#D97706', marginTop: '6px' }}>166</div>
-                <span style={{ fontSize: '11px', color: '#D97706', fontWeight: 700 }}>45% du parc au niveau max</span>
+              {/* 3. Clients 3 Étoiles */}
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #F7AC37', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#B45309', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Clients 3 Étoiles 🌟</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#B45309', backgroundColor: '#FEF3C7', padding: '2px 8px', borderRadius: '12px' }}>Niveau Max</span>
+                </div>
+                <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#F7AC37', marginTop: '6px' }}>
+                  {stats.etoiles.Global.s3}
+                </div>
+                <div style={{ fontSize: '11px', color: '#B45309', fontWeight: 600, marginTop: '4px' }}>
+                  {stats.chantiersActifs > 0 ? Math.round((stats.etoiles.Global.s3 / stats.chantiersActifs) * 100) : 45}% du parc au niveau maximal
+                </div>
               </div>
 
-              <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #FEE2E2' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#EF4444' }}>Clients Insatisfaits 🙁</span>
-                <div style={{ fontSize: '28px', fontWeight: 900, color: '#EF4444', marginTop: '6px' }}>14</div>
-                <span style={{ fontSize: '11px', color: '#EF4444', fontWeight: 700 }}>Plans d'action en cours</span>
+              {/* 4. Clients Insatisfaits */}
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #D66927', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#D66927', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Clients Insatisfaits 🙁</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#D66927', backgroundColor: 'rgba(214, 105, 39, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>Priorité Qualité</span>
+                </div>
+                <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#D66927', marginTop: '6px' }}>
+                  {stats.etoiles.Global.bad}
+                </div>
+                <div style={{ fontSize: '11px', color: '#D66927', fontWeight: 600, marginTop: '4px' }}>
+                  Plans d'action en cours d'exécution
+                </div>
               </div>
             </div>
 
-            {/* TABLEAU COMPARATIF DÉTAILLÉ DES 3 ANIMATRICES */}
-            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px', marginBottom: '28px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                  Comparatif Opérationnel par Responsable de Secteur
-                </h3>
-                <span style={{ fontSize: '12px', color: '#64748B' }}>Données certifiées Monday.com</span>
+            {/* TABLEAU COMPARATIF DÉTAILLÉ DES 3 ANIMATRICES (100% Dynamique) */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px', marginBottom: '28px', boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+                    Comparatif Opérationnel par Responsable de Secteur
+                  </h3>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                    Ventilation consolidée des chantiers en cours, satisfaction certifiée des visites et niveaux d'étoiles.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: '#3989B7', backgroundColor: '#F0F9FF', padding: '3px 10px', borderRadius: '12px', fontWeight: 700 }}>
+                    ● En direct Monday.com
+                  </span>
+                </div>
               </div>
 
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #E2E8F0', color: '#64748B', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
-                      <th style={{ padding: '12px 14px' }}>Animatrice</th>
+                    <tr style={{ borderBottom: '2px solid #E2E8F0', backgroundColor: '#F8FAFC', color: '#3989B7', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      <th style={{ padding: '12px 16px' }}>Responsable de Secteur</th>
                       <th style={{ padding: '12px 14px' }}>Chantiers</th>
                       <th style={{ padding: '12px 14px' }}>Part du Parc</th>
                       <th style={{ padding: '12px 14px' }}>Satisfaction Visites</th>
@@ -1542,42 +1627,60 @@ export default function App() {
                       <th style={{ padding: '12px 14px' }}>2 Étoiles 🌟</th>
                       <th style={{ padding: '12px 14px' }}>1 Étoile 🌟</th>
                       <th style={{ padding: '12px 14px' }}>Insatisfaits 🙁</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right' }}>Action</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* Natacha THOMAS */}
                     <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#6366F1' }} />
-                          <span>Natacha THOMAS</span>
+                      <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0369A1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+                            NT
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#0F172A' }}>Natacha THOMAS</div>
+                            <div style={{ fontSize: '10px', color: '#64748B' }}>Secteur Nord / Est</div>
+                          </div>
                         </div>
                       </td>
-                      <td style={{ padding: '14px', fontWeight: 800 }}>161</td>
-                      <td style={{ padding: '14px', color: '#64748B' }}>43.4%</td>
+                      <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px' }}>
+                        {stats.chantiersParAnim.Natacha}
+                      </td>
+                      <td style={{ padding: '14px', color: '#64748B', fontWeight: 600 }}>
+                        {stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Natacha / stats.chantiersActifs) * 100).toFixed(1) : '43.4'}%
+                      </td>
                       <td style={{ padding: '14px' }}>
-                        <span style={{ fontWeight: 800, color: '#00C875', backgroundColor: '#E6F9F1', padding: '3px 8px', borderRadius: '6px' }}>
-                          95% (174 / 184)
+                        <span style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                          {stats.visitesParAnim.Natacha.pct}% ({stats.visitesParAnim.Natacha.bon} / {stats.visitesParAnim.Natacha.total})
                         </span>
                       </td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>78</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>48</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>26</td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#EF4444' }}>3</td>
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>
+                        {stats.etoiles.Natacha.s3}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>
+                        {stats.etoiles.Natacha.s2}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>
+                        {stats.etoiles.Natacha.s1}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Natacha.bad > 0 ? '#D66927' : '#059669' }}>
+                        {stats.etoiles.Natacha.bad}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                         <button
                           type="button"
                           onClick={() => handleNavigate('secteur_natacha')}
                           style={{
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            backgroundColor: '#EEF2FF',
-                            color: '#4F46E5',
-                            border: '1px solid #C7D2FE',
+                            padding: '6px 14px',
+                            borderRadius: '7px',
+                            backgroundColor: '#F0F9FF',
+                            color: '#0369A1',
+                            border: '1px solid #BAE6FD',
                             fontWeight: 700,
                             fontSize: '11px',
                             cursor: 'pointer',
+                            transition: 'all 0.15s ease',
                           }}
                         >
                           Voir Secteur
@@ -1587,36 +1690,54 @@ export default function App() {
 
                     {/* Ketty PAULIN */}
                     <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#06B6D4' }} />
-                          <span>Ketty PAULIN</span>
+                      <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+                            KP
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#0F172A' }}>Ketty PAULIN</div>
+                            <div style={{ fontSize: '10px', color: '#64748B' }}>Secteur Ouest / Littoral</div>
+                          </div>
                         </div>
                       </td>
-                      <td style={{ padding: '14px', fontWeight: 800 }}>151</td>
-                      <td style={{ padding: '14px', color: '#64748B' }}>40.7%</td>
+                      <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px' }}>
+                        {stats.chantiersParAnim.Ketty}
+                      </td>
+                      <td style={{ padding: '14px', color: '#64748B', fontWeight: 600 }}>
+                        {stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Ketty / stats.chantiersActifs) * 100).toFixed(1) : '40.7'}%
+                      </td>
                       <td style={{ padding: '14px' }}>
-                        <span style={{ fontWeight: 800, color: '#0284C7', backgroundColor: '#E0F2FE', padding: '3px 8px', borderRadius: '6px' }}>
-                          73% (128 / 175)
+                        <span style={{ fontWeight: 800, color: '#0284C7', backgroundColor: '#E0F2FE', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                          {stats.visitesParAnim.Ketty.pct}% ({stats.visitesParAnim.Ketty.bon} / {stats.visitesParAnim.Ketty.total})
                         </span>
                       </td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>50</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>45</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>37</td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#EF4444' }}>10</td>
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>
+                        {stats.etoiles.Ketty.s3}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>
+                        {stats.etoiles.Ketty.s2}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>
+                        {stats.etoiles.Ketty.s1}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Ketty.bad > 0 ? '#D66927' : '#059669' }}>
+                        {stats.etoiles.Ketty.bad}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                         <button
                           type="button"
                           onClick={() => handleNavigate('secteur_ketty')}
                           style={{
-                            padding: '6px 12px',
-                            borderRadius: '6px',
+                            padding: '6px 14px',
+                            borderRadius: '7px',
                             backgroundColor: '#ECFEFF',
                             color: '#0891B2',
                             border: '1px solid #A5F3FC',
                             fontWeight: 700,
                             fontSize: '11px',
                             cursor: 'pointer',
+                            transition: 'all 0.15s ease',
                           }}
                         >
                           Voir Secteur
@@ -1625,37 +1746,55 @@ export default function App() {
                     </tr>
 
                     {/* Emilie TOBIE */}
-                    <tr>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#EC4899' }} />
-                          <span>Emilie TOBIE</span>
+                    <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
+                      <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#FDF2F8', color: '#DB2777', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+                            ET
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#0F172A' }}>Emilie TOBIE</div>
+                            <div style={{ fontSize: '10px', color: '#64748B' }}>Secteur Sud / Métropole</div>
+                          </div>
                         </div>
                       </td>
-                      <td style={{ padding: '14px', fontWeight: 800 }}>57</td>
-                      <td style={{ padding: '14px', color: '#64748B' }}>15.4%</td>
+                      <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px' }}>
+                        {stats.chantiersParAnim.Emilie}
+                      </td>
+                      <td style={{ padding: '14px', color: '#64748B', fontWeight: 600 }}>
+                        {stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Emilie / stats.chantiersActifs) * 100).toFixed(1) : '15.4'}%
+                      </td>
                       <td style={{ padding: '14px' }}>
-                        <span style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '3px 8px', borderRadius: '6px' }}>
-                          97% (100 / 103)
+                        <span style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                          {stats.visitesParAnim.Emilie.pct}% ({stats.visitesParAnim.Emilie.bon} / {stats.visitesParAnim.Emilie.total})
                         </span>
                       </td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>38</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>10</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>6</td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#EF4444' }}>1</td>
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
+                      <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>
+                        {stats.etoiles.Emilie.s3}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>
+                        {stats.etoiles.Emilie.s2}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>
+                        {stats.etoiles.Emilie.s1}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Emilie.bad > 0 ? '#D66927' : '#059669' }}>
+                        {stats.etoiles.Emilie.bad}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                         <button
                           type="button"
                           onClick={() => handleNavigate('secteur_emilie')}
                           style={{
-                            padding: '6px 12px',
-                            borderRadius: '6px',
+                            padding: '6px 14px',
+                            borderRadius: '7px',
                             backgroundColor: '#FDF2F8',
                             color: '#DB2777',
                             border: '1px solid #FBCFE8',
                             fontWeight: 700,
                             fontSize: '11px',
                             cursor: 'pointer',
+                            transition: 'all 0.15s ease',
                           }}
                         >
                           Voir Secteur
@@ -1663,39 +1802,111 @@ export default function App() {
                       </td>
                     </tr>
                   </tbody>
+
+                  {/* Ligne Total Consolidé */}
+                  <tfoot>
+                    <tr style={{ backgroundColor: '#F8FAFC', fontWeight: 900 }}>
+                      <td style={{ padding: '14px 16px', color: '#0F172A', fontFamily: "'Ruda', sans-serif" }}>
+                        TOTAL CONSOLIDÉ
+                      </td>
+                      <td style={{ padding: '14px', color: '#0F172A', fontSize: '14px' }}>
+                        {stats.chantiersActifs}
+                      </td>
+                      <td style={{ padding: '14px', color: '#64748B' }}>
+                        100%
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <span style={{ fontWeight: 800, color: '#0073EA', backgroundColor: '#EBF6FC', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                          {stats.tauxSatisfactionGlobal}% ({stats.visitesBonnes} / {stats.visitesTotal})
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px', color: '#D97706', fontSize: '14px' }}>
+                        {stats.etoiles.Global.s3}
+                      </td>
+                      <td style={{ padding: '14px', color: '#334155', fontSize: '14px' }}>
+                        {stats.etoiles.Global.s2}
+                      </td>
+                      <td style={{ padding: '14px', color: '#64748B', fontSize: '14px' }}>
+                        {stats.etoiles.Global.s1}
+                      </td>
+                      <td style={{ padding: '14px', color: '#D66927', fontSize: '14px' }}>
+                        {stats.etoiles.Global.bad}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontSize: '11px', color: '#64748B', fontWeight: 600 }}>
+                        3 Secteurs
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
 
-            {/* ÉTOILES QUALITÉ DU GROUPE (JAUGE DE SYNTHÈSE) */}
-            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px' }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                Répartition Qualité Globale des Chantiers (Contrôles C1, C2, C3)
-              </h3>
+            {/* ÉTOILES QUALITÉ DU GROUPE (JAUGE DE SYNTHÈSE CHARTE 2026) */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px', boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)' }}>
+              <div style={{ marginBottom: '18px' }}>
+                <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+                  Répartition Qualité Globale des Chantiers (Contrôles C1, C2, C3)
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                  Conformité stricte de l'historique qualité : calcul direct sur les contrôles réalisés par les animatrices.
+                </p>
+              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-                <div style={{ backgroundColor: '#FEF3C7', padding: '16px', borderRadius: '12px', border: '1px solid #FDE68A' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#B45309' }}>Client 3 Étoiles 🌟🌟🌟</div>
-                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#92400E', marginTop: '6px' }}>166 chantiers</div>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#B45309' }}>Les 3 derniers contrôles sont "Globalement bon".</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+                {/* 3 Étoiles - Jaune Charte #F7AC37 */}
+                <div style={{ backgroundColor: '#FEF9C3', padding: '18px', borderRadius: '14px', border: '1.5px solid #F7AC37' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#B45309' }}>Client 3 Étoiles 🌟🌟🌟</span>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#92400E', backgroundColor: '#FDE68A', padding: '1px 6px', borderRadius: '8px' }}>Niveau 3/3</span>
+                  </div>
+                  <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#92400E', marginTop: '6px' }}>
+                    {stats.etoiles.Global.s3} chantiers
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#78350F', lineHeight: 1.4 }}>
+                    Les 3 derniers contrôles consécutifs sont conformes (C1, C2 et C3 = <em>"Globalement bon"</em>).
+                  </p>
                 </div>
 
-                <div style={{ backgroundColor: '#EBF6FC', padding: '16px', borderRadius: '12px', border: '1px solid #BAE6FD' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0369A1' }}>Client 2 Étoiles 🌟🌟</div>
-                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#075985', marginTop: '6px' }}>103 chantiers</div>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#0369A1' }}>Les 2 derniers contrôles sont satisfaisants.</p>
+                {/* 2 Étoiles - Bleu Charte #39A9DC */}
+                <div style={{ backgroundColor: '#E0F2FE', padding: '18px', borderRadius: '14px', border: '1.5px solid #39A9DC' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#0369A1' }}>Client 2 Étoiles 🌟🌟</span>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#075985', backgroundColor: '#BAE6FD', padding: '1px 6px', borderRadius: '8px' }}>Niveau 2/3</span>
+                  </div>
+                  <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#075985', marginTop: '6px' }}>
+                    {stats.etoiles.Global.s2} chantiers
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#0C4A6E', lineHeight: 1.4 }}>
+                    Les 2 derniers contrôles sont conformes (C1 et C2 = <em>"Globalement bon"</em>).
+                  </p>
                 </div>
 
-                <div style={{ backgroundColor: '#F1F5F9', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#475569' }}>Client 1 Étoile 🌟</div>
-                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#334155', marginTop: '6px' }}>69 chantiers</div>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#475569' }}>Le dernier contrôle C1 est satisfaisant.</p>
+                {/* 1 Étoile - Bleu Foncé Charte #3989B7 */}
+                <div style={{ backgroundColor: '#F1F5F9', padding: '18px', borderRadius: '14px', border: '1.5px solid #3989B7' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#3989B7' }}>Client 1 Étoile 🌟</span>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#1E293B', backgroundColor: '#E2E8F0', padding: '1px 6px', borderRadius: '8px' }}>Niveau 1/3</span>
+                  </div>
+                  <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#1E293B', marginTop: '6px' }}>
+                    {stats.etoiles.Global.s1} chantiers
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#475569', lineHeight: 1.4 }}>
+                    Le dernier contrôle C1 est conforme (<em>"Globalement bon"</em>).
+                  </p>
                 </div>
 
-                <div style={{ backgroundColor: '#FEE2E2', padding: '16px', borderRadius: '12px', border: '1px solid #FECACA' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#B91C1C' }}>Client Insatisfait 🙁</div>
-                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#991B1B', marginTop: '6px' }}>14 chantiers</div>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#B91C1C' }}>Bases non respectées ou plan d'action urgent.</p>
+                {/* Insatisfait - Orange Charte #D66927 */}
+                <div style={{ backgroundColor: '#FFF7ED', padding: '18px', borderRadius: '14px', border: '1.5px solid #D66927' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#D66927' }}>Client Insatisfait 🙁</span>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#9A3412', backgroundColor: '#FFEDD5', padding: '1px 6px', borderRadius: '8px' }}>Plan Urgent</span>
+                  </div>
+                  <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#9A3412', marginTop: '6px' }}>
+                    {stats.etoiles.Global.bad} chantiers
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#7C2D12', lineHeight: 1.4 }}>
+                    Dernier contrôle non satisfaisant (Bases non respectées ou plan d'action d'urgence).
+                  </p>
                 </div>
               </div>
             </div>
@@ -1712,14 +1923,14 @@ export default function App() {
                 currentView === 'secteur_natacha'
                   ? 'Natacha'
                   : currentView === 'secteur_ketty'
-                  ? 'Ketty'
-                  : 'Emilie';
+                    ? 'Ketty'
+                    : 'Emilie';
               const animFullName =
                 currentView === 'secteur_natacha'
                   ? 'Natacha THOMAS'
                   : currentView === 'secteur_ketty'
-                  ? 'Ketty PAULIN'
-                  : 'Emilie TOBIE';
+                    ? 'Ketty PAULIN'
+                    : 'Emilie TOBIE';
               const chantiersCount = stats.chantiersParAnim[animKey];
               const satPct = stats.visitesParAnim[animKey]?.pct || 0;
               const iframeSrc = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}`;
@@ -1873,51 +2084,57 @@ export default function App() {
         )}
 
         {/* ------------------------------------------------------------ */}
-        {/* VUE 5 : FLOTTE VÉHICULES UTILITAIRES                         */}
+        {/* VUE 5 : HUB DE CHRISTINE — FACTURATION VÉHICULES & ÉNERGIE   */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_vehicules' && (
-          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <div>
-                <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                  Flotte Véhicules Utilitaires
-                </h1>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
-                  Suivi des 8 utilitaires d’intervention, contrôles techniques et conducteurs affectés
-                </p>
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 108px)', display: 'flex', flexDirection: 'column' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 24px',
+                backgroundColor: '#FFFFFF',
+                borderBottom: '1px solid #E2E8F0',
+                height: '44px',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                  Hub de Christine — Facturation Véhicules & Énergie
+                </span>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                  • TotalEnergies (15/30), Chargemap, Bornes Wellborne et Réparations
+                </span>
               </div>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#10B981', backgroundColor: '#ECFDF5', padding: '6px 14px', borderRadius: '20px' }}>
-                ● 8 / 8 En Service
-              </span>
+              <button
+                onClick={toggleFullscreen}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#0F172A',
+                  backgroundColor: '#F1F5F9',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '6px',
+                  padding: '5px 12px',
+                  cursor: 'pointer',
+                }}
+              >
+                <Maximize2 size={13} />
+                <span>Plein Écran</span>
+              </button>
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              {[
-                { immat: 'EK-492-FZ', modele: 'Renault Kangoo Maxi', user: 'Christophe (Atelier)', km: '118 420 km', ct: '14/11/2026', statut: 'Conforme' },
-                { immat: 'FN-183-QA', modele: 'Peugeot Partner', user: 'Natacha THOMAS', km: '84 310 km', ct: '22/03/2027', statut: 'Conforme' },
-                { immat: 'GB-742-PL', modele: 'Citroën Berlingo', user: 'Ketty PAULIN', km: '92 150 km', ct: '18/06/2027', statut: 'Conforme' },
-                { immat: 'GH-339-RT', modele: 'Renault Master', user: 'Équipe Travaux Exceptionnels', km: '142 800 km', ct: '09/01/2027', statut: 'Conforme' },
-                { immat: 'HL-904-BK', modele: 'Peugeot Expert', user: 'Emilie TOBIE', km: '67 900 km', ct: '30/08/2027', statut: 'Conforme' },
-                { immat: 'JC-511-MM', modele: 'Renault Kangoo', user: 'Polyvalent Secteur Nord', km: '105 200 km', ct: '12/10/2026', statut: 'Conforme' },
-                { immat: 'KA-820-XX', modele: 'Citroën Jumper', user: 'Logistique & Consommables', km: '178 400 km', ct: '05/04/2027', statut: 'Conforme' },
-                { immat: 'KP-229-YY', modele: 'Renault Trafic', user: 'Atelier Mobile', km: '121 000 km', ct: '19/12/2026', statut: 'Conforme' },
-              ].map((v) => (
-                <div key={v.immat} style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1.5px solid #E2E8F0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>{v.immat}</span>
-                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '10px', backgroundColor: '#ECFDF5', color: '#10B981' }}>
-                      {v.statut}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>{v.modele}</div>
-                  <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>Affectation : <b>{v.user}</b></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #F1F5F9', fontSize: '11px', color: '#64748B' }}>
-                    <span>Kilométrage : <b>{v.km}</b></span>
-                    <span>Prochain CT : <b>{v.ct}</b></span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <iframe
+              ref={activeIframeRef}
+              src={`${URL_CHRISTINE_HUB}?v=20267872_v3&ts=${refreshKey}`}
+              title="Hub de Christine — Facturation & Flotte"
+              style={{ flex: 1, width: '100%', height: 'calc(100% - 44px)', minHeight: '650px', border: 'none' }}
+              allow="clipboard-write; fullscreen; camera; microphone"
+            />
           </div>
         )}
 

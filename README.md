@@ -21,6 +21,16 @@ Stage-A4/
 │   ├── package.json
 │   └── vite.config.ts
 │
+├── 📁 Hub-Global-Facility/            👉 Application 3 : Portail Global Intranet Multi-Hubs
+│   ├── 📁 src/
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── 📁 Hub-Christine/                  👉 Application 4 : Hub Facturation Véhicules, Énergie & Atelier
+│   ├── 📁 src/
+│   ├── package.json
+│   └── vite.config.ts
+│
 └── 📄 README.md                       👉 Documentation générale
 ```
 
@@ -57,6 +67,33 @@ Plateforme d'exploitation unifiée pour les Responsables de Secteur (Animatrices
 | **App ID Monday** | `12538620` |
 | **Version CDN** | `19760498` |
 | **URL de Production Live** | [Hub Responsable de Secteur](https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.app) |
+
+---
+
+### 3. Portail Global Facility (`/Hub-Global-Facility`)
+Portail intranet unifié fédérant tous les hubs du Groupe Facility avec navigation fluide, indicateurs temps réel et pont de communication inter-applications.
+
+| Paramètre | Valeur |
+| :--- | :--- |
+| **App ID Monday** | `12725463` |
+| **Version CDN** | `20198685` |
+| **URL de Production Live** | [Portail Global](https://vc3836eac4f6291fd8303416d13f25813.cdn2.monday.app) |
+
+---
+
+### 4. Hub Facturation & Flotte Christine (`/Hub-Christine`)
+Hub de gestion comptable, facturation carburant, bornes électriques et maintenance matériel :
+* **Factures TotalEnergies** : Suivi bimensuel (15 et 30/31), gestion intégrale des doublons, cadencement anti-blocage.
+* **Factures Chargemap** : Contrôle électrique par badge, rapprochement avec Vincent.
+* **Bornes de Recharge Wellborne** : Export direct XLS/CSV, filtrage strict > 15 mai, synchronisation avec plus de 4 000 recharges.
+* **Réparations Matériel** : Saisie des factures SAV avec création de tickets curatifs automatiques pour Christophe sur l'ERP Atelier.
+* **Nouvelle Saisie Véhicule** : Sélecteur alphabétique intelligent, différenciation des véhicules restitués, mémorisation instantanée.
+
+| Paramètre | Valeur |
+| :--- | :--- |
+| **App ID Monday** | `12742359` |
+| **Version CDN** | `20267872` |
+| **URL de Production Live** | [Hub Christine](https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app) |
 
 ---
 
