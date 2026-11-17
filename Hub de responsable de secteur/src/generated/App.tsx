@@ -79,6 +79,23 @@ export default function App() {
   useEffect(() => {
     let resolved = false;
 
+    // Détection immédiate si un paramètre d'URL est fourni (ex: iframe dans Hub Global)
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const urlProf = search.get('animatrice') || search.get('profile') || search.get('user');
+      if (urlProf) {
+        const found = (['Natacha', 'Emilie', 'Ketty'] as const).find(
+          (p) => p.toLowerCase() === urlProf.toLowerCase()
+        );
+        if (found) {
+          setCurrentUser(found);
+          setUserDetected(true);
+          setDebugInfo(`Profil URL actif : ${found}`);
+          return; // Profil certifié immédiatement sans latence ni requête redondante
+        }
+      }
+    } catch {}
+
     const identifyUser = (uid: string, name: string, email: string) => {
       if (resolved && !uid && !name && !email) return;
 

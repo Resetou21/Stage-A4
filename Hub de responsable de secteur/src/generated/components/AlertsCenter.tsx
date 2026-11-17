@@ -5,6 +5,7 @@ import AlertContextSelect, { type AlertMachineOption } from '@generated/componen
 import AlertsList, { buildCategories } from '@generated/components/AlertsList';
 import { totalAlerts, useAlerts } from '@generated/hooks/useAlerts';
 import { getAlertContexts, sendAlertToMaintenance } from '@generated/server/visits';
+import { safeSessionStorage } from '@api/BoardSDK';
 import { cn } from '@lib/utils';
 
 const NAV = [
@@ -48,9 +49,9 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
     try {
       const today = new Date().toISOString().slice(0, 10);
       const storageKey = `hub_alerts_seen_${firstName}_${today}`;
-      const alreadySeen = sessionStorage.getItem(storageKey);
+      const alreadySeen = safeSessionStorage.getItem(storageKey);
       if (!alreadySeen) {
-        sessionStorage.setItem(storageKey, 'true');
+        safeSessionStorage.setItem(storageKey, 'true');
         // Un léger micro-délai de 150ms permet au DOM de monter et déclenche l'animation complète d'entrée (zoom + fade)
         const timer = setTimeout(() => setOpen(true), 150);
         return () => clearTimeout(timer);
