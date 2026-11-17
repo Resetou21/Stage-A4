@@ -33,7 +33,6 @@ import {
   Activity,
   Car,
   Fuel,
-  Tool,
 } from 'lucide-react';
 
 const monday = mondaySdk();
@@ -61,7 +60,7 @@ export interface SubMenuItem {
   badge?: string;
   badgeColor?: string;
   description: string;
-  icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+  icon: React.ComponentType<{ size?: number; color?: string; className?: string; style?: React.CSSProperties }>;
   type: 'iframe_secteur' | 'iframe_erp' | 'dashboard';
   animatrice?: 'Natacha' | 'Ketty' | 'Emilie' | 'Tous';
 }
@@ -69,7 +68,7 @@ export interface SubMenuItem {
 export interface PoleMenu {
   id: string;
   label: string;
-  poleIcon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+  poleIcon: React.ComponentType<{ size?: number; color?: string; className?: string; style?: React.CSSProperties }>;
   accentColor: string;
   bgLight: string;
   description: string;
