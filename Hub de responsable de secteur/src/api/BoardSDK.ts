@@ -5,7 +5,7 @@ import { BOARD_IDS, COLUMN_MAP } from './columnMap';
 export const monday = mondaySdk();
 
 let activeRequests = 0;
-const MAX_CONCURRENT = 5;
+const MAX_CONCURRENT = 2; // Réduit à 2 pour respecter le budget de complexité Monday (10M pts/min)
 const waitQueue: Array<() => void> = [];
 
 const inFlightRequests = new Map<string, Promise<any>>();
@@ -109,11 +109,15 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
           }
           return res;
         } catch (err: any) {
-          const m = String(err?.message || err).toLowerCase();
-          if ((m.includes('rate limit') || m.includes('complexity')) && attempt < 3) {
-            console.warn(`[BoardSDK] Rate limit exception, retrying in ${delay}ms... (attempt ${attempt + 1}/3)`);
-            await new Promise((r) => setTimeout(r, delay));
-            delay *= 1.5;
+          const errStr = JSON.stringify(err || '');
+          const m = (String(err?.message || err) + ' ' + errStr).toLowerCase();
+          const isComplexityOrRate = m.includes('rate limit') || m.includes('complexity') || m.includes('429') || m.includes('graphql validation errors');
+          if (isComplexityOrRate && attempt < 3) {
+            const retryMatch = errStr.match(/retry_in_seconds["']?:\s*(\d+)/i);
+            const waitMs = retryMatch ? (Number(retryMatch[1]) + 1) * 1000 : Math.max(delay, 3000);
+            console.warn(`[BoardSDK] Budget complexité Monday (429) dépassé, attente de ${waitMs}ms avant réessai... (tentative ${attempt + 1}/3)`);
+            await new Promise((r) => setTimeout(r, waitMs));
+            delay = Math.max(delay * 1.5, 4000);
             continue;
           }
           if (attempt === 3) throw err;

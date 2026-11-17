@@ -252,8 +252,26 @@ export default function App() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  const CACHE_KEY = 'facility_portal_stats_v2';
+  const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
   // Requête en direct vers l'API Monday.com pour charger les stats consolidées
-  const loadLiveStats = async () => {
+  const loadLiveStats = async (force: boolean = false) => {
+    // 1. Vérification du cache local pour zéro latence et protection du budget Monday
+    if (!force) {
+      try {
+        const cachedRaw = sessionStorage.getItem(CACHE_KEY);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (cached?.timestamp && Date.now() - cached.timestamp < CACHE_DURATION_MS && cached?.data) {
+            setStats(cached.data);
+            setLoadingStats(false);
+            return;
+          }
+        }
+      } catch {}
+    }
+
     setLoadingStats(true);
     try {
       const q = `query GetGlobalPortalStats {
@@ -304,6 +322,18 @@ export default function App() {
       const res = await monday.api(q);
       if (res?.data?.me?.name) {
         setUserName(res.data.me.name);
+      }
+
+      // Si Monday renvoie une erreur de budget de complexité (HTTP 429), conserver le cache
+      if (res?.errors && res.errors.length > 0) {
+        const isComplexity = res.errors.some((err: any) =>
+          String(err?.message || '').toLowerCase().includes('complexity')
+        );
+        if (isComplexity) {
+          console.warn('[Hub Global] Budget de complexité Monday temporairement atteint, conservation des statistiques en cache.');
+          setLoadingStats(false);
+          return;
+        }
       }
 
       // 1. Chantiers actifs
@@ -411,7 +441,7 @@ export default function App() {
       const aFaire = invItems.filter((i: any) => i.group?.id === 'topics').length;
       const realises = invItems.filter((i: any) => i.group?.id === 'group_mm8adwxm').length;
 
-      setStats({
+      const newStats = {
         chantiersActifs: chantierItems.length || 371,
         chantiersParAnim: byAnim,
         visitesTotal: vTotal || 499,
@@ -423,7 +453,11 @@ export default function App() {
         machinesTotal: mItems.length || 133,
         inventairesAFaire: aFaire || 60,
         inventairesRealises: realises || 6,
-      });
+      };
+      setStats(newStats);
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: newStats, timestamp: Date.now() }));
+      } catch {}
     } catch (e) {
       console.warn('[Hub Global] Erreur de synchronisation temps-réel, utilisation des métriques certifiées :', e);
     } finally {
@@ -825,7 +859,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => {
-              setRefreshKey((k) => k + 1);
+              loadLiveStats(true);
             }}
             title="Actualiser les données en direct"
             style={{
