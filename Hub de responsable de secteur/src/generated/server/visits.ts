@@ -106,7 +106,7 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
           const qInit = `
             query GetVisitsRange {
               boards(ids: [1977798116]) {
-                items_page(limit: 150, query_params: {
+                items_page(limit: 500, query_params: {
                   rules: [
                     { column_id: "date_mkrcgy18", compare_value: ["${rangeFrom}"], operator: greater_than_or_equals },
                     { column_id: "date_mkrcgy18", compare_value: ["${rangeTo}"], operator: lower_than }
@@ -128,7 +128,7 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
           const qCursor = `
             query GetVisitsRangeCursor($cursor: String!) {
               boards(ids: [1977798116]) {
-                items_page(limit: 150, cursor: $cursor) {
+                items_page(limit: 500, cursor: $cursor) {
                   cursor
                   items {
                     id
@@ -241,7 +241,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         const qInit = `
           query GetOpenSubsInit {
             boards(ids: [1978388826]) {
-              items_page(limit: 100, query_params: {
+              items_page(limit: 500, query_params: {
                 rules: [
                   { column_id: "color_mkv1tk6f", compare_value: [1, 3], operator: not_any_of }
                 ]
@@ -274,7 +274,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         const qCursor = `
           query GetOpenSubsCursor($cursor: String!) {
             boards(ids: [1978388826]) {
-              items_page(limit: 100, cursor: $cursor) {
+              items_page(limit: 500, cursor: $cursor) {
                 cursor
                 items {
                   id
@@ -324,7 +324,7 @@ export const getVisitsPlans = createServerFn({ method: 'GET' })
         const qClosed = `
           query GetClosedSubs {
             boards(ids: [1978388826]) {
-              items_page(limit: 100, query_params: {
+              items_page(limit: 500, query_params: {
                 rules: [
                   { column_id: "date_mkwrr950", compare_value: ["${monthStart}"], operator: greater_than_or_equals }
                 ]

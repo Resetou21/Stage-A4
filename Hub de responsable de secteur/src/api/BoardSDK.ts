@@ -5,7 +5,7 @@ import { BOARD_IDS, COLUMN_MAP } from './columnMap';
 export const monday = mondaySdk();
 
 let activeRequests = 0;
-const MAX_CONCURRENT = 2; // Réduit à 2 pour respecter le budget de complexité Monday (10M pts/min)
+const MAX_CONCURRENT = 5; // Vitesse maximale : 5 requêtes simultanées en parallèle
 const waitQueue: Array<() => void> = [];
 
 const inFlightRequests = new Map<string, Promise<any>>();
