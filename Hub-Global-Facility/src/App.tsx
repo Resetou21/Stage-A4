@@ -468,6 +468,34 @@ export default function App() {
   useEffect(() => {
     loadLiveStats();
 
+    // Pont bidirectionnel transparent Monday SDK (reprise exacte du commit 4662344) :
+    // Relaye les requêtes postMessage des sous-hubs vers Monday parent,
+    // et renvoie les réponses de Monday aux sous-hubs !
+    const handleBridgeMessage = (event: MessageEvent) => {
+      // 1. Message venant d'un sous-hub enfant vers Monday parent
+      if (event.source !== window && event.source !== window.parent) {
+        if (event.data && typeof event.data === 'object') {
+          try {
+            window.parent.postMessage(event.data, '*');
+          } catch {}
+        }
+        return;
+      }
+
+      // 2. Message de réponse venant de Monday parent vers les sous-hubs
+      if (event.source === window.parent) {
+        if (event.data && typeof event.data === 'object') {
+          const iframes = document.querySelectorAll('iframe');
+          iframes.forEach((ifr) => {
+            try {
+              ifr.contentWindow?.postMessage(event.data, '*');
+            } catch {}
+          });
+        }
+      }
+    };
+    window.addEventListener('message', handleBridgeMessage);
+
     // Clic en dehors pour fermer les menus déroulants
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -490,6 +518,7 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      window.removeEventListener('message', handleBridgeMessage);
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -1758,10 +1787,10 @@ export default function App() {
                         <span>Retour Supervision Globale</span>
                       </button>
 
-                      <a
-                        href={iframeSrc}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        title="Basculer en plein écran natif dans Monday"
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1770,14 +1799,15 @@ export default function App() {
                           borderRadius: '6px',
                           backgroundColor: '#0073EA',
                           color: '#FFFFFF',
-                          textDecoration: 'none',
+                          border: 'none',
                           fontSize: '11px',
                           fontWeight: 700,
+                          cursor: 'pointer',
                         }}
                       >
-                        <ExternalLink size={12} />
+                        <Maximize2 size={12} />
                         <span>Plein Écran</span>
-                      </a>
+                      </button>
                     </div>
                   </div>
 
@@ -1806,10 +1836,10 @@ export default function App() {
                   ● {stats.machinesTotal} machines réelles
                 </span>
               </div>
-              <a
-                href={URL_ATELIER_ERP}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title="Basculer en plein écran natif dans Monday"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1818,14 +1848,15 @@ export default function App() {
                   borderRadius: '6px',
                   backgroundColor: '#00C875',
                   color: '#FFFFFF',
-                  textDecoration: 'none',
+                  border: 'none',
                   fontSize: '12px',
                   fontWeight: 700,
+                  cursor: 'pointer',
                 }}
               >
-                <ExternalLink size={13} />
-                <span>Ouvrir en Plein Écran</span>
-              </a>
+                <Maximize2 size={13} />
+                <span>Plein Écran</span>
+              </button>
             </div>
             <iframe
               src={URL_ATELIER_ERP}
