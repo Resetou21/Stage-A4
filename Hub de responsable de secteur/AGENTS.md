@@ -26,6 +26,7 @@ Il est chargé automatiquement à chaque session et pour chaque agent intervenan
 
 | Hub | Dossier Local | App ID Monday | Version ID CDN | URL de Production Live |
 | :--- | :--- | :--- | :--- | :--- |
+| **Hub Global (Portail Multi-Hubs)** | `Hub-Global-Facility` | `12725463` | `20198685` | `https://vc3836eac4f6291fd8303416d13f25813.cdn2.monday.app` |
 | **Hub Responsable de Secteur** (unifié toutes animatrices) | `Backup-Hub-de-natacha-code` | `12538620` | `19760498` | `https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.app` |
 | **ERP Parc Matériel** (Atelier / Parc Machines) | `ERP-Monday` | `12514584` | `20004306` | `https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app` |
 

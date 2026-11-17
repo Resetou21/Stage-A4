@@ -35,15 +35,46 @@ const USER_ID_MAP: Record<string, ProfileKey> = {
 const ADMIN_USER_IDS = ['118562356', '76526870']; // Guillaume Daniel, Laurent GUILLOU
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<ProfileKey>('Emilie');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userDetected, setUserDetected] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>('Détection en cours...');
+  const [currentUser, setCurrentUser] = useState<ProfileKey>('Natacha');
+  const [isAdmin, setIsAdmin] = useState(true);
+  const [userDetected, setUserDetected] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<string>('Prêt');
   const [ecoKey, setEcoKey] = useState(0);
   const [globalKey, setGlobalKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [loadBottom, setLoadBottom] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+
+  useEffect(() => {
+    // 1. Détection profil par paramètre URL (ex: ?animatrice=Ketty ou ?profile=Emilie)
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const urlProf = search.get('animatrice') || search.get('profile') || search.get('user');
+      if (urlProf) {
+        const found = (['Natacha', 'Emilie', 'Ketty'] as const).find(
+          (p) => p.toLowerCase() === urlProf.toLowerCase()
+        );
+        if (found) {
+          setCurrentUser(found);
+        }
+      }
+    } catch {}
+
+    // 2. Écoute temps-réel du parent (Hub Global) pour basculer sans recharger
+    const handleParentMsg = (event: MessageEvent) => {
+      if (event.data && (event.data.type === 'SWITCH_PROFILE' || event.data.type === 'SET_PROFILE')) {
+        const target = String(event.data.profile || event.data.animatrice || '');
+        const found = (['Natacha', 'Emilie', 'Ketty'] as const).find(
+          (p) => p.toLowerCase() === target.toLowerCase()
+        );
+        if (found) {
+          setCurrentUser(found);
+        }
+      }
+    };
+    window.addEventListener('message', handleParentMsg);
+    return () => window.removeEventListener('message', handleParentMsg);
+  }, []);
 
   useEffect(() => {
     let resolved = false;
@@ -214,17 +245,6 @@ export default function App() {
   const hubName = currentUser;
   const fullName = PROFILES[currentUser].fullName;
   const initials = PROFILES[currentUser].initials;
-
-  if (!userDetected) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <RotateCcw className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm font-semibold text-muted-foreground">Identification de votre profil...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div key={globalKey} className="relative min-h-screen overflow-x-clip bg-background text-foreground">
