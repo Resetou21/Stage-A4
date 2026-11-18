@@ -282,13 +282,21 @@ export default function RoadmapModal({
   const stats = useMemo(() => {
     const todo = items.filter((i) => !/effectu|fait/i.test(i.groupTitle) && i.status !== 'Fait');
     const done = items.filter((i) => /effectu|fait/i.test(i.groupTitle) || i.status === 'Fait');
+    const u = (currentUserName || '').toLowerCase().trim();
+    const mine = items.filter((i) => {
+      if (!u || u === 'utilisateur') return false;
+      const matchAuth = i.author && i.author.toLowerCase().includes(u);
+      const matchDesc = i.description && i.description.toLowerCase().includes(u);
+      return matchAuth || matchDesc;
+    });
     return {
       total: items.length,
       todoCount: todo.length,
       doneCount: done.length,
+      myCount: mine.length,
       pctDone: items.length > 0 ? Math.round((done.length / items.length) * 100) : 0,
     };
-  }, [items]);
+  }, [items, currentUserName]);
 
   // Filtrage des éléments pour la vue liste
   const filteredItems = useMemo(() => {
@@ -917,7 +925,7 @@ export default function RoadmapModal({
                 </div>
 
                 {/* Filtres de statut */}
-                <div className="roadmap-filter-buttons" style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#FFFFFF', padding: '3px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                <div className="roadmap-filter-buttons" style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#FFFFFF', padding: '3px', borderRadius: '8px', border: '1px solid #CBD5E1', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     onClick={() => setSelectedStatusFilter('all')}
@@ -933,6 +941,23 @@ export default function RoadmapModal({
                     }}
                   >
                     Toutes ({items.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatusFilter('mine')}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      backgroundColor: selectedStatusFilter === 'mine' ? '#0284C7' : 'transparent',
+                      color: selectedStatusFilter === 'mine' ? '#FFFFFF' : '#64748B',
+                    }}
+                    title="Voir uniquement mes demandes personnelles"
+                  >
+                    Mes demandes ({stats.myCount})
                   </button>
                   <button
                     type="button"
