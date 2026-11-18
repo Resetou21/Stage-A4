@@ -1646,15 +1646,6 @@ export default function App() {
         {/* ------------------------------------------------------------ */}
         {currentView === 'secteur_global' && (
           <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-            {/* Fil d'ariane & Contexte */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#64748B', marginBottom: '16px' }}>
-              <span onClick={() => handleNavigate('home')} style={{ cursor: 'pointer', color: '#3989B7', fontWeight: 600 }}>Accueil</span>
-              <ChevronRight size={13} color="#94A3B8" />
-              <span style={{ color: '#3989B7', fontWeight: 600 }}>Responsables de Secteur</span>
-              <ChevronRight size={13} color="#94A3B8" />
-              <span style={{ color: '#0F172A', fontWeight: 700 }}>Supervision Globale (Tous Secteurs)</span>
-            </div>
-
             {/* En-tête de section aux normes Charte 2026 */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
               <div>
