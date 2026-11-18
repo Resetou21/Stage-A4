@@ -30,7 +30,9 @@ import {
   Award,
   AlertCircle,
   Users,
+  Lightbulb,
 } from 'lucide-react';
+import RoadmapModal from './components/RoadmapModal';
 
 const monday = mondaySdk();
 
@@ -216,6 +218,8 @@ export default function App() {
   const [loadingStats, setLoadingStats] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
+  const [showRoadmapModal, setShowRoadmapModal] = useState<boolean>(false);
+  const [roadmapInitialTab, setRoadmapInitialTab] = useState<'form' | 'list'>('list');
 
   // DONNÉES TEMPS RÉEL CONSOLIDÉES DEPUIS MONDAY.COM
   const [stats, setStats] = useState({
@@ -935,6 +939,33 @@ export default function App() {
           <button
             type="button"
             onClick={() => {
+              setRoadmapInitialTab('list');
+              setShowRoadmapModal(true);
+            }}
+            title="Boîte à Idées & Roadmap Guillaume TEST (Tableau 5105479748)"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '7px 13px',
+              borderRadius: '9px',
+              border: '1.5px solid #FCD34D',
+              backgroundColor: '#FEF3C7',
+              color: '#B45309',
+              fontSize: '12px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: '0 2px 6px rgba(245, 158, 11, 0.12)',
+            }}
+          >
+            <Lightbulb size={14} color="#D97706" />
+            <span>Idées & Roadmap</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               loadLiveStats(true);
             }}
             title="Actualiser les données en direct"
@@ -1474,6 +1505,136 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Bannière Boîte à Idées & Roadmap Collaborative */}
+            <div
+              style={{
+                marginTop: '35px',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '18px',
+                border: '1.5px solid #E2E8F0',
+                padding: '28px 32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '24px',
+                boxShadow: '0 4px 18px rgba(15, 23, 42, 0.05)',
+                background: 'linear-gradient(135deg, #FFFFFF 0%, #FFFBEB 100%)',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -30,
+                  right: -30,
+                  width: 140,
+                  height: 140,
+                  borderRadius: '50%',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  pointerEvents: 'none',
+                }}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: '280px' }}>
+                <div
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '16px',
+                    backgroundColor: '#FEF3C7',
+                    border: '1.5px solid #FDE68A',
+                    color: '#D97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)',
+                  }}
+                >
+                  <Lightbulb size={28} />
+                </div>
+                <div>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      backgroundColor: '#FEF3C7',
+                      color: '#B45309',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      marginBottom: '6px',
+                    }}
+                  >
+                    <span>NOUVEAUTÉ • BOÎTE À IDÉES DU GROUPE</span>
+                  </div>
+                  <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#0F172A' }}>
+                    Une idée, un besoin ou une suggestion pour vos outils ?
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748B', maxWidth: '640px', lineHeight: 1.5 }}>
+                    Chaque pôle (Animatrices, Atelier, Flotte Véhicules, Commercial) peut formuler ses demandes. Vos suggestions alimentent directement la feuille de route sur le tableau <strong>Road map (Guillaume TEST)</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', zIndex: 1 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoadmapInitialTab('form');
+                    setShowRoadmapModal(true);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '11px 20px',
+                    borderRadius: '10px',
+                    backgroundColor: '#D97706',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Lightbulb size={16} />
+                  <span>Formuler une demande</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoadmapInitialTab('list');
+                    setShowRoadmapModal(true);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '11px 18px',
+                    borderRadius: '10px',
+                    backgroundColor: '#FFFFFF',
+                    color: '#1E293B',
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>Voir la Roadmap en direct</span>
+                  <ArrowRight size={15} color="#64748B" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2277,6 +2438,15 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Modal Boîte à Idées & Roadmap Interactive */}
+        <RoadmapModal
+          isOpen={showRoadmapModal}
+          onClose={() => setShowRoadmapModal(false)}
+          monday={monday}
+          currentUserName={userName}
+          initialTab={roadmapInitialTab}
+        />
       </main>
     </div>
   );
