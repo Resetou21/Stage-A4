@@ -248,7 +248,7 @@ export default function App() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [userName, setUserName] = useState<string>('Guillaume Daniel');
   const [loadingStats, setLoadingStats] = useState<boolean>(true);
-  const [refreshKey, setRefreshKey] = useState<number>(0);
+  const [refreshKey, setRefreshKey] = useState<number>(() => Date.now());
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const [showRoadmapModal, setShowRoadmapModal] = useState<boolean>(false);
   const [roadmapInitialTab, setRoadmapInitialTab] = useState<'form' | 'list'>('list');
@@ -1028,9 +1028,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => {
+              setRefreshKey(Date.now());
               loadLiveStats(true);
             }}
-            title="Actualiser les données en direct"
+            title="Actualiser les données en direct et recharger les hubs"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -2420,12 +2421,12 @@ export default function App() {
                     : 'Emilie TOBIE';
               const chantiersCount = stats.chantiersParAnim[animKey];
               const satPct = stats.visitesParAnim[animKey]?.pct || 0;
-              const iframeSrc = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}`;
+              const iframeSrc = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}&ts=${refreshKey}`;
 
               return (
                 <iframe
                   ref={activeIframeRef}
-                  key={animKey}
+                  key={`${animKey}_${refreshKey}`}
                   src={iframeSrc}
                   title={`Hub Secteur ${animFullName}`}
                   style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
@@ -2443,7 +2444,8 @@ export default function App() {
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
-              src={`${URL_ATELIER_ERP}?v=20004306_v2&ts=${refreshKey}`}
+              key={`atelier_erp_${refreshKey}`}
+              src={`${URL_ATELIER_ERP}?v=20004306&ts=${refreshKey}`}
               title="ERP Parc Matériel & Machines"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
@@ -2458,7 +2460,8 @@ export default function App() {
           <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
-              src={`${URL_CHRISTINE_HUB}?v=20267872_v6&ts=${refreshKey}`}
+              key={`atelier_vehicules_${refreshKey}`}
+              src={`${URL_CHRISTINE_HUB}?v=20267872&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
@@ -2473,6 +2476,7 @@ export default function App() {
           <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
+              key={`comm_lea_${refreshKey}`}
               src={`${URL_LEA_HUB}?v=18946593&ts=${refreshKey}`}
               title="Hub de Léa — Communication & Contacts Clients"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
