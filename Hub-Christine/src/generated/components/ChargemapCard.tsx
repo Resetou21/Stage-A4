@@ -372,30 +372,37 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
 
                 {isTotal ? (
                   <div className="space-y-3 text-sm leading-relaxed">
-                    <div className="rounded-lg bg-primary/10 p-3 text-xs font-medium text-primary">
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs font-medium text-amber-900">
                       💡 <strong>Règle d'or TOTAL :</strong> Il y a <strong>2 factures par mois</strong> (une au 15,
                       l'autre au dernier jour du mois). Les témoins ci-dessous indiquent si chaque quinzaine a bien été
                       importée.
                     </div>
-                    <ol className="list-decimal space-y-2 pl-5 text-xs">
+                    <ol className="list-decimal space-y-2 pl-5 text-xs text-foreground">
                       <li>
                         Connectez-vous sur{' '}
                         <a
                           href="https://client.mobilitybusiness.totalenergies.com/signIn?tab=tid"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-medium text-primary underline"
+                          className="font-semibold text-primary underline"
                         >
                           Total Mobility Business
                         </a>
-                        .
+                        . Pour les identifiants de connexion, se référer au tableau <em>« Codes sites fournisseurs »</em>.
                       </li>
-                      <li>Allez dans « Factures » puis « Fichiers de facturation ».</li>
-                      <li>Téléchargez la facture au format .xlsx.</li>
-                      <li>Importez le fichier via le bouton ci-dessous.</li>
+                      <li>Allez dans « Factures », puis « Fichiers de facturation ».</li>
+                      <li>
+                        Téléchargez le fichier de facturation de la quinzaine concernée (au format .xlsx ou .csv).
+                      </li>
+                      <li>
+                        Importez le fichier via le bouton ci-dessous. Le Hub vérifie automatiquement la quinzaine (15 ou 30).
+                      </li>
                       <li>
                         <strong>Gestion des doublons intégrale :</strong> Le Hub vérifie l'ensemble des lignes existantes
-                        sans limitation à 500 lignes, grâce à la pagination par curseur Monday.
+                        sans limitation à 500 lignes grâce à la pagination par curseur Monday.
+                      </li>
+                      <li>
+                        <strong>Destination métier :</strong> Les données alimentent le tableau <em>« Facture TOTAL »</em> suivi par <strong>Laurent GUILLOU</strong>.
                       </li>
                     </ol>
                   </div>
@@ -405,26 +412,31 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                       👤 <strong>Validation par Vincent :</strong> Ce tableau est dédié au contrôle des consommations
                       électriques par Vincent sur son Hub Facturation.
                     </div>
-                    <ol className="list-decimal space-y-2 pl-5 text-xs">
+                    <ol className="list-decimal space-y-2 pl-5 text-xs text-foreground">
                       <li>
                         Connectez-vous sur{' '}
                         <a
                           href="https://www.chargemap-business.com/en"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-medium text-primary underline"
+                          className="font-semibold text-primary underline"
                         >
                           Chargemap Business
                         </a>
-                        .
+                        . Pour les emails et mots de passe de connexion, se référer au tableau <em>« Codes sites fournisseurs »</em>.
                       </li>
-                      <li>Allez dans « Factures », puis sur la ligne concernée cliquez sur « Exporter en XLS ».</li>
+                      <li>Cliquez sur le menu « Factures ».</li>
                       <li>
-                        Le fichier reçu par email peut ensuite être déposé ici (enregistré en .xlsx ou .csv).
+                        Sur la ligne de facture concernée, cliquez sur les trois petits points <strong>« ... »</strong> puis sur <strong>« Exporter en XLS »</strong>.
                       </li>
                       <li>
-                        <strong>Attention période :</strong> La facture émise au 1er du mois concerne les consommations du
-                        mois précédent.
+                        <strong>Réception par email :</strong> Le fichier est automatiquement envoyé à <strong>facturation@groupefacility.fr</strong>.
+                      </li>
+                      <li>
+                        Récupérez la pièce jointe reçue par email et déposez-la ici (formats .xlsx, .csv ou .xls supportés).
+                      </li>
+                      <li>
+                        <strong>Attention période :</strong> La date de début de mois de la facture correspond aux consommations du mois précédent <em>(ex. facture émise le 1er mars = recharges effectuées en février)</em>.
                       </li>
                     </ol>
                   </div>

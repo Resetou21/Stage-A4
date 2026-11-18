@@ -401,32 +401,42 @@ export default function BornesCard() {
                 </DialogHeader>
 
                 <div className="space-y-3 text-sm leading-relaxed">
-                  <div className="rounded-lg bg-primary/10 p-3 text-xs font-medium text-primary">
+                  <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 text-xs font-medium text-primary">
                     ⚡ <strong>Filtre strict de date :</strong> Conformément aux consignes, toutes les charges situées{' '}
                     <strong>avant le 15-05</strong> sont automatiquement filtrées et non importées. Seules les charges
                     récentes à partir du 15 mai sont intégrées.
                   </div>
 
-                  <ol className="list-decimal space-y-2 pl-5 text-xs">
+                  <ol className="list-decimal space-y-2 pl-5 text-xs text-foreground">
                     <li>
                       Rendez-vous sur{' '}
                       <a
                         href="https://wellborneplus.com"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-medium text-primary underline"
+                        className="font-semibold text-primary underline"
                       >
                         wellborneplus.com
                       </a>
                       .
                     </li>
-                    <li>Connectez-vous avec les identifiants du fichier « Codes fournisseurs ».</li>
-                    <li>Allez dans « Transaction » puis « Historique de charge ».</li>
-                    <li>Cliquez sur le nuage avec la flèche de téléchargement.</li>
                     <li>
-                      <strong>Fichier toujours identique :</strong> Le fichier téléchargé s'appelle souvent de la même
-                      façon (ex. <em>Enregistrement de charge.xlsx</em>). Le Hub analyse automatiquement les dates du fichier
-                      et vous propose de le renommer proprement avec la période couverte.
+                      Connectez-vous en indiquant les identifiants du tableau <em>« Codes sites fournisseurs »</em>.
+                    </li>
+                    <li>
+                      Allez dans <strong>« Transaction »</strong> puis <strong>« Historique de charge »</strong>.
+                    </li>
+                    <li>
+                      Cliquez sur le <strong>petit nuage avec la flèche au milieu</strong> (icône de téléchargement en haut à droite).
+                    </li>
+                    <li>
+                      Le fichier se télécharge dans votre dossier <em>« Téléchargements »</em> (souvent nommé <em>Enregistrement de charge.xlsx</em>).
+                    </li>
+                    <li>
+                      <strong>Importation &amp; Renommage :</strong> Déposez ce fichier ci-dessous. Le Hub vérifie les 4000+ charges existantes et propose un nom normé (ex: <code>WELLBORNE_2026-10_BORNE.xlsx</code>).
+                    </li>
+                    <li>
+                      Dès validation, la date du dernier import et les compteurs mensuels s'actualisent automatiquement.
                     </li>
                   </ol>
                 </div>
