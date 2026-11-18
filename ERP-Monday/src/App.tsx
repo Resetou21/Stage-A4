@@ -10,6 +10,7 @@ import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
 import { CreateMachineModal } from './components/CreateMachineModal';
 import { isRealCleaningMachine, AlertContextSelect } from './components/MachineSelect';
 import { ResponsableSelect } from './components/ResponsableSelect';
+import { SearchableSelect } from './components/SearchableSelect';
 import {
   fetchReferentielPoints,
   fetchRealisedControles,
@@ -1684,48 +1685,17 @@ export const App = () => {
                   Regrouper les tournées par secteur / ville :
                 </span>
 
-                <select
-                  aria-label="Filtrer par secteur"
+                <SearchableSelect
                   value={selectedSector}
-                  onChange={(e) => setSelectedSector(e.target.value)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #C8DCE8',
-                    backgroundColor: '#FFFFFF',
-                    color: '#1B4565',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="all">📍 Tous les secteurs ({availableSectors.length} villes/sites)</option>
-                  {availableSectors.map((sec) => (
-                    <option key={sec} value={sec}>
-                      {sec}
-                    </option>
-                  ))}
-                </select>
-
-                {selectedSector !== 'all' && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSector('all')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#E2445C',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      padding: '2px 6px',
-                    }}
-                  >
-                    Effacer le filtre ✕
-                  </button>
-                )}
+                  onChange={(val) => setSelectedSector(val)}
+                  options={availableSectors}
+                  allOptionValue="all"
+                  allOptionLabel={`📍 Tous les secteurs (${availableSectors.length} villes/sites)`}
+                  placeholder="Choisir un secteur..."
+                  searchPlaceholder="Rechercher un secteur ou ville (ex: Donges, Leclerc)..."
+                  width="340px"
+                  minWidth="240px"
+                />
               </div>
 
               {/* Résumé de la tournée par secteur */}

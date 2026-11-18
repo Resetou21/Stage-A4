@@ -1476,16 +1476,30 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
       const ncEntries = Object.entries(submission.pointsEvaluations).filter(([_, st]) => st === 'NC');
       let resolvedRepairsCount = 0;
 
-      if (ncEntries.length > 0 && submission.machineId) {
+      const isNonConforme =
+        ncEntries.length > 0 ||
+        submission.decisionFinale === 'Non conforme' ||
+        targetEtat === 'Non conforme' ||
+        (submission.etatGeneral && (submission.etatGeneral.toLowerCase().includes('rouge') || submission.etatGeneral.toLowerCase().includes('non')));
+
+      if (isNonConforme && submission.machineId) {
         try {
           const repairExtraCols = await ensureHubBoardColumns(MAINTENANCE_BOARD_IDS.REPARATION_MACHINES, REPAIR_HUB_SPECS);
           const repairItemName = `Réparation Curative - ${submission.machineName} - ${formattedDate}`;
-          const repairDescriptionText = ncEntries
-            .map(([pt]) => {
-              const customAction = submission.ncActions?.[pt]?.trim();
-              return customAction ? `☐ ${pt} : ${customAction}` : `☐ ${pt} (Non conforme)`;
-            })
-            .join('\n');
+          const repairDescriptionText = ncEntries.length > 0
+            ? ncEntries
+                .map(([pt]) => {
+                  const customAction = submission.ncActions?.[pt]?.trim();
+                  return customAction ? `☐ ${pt} : ${customAction}` : `☐ ${pt} (Non conforme)`;
+                })
+                .join('\n')
+            : [
+                `☐ Contrôle technique non conforme (Résultat: ${submission.etatGeneral || 'Rouge'})`,
+                submission.decisionFinale ? `☐ Décision: ${submission.decisionFinale}` : '',
+                submission.typeReparation ? `☐ Mode de réparation: ${submission.typeReparation === 'Fournisseur' ? 'Fournisseur agréé' : 'Interne'}` : '',
+                moyenList.length > 0 ? `\nPoints à surveiller :\n${moyenList.join('\n')}` : '',
+                submission.anomaliesText?.trim() ? `\nRemarques : ${submission.anomaliesText.trim()}` : '',
+              ].filter(Boolean).join('\n');
 
           const allRepairs = await fetchRepairTickets();
           const existingOpenTicket = allRepairs.find((t) => {
@@ -1594,13 +1608,17 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
                 `<b>Mode de réparation :</b> ${submission.typeReparation === 'Fournisseur' ? '🏭 Fournisseur agréé (machine 500 kg / lourde)' : '🔧 En interne par l\'équipe'}<br>` +
                 `<b>Propreté :</b> ${submission.proprete || 'Propre'} | <b>Entretien :</b> ${submission.entretienRegulier || 'Entretenue'} | <b>Fiche site :</b> ${submission.ficheSurSite || 'Oui'}<br><br>` +
                 (submission.remarqueAnimatrice?.trim() ? `<div style="background:#FFF8EC;border-left:4px solid #F7AC37;padding:8px 12px;margin:8px 0;">📢 <b>Alerte / Remarque pour le Responsable de Secteur :</b><br>${submission.remarqueAnimatrice.trim()}</div><br>` : '') +
-                `<b>Points non conformes détectés &amp; Actions à entreprendre :</b><br>` +
-                ncEntries
-                  .map(([pt]) => {
-                    const act = submission.ncActions?.[pt]?.trim() || 'À diagnostiquer et réparer';
-                    return `• <b>${pt}</b> : <span style="color:#e2445c;font-weight:bold;">NC</span> ➔ <i>${act}</i>`;
-                  })
-                  .join('<br>') +
+                `<b>Points & anomalies détectés :</b><br>` +
+                (ncEntries.length > 0
+                  ? ncEntries
+                      .map(([pt]) => {
+                        const act = submission.ncActions?.[pt]?.trim() || 'À diagnostiquer et réparer';
+                        return `• <b>${pt}</b> : <span style="color:#e2445c;font-weight:bold;">NC</span> ➔ <i>${act}</i>`;
+                      })
+                      .join('<br>')
+                  : `• <b>Décision du contrôle technique :</b> <span style="color:#e2445c;font-weight:bold;">Non conforme / À réparer</span><br>` +
+                    (moyenList.length > 0 ? `<br><b>Points à surveiller relevés :</b><br>${moyenList.join('<br>')}` : '')
+                ) +
                 (submission.anomaliesText?.trim() ? `<br><br><b>Remarques complémentaires :</b><br>${submission.anomaliesText.trim()}` : '');
 
               await (monday as any).api(`
@@ -1620,7 +1638,7 @@ export async function submitFicheControle(submission: FicheControleSubmission): 
         } catch (repairErr) {
           console.warn('Erreur lors de la gestion de la réparation curative:', repairErr);
         }
-      } else if (submission.machineId && submission.decisionFinale !== 'Non conforme') {
+      } else if (submission.machineId && !isNonConforme) {
         // =========================================================================
         // MACHINE CONFORME / RÉPARÉE (0 point non conforme)
         // Clôture automatique de tous les tickets curatifs ouverts pour cette machine
