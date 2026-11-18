@@ -280,28 +280,43 @@ export default function RoadmapModal({
 
   // Statistiques Roadmap
   const stats = useMemo(() => {
-    const todo = items.filter((i) => !/effectu|fait/i.test(i.groupTitle) && i.status !== 'Fait');
-    const done = items.filter((i) => /effectu|fait/i.test(i.groupTitle) || i.status === 'Fait');
     const u = (currentUserName || '').toLowerCase().trim();
-    const mine = items.filter((i) => {
+    const myItems = items.filter((i) => {
       if (!u || u === 'utilisateur') return false;
       const matchAuth = i.author && i.author.toLowerCase().includes(u);
       const matchDesc = i.description && i.description.toLowerCase().includes(u);
       return matchAuth || matchDesc;
     });
+
+    const relevantItems = isManager ? items : myItems;
+
+    const todo = relevantItems.filter((i) => !/effectu|fait/i.test(i.groupTitle) && i.status !== 'Fait');
+    const done = relevantItems.filter((i) => /effectu|fait/i.test(i.groupTitle) || i.status === 'Fait');
+
     return {
-      total: items.length,
+      total: relevantItems.length,
       todoCount: todo.length,
       doneCount: done.length,
-      myCount: mine.length,
-      pctDone: items.length > 0 ? Math.round((done.length / items.length) * 100) : 0,
+      myCount: myItems.length,
+      pctDone: relevantItems.length > 0 ? Math.round((done.length / relevantItems.length) * 100) : 0,
     };
-  }, [items, currentUserName]);
+  }, [items, currentUserName, isManager]);
 
   // Filtrage des éléments pour la vue liste
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
       const isDone = /effectu|fait/i.test(it.groupTitle) || it.status === 'Fait';
+
+      // RÈGLE STRICTE DE CONFIDENTIALITÉ :
+      // Seul Guillaume Daniel peut voir l'intégralité de la roadmap (tous collaborateurs et développements internes).
+      // Tous les autres collaborateurs ne voient STRICTEMENT ET UNIQUEMENT QUE LEURS PROPRES DEMANDES !
+      if (!isManager) {
+        const u = (currentUserName || '').toLowerCase().trim();
+        const isMine =
+          (it.author && it.author.toLowerCase().includes(u)) ||
+          (it.description && it.description.toLowerCase().includes(u));
+        if (!isMine) return false;
+      }
 
       // Filtre statut
       if (selectedStatusFilter === 'todo' && isDone) return false;
@@ -313,8 +328,8 @@ export default function RoadmapModal({
         }
       }
 
-      // Filtre pôle
-      if (selectedPoleFilter !== 'all') {
+      // Filtre pôle (applicable uniquement pour Guillaume)
+      if (isManager && selectedPoleFilter !== 'all') {
         if (!it.workspace.toLowerCase().includes(selectedPoleFilter.toLowerCase())) return false;
       }
 
@@ -330,7 +345,7 @@ export default function RoadmapModal({
 
       return true;
     });
-  }, [items, selectedStatusFilter, selectedPoleFilter, search, currentUserName]);
+  }, [items, selectedStatusFilter, selectedPoleFilter, search, currentUserName, isManager]);
 
   if (!isOpen) return null;
 
@@ -461,7 +476,9 @@ export default function RoadmapModal({
                 </span>
               </div>
               <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94A3B8', lineHeight: 1.4 }}>
-                Exprimez vos besoins ou remarques • Suivez l'avancement et la mise en production des demandes
+                {isManager
+                  ? "Exprimez vos besoins ou remarques • Suivez l'avancement et la mise en production des demandes"
+                  : "Suivez l'avancement de vos demandes et exprimez vos besoins d'amélioration auprès de Guillaume"}
               </p>
             </div>
           </div>
@@ -559,7 +576,7 @@ export default function RoadmapModal({
             }}
           >
             <ListTodo size={16} />
-            <span>Toutes les demandes ({items.length})</span>
+            <span>{isManager ? `Toutes les demandes (${items.length})` : `Mes demandes (${stats.total})`}</span>
           </button>
 
           <button
@@ -940,25 +957,27 @@ export default function RoadmapModal({
                       color: selectedStatusFilter === 'all' ? '#FFFFFF' : '#64748B',
                     }}
                   >
-                    Toutes ({items.length})
+                    {isManager ? `Toutes (${items.length})` : `Toutes mes demandes (${stats.total})`}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStatusFilter('mine')}
-                    style={{
-                      padding: '4px 9px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      backgroundColor: selectedStatusFilter === 'mine' ? '#0284C7' : 'transparent',
-                      color: selectedStatusFilter === 'mine' ? '#FFFFFF' : '#64748B',
-                    }}
-                    title="Voir uniquement mes demandes personnelles"
-                  >
-                    Mes demandes ({stats.myCount})
-                  </button>
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStatusFilter('mine')}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        backgroundColor: selectedStatusFilter === 'mine' ? '#0284C7' : 'transparent',
+                        color: selectedStatusFilter === 'mine' ? '#FFFFFF' : '#64748B',
+                      }}
+                      title="Voir uniquement mes demandes personnelles"
+                    >
+                      Mes demandes ({stats.myCount})
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setSelectedStatusFilter('todo')}
@@ -1034,10 +1053,39 @@ export default function RoadmapModal({
                   <span style={{ fontSize: '13px', fontWeight: 600 }}>Chargement des demandes...</span>
                 </div>
               ) : filteredItems.length === 0 ? (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: '#94A3B8' }}>
-                  <ListTodo size={32} color="#CBD5E1" style={{ margin: '0 auto 8px auto' }} />
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>Aucune demande trouvée avec ces critères.</p>
-                </div>
+                !isManager && stats.total === 0 ? (
+                  <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
+                    <Lightbulb size={32} color="#F59E0B" style={{ margin: '0 auto 10px auto' }} />
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>
+                      Vous n'avez pas encore formulé de demande
+                    </h4>
+                    <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: '#64748B', maxWidth: '380px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.4 }}>
+                      Exprimez une idée, un ajustement ou un besoin pour votre travail. Vous pourrez suivre ici l'état d'avancement de vos demandes !
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('form')}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        backgroundColor: '#0073EA',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0, 115, 234, 0.25)',
+                      }}
+                    >
+                      + Formuler une demande
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ padding: '40px 0', textAlign: 'center', color: '#94A3B8' }}>
+                    <ListTodo size={32} color="#CBD5E1" style={{ margin: '0 auto 8px auto' }} />
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>Aucune demande trouvée avec ces critères.</p>
+                  </div>
+                )
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
                   {filteredItems.map((item) => {
