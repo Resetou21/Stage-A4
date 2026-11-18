@@ -32,7 +32,6 @@ const empty = {
   menuDeSaisie: 'Entretien',
 };
 
-const STORAGE_SORT_KEY = 'hub_christine_vehicules_sort_mode';
 const STORAGE_GROUP_KEY = 'hub_christine_vehicules_group_filter';
 
 function getCookie(name: string): string | null {
@@ -89,10 +88,6 @@ export default function SaisieVehiculeButton() {
   const [vehicules, setVehicules] = useState<VehiculeItem[]>([]);
   const [loadingV, setLoadingV] = useState(false);
 
-  const [sortMode, setSortModeState] = useState<'immat' | 'flotte'>(() =>
-    readStorageImmediate(STORAGE_SORT_KEY, ['immat', 'flotte'], 'immat')
-  );
-
   const [groupFilter, setGroupFilterState] = useState<'all' | 'active' | 'restitue'>(() =>
     readStorageImmediate(STORAGE_GROUP_KEY, ['all', 'active', 'restitue'], 'all')
   );
@@ -102,17 +97,6 @@ export default function SaisieVehiculeButton() {
     let mounted = true;
     try {
       if (monday?.storage?.instance?.getItem) {
-        monday.storage.instance.getItem(STORAGE_SORT_KEY).then((res: any) => {
-          if (!mounted) return;
-          const val = res?.data?.value;
-          if (val === 'flotte' || val === 'immat') {
-            setSortModeState(val);
-            try { localStorage.setItem(STORAGE_SORT_KEY, val); } catch {}
-            try { sessionStorage.setItem(STORAGE_SORT_KEY, val); } catch {}
-            setCookie(STORAGE_SORT_KEY, val);
-          }
-        }).catch(() => {});
-
         monday.storage.instance.getItem(STORAGE_GROUP_KEY).then((res: any) => {
           if (!mounted) return;
           const val = res?.data?.value;
@@ -123,17 +107,23 @@ export default function SaisieVehiculeButton() {
             setCookie(STORAGE_GROUP_KEY, val);
           }
         }).catch(() => {});
+
+        monday.storage.instance.getItem('hub_christine_fournisseurs').then((res: any) => {
+          if (!mounted) return;
+          const val = res?.data?.value;
+          if (val) {
+            try {
+              const list = JSON.parse(val);
+              if (Array.isArray(list) && list.length) setFournisseurs(list);
+            } catch {}
+          }
+        }).catch(() => {});
       }
     } catch {}
     return () => {
       mounted = false;
     };
   }, []);
-
-  const setSortMode = (m: 'immat' | 'flotte') => {
-    setSortModeState(m);
-    writeStorageAll(STORAGE_SORT_KEY, m);
-  };
 
   const setGroupFilter = (g: 'all' | 'active' | 'restitue') => {
     setGroupFilterState(g);
@@ -197,31 +187,21 @@ export default function SaisieVehiculeButton() {
       list = list.filter((v) => v.isRestitue);
     }
 
-    if (sortMode === 'flotte') {
-      // Tri numérique par numéro de flotte (1, 2, ... 10, 11, ... 23)
-      list.sort((a, b) => {
-        if (groupFilter === 'all' && a.isRestitue !== b.isRestitue) {
-          return a.isRestitue ? 1 : -1;
-        }
-        if (a.num != null && b.num != null) return a.num - b.num;
-        if (a.num != null) return -1;
-        if (b.num != null) return 1;
-        return a.immat.localeCompare(b.immat, 'fr', { numeric: true, sensitivity: 'base' });
-      });
-    } else {
-      // Tri alphabétique strict A-Z par immatriculation (CW, ET, FD, FE... HF, HL)
-      list.sort((a, b) => {
-        if (groupFilter === 'all' && a.isRestitue !== b.isRestitue) {
-          return a.isRestitue ? 1 : -1;
-        }
-        return a.immat.localeCompare(b.immat, 'fr', { numeric: true, sensitivity: 'base' });
-      });
-    }
+    // Tri naturel par numéro de flotte (#1, #2, ... #43), véhicules en service d'abord
+    list.sort((a, b) => {
+      if (groupFilter === 'all' && a.isRestitue !== b.isRestitue) {
+        return a.isRestitue ? 1 : -1;
+      }
+      if (a.num != null && b.num != null) return a.num - b.num;
+      if (a.num != null) return -1;
+      if (b.num != null) return 1;
+      return a.immat.localeCompare(b.immat, 'fr', { numeric: true, sensitivity: 'base' });
+    });
 
     return list.map((v) => ({
       value: v.id,
-      label: sortMode === 'flotte' && v.num ? `#${v.num} — ${v.immat}` : v.immat,
-      sublabel: sortMode === 'flotte' ? undefined : (v.num ? `N° ${v.num}` : undefined),
+      label: v.immat, // Plaque d'immatriculation en clair style Image 1 (ex: "EK-116-VR")
+      sublabel: v.num ? `N° ${v.num}` : undefined, // Numéro de flotte entre parenthèses : "(N° 8)"
       group: v.groupTitle || (v.isRestitue ? 'Véhicule restitué' : 'Véhicules en service'),
       searchTokens: [
         v.immat,
@@ -230,9 +210,11 @@ export default function SaisieVehiculeButton() {
         v.isRestitue ? 'restitué' : 'en service',
         v.num ? `#${v.num}` : '',
         v.num ? `${v.num}` : '',
+        v.num ? `n° ${v.num}` : '',
+        v.num ? `n°${v.num}` : '',
       ].filter(Boolean),
     }));
-  }, [vehicules, sortMode, groupFilter]);
+  }, [vehicules, groupFilter]);
 
   // Sauvegarde des listes custom
   const saveCustomItem = (type: 'fournisseur' | 'prestation' | 'menu', val: string) => {
@@ -246,7 +228,8 @@ export default function SaisieVehiculeButton() {
           a.localeCompare(b, 'fr', { sensitivity: 'base' })
         );
         setFournisseurs(updated);
-        localStorage.setItem('hub_christine_fournisseurs', JSON.stringify(updated));
+        try { localStorage.setItem('hub_christine_fournisseurs', JSON.stringify(updated)); } catch {}
+        try { monday?.storage?.instance?.setItem('hub_christine_fournisseurs', JSON.stringify(updated)).catch(() => {}); } catch {}
       }
       setF((p) => ({ ...p, fournisseur: cleanUpper }));
       toast.success(`Fournisseur « ${cleanUpper} » ajouté aux favoris`);
@@ -485,33 +468,9 @@ export default function SaisieVehiculeButton() {
                   </button>
                 </div>
 
-                {/* Toggle Tri */}
-                <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px] shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setSortMode('immat')}
-                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
-                      sortMode === 'immat'
-                        ? 'bg-background text-primary shadow-xs font-bold'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    title="Trier par plaque d'immatriculation A-Z"
-                  >
-                    A-Z
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortMode('flotte')}
-                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
-                      sortMode === 'flotte'
-                        ? 'bg-background text-primary shadow-xs font-bold'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    title="Trier par numéro de flotte (#1, #2, ... #10)"
-                  >
-                    N° Flotte
-                  </button>
-                </div>
+                <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+                  Trié par N° de flotte (#1 à #{vehicules.length || 43})
+                </span>
               </div>
 
               <SearchableSelect
