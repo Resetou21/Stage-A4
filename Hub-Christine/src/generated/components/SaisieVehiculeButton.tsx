@@ -3,7 +3,7 @@ import { Loader2, Plus, Check, Sparkles, Car, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 import { createSaisieVehicule, getVehicules, type VehiculeItem } from '@generated/server/vehicules';
 
 const DEFAULT_FOURNISSEURS = [
@@ -234,8 +234,36 @@ export default function SaisieVehiculeButton() {
   return (
     <>
       <div className="relative w-full h-full flex flex-col">
-        <div className="absolute right-4 top-5 z-10" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute right-4 top-5 z-10 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <UsersBadge boardId={5092124669} />
+
+          <Dialog>
+            <DialogTrigger
+              aria-label="Informations"
+              className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+            >
+              <Info className="h-4 w-4" />
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Car className="h-5 w-5 text-primary" />
+                  Information & Procédure Saisie Véhicules
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 text-sm leading-relaxed">
+                <div className="rounded-lg bg-primary/10 p-3 text-xs font-medium text-primary">
+                  💡 <strong>Tableau Monday relié :</strong> <strong>Data sur véhicule (5092124669)</strong>.
+                  Toute facture ou dépense enregistrée ici est automatiquement partagée avec Christine, Vincent et Christophe.
+                </div>
+                <div className="text-xs text-muted-foreground space-y-1.5">
+                  <p><strong>1. Rapprochement automatique :</strong> La dépense est rattachée à l'immatriculation du véhicule.</p>
+                  <p><strong>2. Ventilation des coûts :</strong> Les entretiens, carburants ou réparations alimentent les indicateurs de suivi de flotte.</p>
+                  <p><strong>3. Atelier mécanique :</strong> En cas de révision ou réparation, l'information est synchronisée avec l'ERP Atelier.</p>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
         <button
           type="button"

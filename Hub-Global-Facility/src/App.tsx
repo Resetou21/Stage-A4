@@ -2287,7 +2287,7 @@ export default function App() {
             </div>
             <iframe
               ref={activeIframeRef}
-              src={`${URL_CHRISTINE_HUB}?v=20267872_v3&ts=${refreshKey}`}
+              src={`${URL_CHRISTINE_HUB}?v=20267872_v4&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
               style={{ flex: 1, width: '100%', height: 'calc(100% - 44px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"

@@ -3,7 +3,7 @@ import { Wrench, Plus, Upload, Check, Loader2, Info, ShieldCheck, Download, File
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 import { createFactureReparation, getDernieresReparations } from '@generated/server/reparations';
 
 interface ReparationItem {
@@ -190,6 +190,33 @@ export default function ReparationsCard() {
 
             <div className="flex items-center gap-1">
               <UsersBadge boardId={5106693291} />
+
+              <Dialog>
+                <DialogTrigger
+                  aria-label="Informations"
+                  className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                >
+                  <Info className="h-4 w-4" />
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Wrench className="h-5 w-5 text-primary" />
+                      Information & Procédure Réparations Matériel
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3 text-sm leading-relaxed">
+                    <div className="rounded-lg bg-primary/10 p-3 text-xs font-medium text-primary">
+                      ⚙️ <strong>Tableau Monday relié :</strong> <strong>Réparations machines (5106693291)</strong>.
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1.5">
+                      <p><strong>1. Création automatique :</strong> En enregistrant une facture ici, un ticket « Curative » est créé avec le statut « À traiter ».</p>
+                      <p><strong>2. Alerte atelier :</strong> Christophe (responsable atelier) reçoit la notification pour affecter l'intervention à la bonne machine.</p>
+                      <p><strong>3. Historique SAV :</strong> Suivi des montants et pièces changées.</p>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
