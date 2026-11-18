@@ -179,27 +179,26 @@ export default function SaisieVehiculeButton() {
         .finally(() => setLoadingV(false));
     }
 
-    // Récupérer les vraies étiquettes en direct depuis les colonnes Monday
+    // Récupérer les vraies étiquettes en direct depuis les colonnes Monday (Source de vérité)
     getSaisieFormOptions()
       .then((opts) => {
         if (opts.fournisseurs?.length) {
-          setFournisseurs((prev) => {
-            const merged = Array.from(new Set([...opts.fournisseurs, ...prev])).sort((a, b) =>
-              a.localeCompare(b, 'fr', { sensitivity: 'base' })
-            );
-            return merged;
-          });
+          setFournisseurs(opts.fournisseurs);
+          try {
+            localStorage.setItem('hub_christine_fournisseurs', JSON.stringify(opts.fournisseurs));
+          } catch {}
         }
         if (opts.prestations?.length) {
-          setPrestations((prev) => {
-            const merged = Array.from(new Set([...opts.prestations, ...prev])).sort((a, b) =>
-              a.localeCompare(b, 'fr', { sensitivity: 'base' })
-            );
-            return merged;
-          });
+          setPrestations(opts.prestations);
+          try {
+            localStorage.setItem('hub_christine_prestations', JSON.stringify(opts.prestations));
+          } catch {}
         }
         if (opts.menus?.length) {
-          setMenus((prev) => Array.from(new Set([...opts.menus, ...prev])));
+          setMenus(opts.menus);
+          try {
+            localStorage.setItem('hub_christine_menus', JSON.stringify(opts.menus));
+          } catch {}
         }
       })
       .catch((e) => console.error('Erreur chargement options Monday:', e));
@@ -285,6 +284,56 @@ export default function SaisieVehiculeButton() {
       }
       setF((p) => ({ ...p, menuDeSaisie: trimmed }));
       toast.success(`Type de saisie « ${trimmed} » ajouté`);
+    }
+  };
+
+  // Suppression d'une étiquette avec confirmation explicite
+  const handleDeleteOption = (type: 'fournisseur' | 'prestation' | 'menu', val: string) => {
+    const labelKind =
+      type === 'fournisseur'
+        ? 'le fournisseur'
+        : type === 'prestation'
+        ? 'la prestation'
+        : 'le type de saisie';
+
+    const confirmed = window.confirm(
+      `Êtes-vous sûr de vouloir supprimer ${labelKind} « ${val} » de la liste ?`
+    );
+    if (!confirmed) return;
+
+    if (type === 'fournisseur') {
+      const updated = fournisseurs.filter((x) => x.toLowerCase() !== val.toLowerCase());
+      setFournisseurs(updated);
+      try {
+        localStorage.setItem('hub_christine_fournisseurs', JSON.stringify(updated));
+      } catch {}
+      try {
+        monday?.storage?.instance?.setItem('hub_christine_fournisseurs', JSON.stringify(updated)).catch(() => {});
+      } catch {}
+      if (f.fournisseur?.toLowerCase() === val.toLowerCase()) {
+        setF((p) => ({ ...p, fournisseur: '' }));
+      }
+      toast.success(`Fournisseur « ${val} » retiré de la liste.`);
+    } else if (type === 'prestation') {
+      const updated = prestations.filter((x) => x.toLowerCase() !== val.toLowerCase());
+      setPrestations(updated);
+      try {
+        localStorage.setItem('hub_christine_prestations', JSON.stringify(updated));
+      } catch {}
+      if (f.prestation?.toLowerCase() === val.toLowerCase()) {
+        setF((p) => ({ ...p, prestation: '' }));
+      }
+      toast.success(`Prestation « ${val} » retirée de la liste.`);
+    } else if (type === 'menu') {
+      const updated = menus.filter((x) => x.toLowerCase() !== val.toLowerCase());
+      setMenus(updated);
+      try {
+        localStorage.setItem('hub_christine_menus', JSON.stringify(updated));
+      } catch {}
+      if (f.menuDeSaisie?.toLowerCase() === val.toLowerCase()) {
+        setF((p) => ({ ...p, menuDeSaisie: '' }));
+      }
+      toast.success(`Type « ${val} » retiré de la liste.`);
     }
   };
 
@@ -558,6 +607,7 @@ export default function SaisieVehiculeButton() {
                 allowCreate={true}
                 createLabelPrefix="Ajouter le type"
                 onCreateOption={(val) => saveCustomItem('menu', val)}
+                onDeleteOption={(val) => handleDeleteOption('menu', val)}
               />
             </div>
 
@@ -574,6 +624,7 @@ export default function SaisieVehiculeButton() {
                 autoUppercase={true}
                 createLabelPrefix="Créer le fournisseur"
                 onCreateOption={(val) => saveCustomItem('fournisseur', val)}
+                onDeleteOption={(val) => handleDeleteOption('fournisseur', val)}
               />
             </div>
 
@@ -589,6 +640,7 @@ export default function SaisieVehiculeButton() {
                 allowCreate={true}
                 createLabelPrefix="Créer la prestation"
                 onCreateOption={(val) => saveCustomItem('prestation', val)}
+                onDeleteOption={(val) => handleDeleteOption('prestation', val)}
               />
             </div>
 

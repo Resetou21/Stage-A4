@@ -259,7 +259,7 @@ export default function SearchableSelect({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 ml-2">
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
           {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
           {onDeleteOption && (
             <button
@@ -268,10 +268,10 @@ export default function SearchableSelect({
                 e.stopPropagation();
                 onDeleteOption(item.value);
               }}
-              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-opacity"
-              title="Supprimer cette étiquette"
+              className="opacity-40 group-hover:opacity-100 hover:opacity-100 p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer"
+              title="Supprimer de la liste"
             >
-              <Trash2 className="h-3 w-3" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
