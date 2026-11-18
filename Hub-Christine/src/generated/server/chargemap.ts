@@ -7,7 +7,7 @@ const GROUP_CARBURANT = 'group_mm0xzegn';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-// Cache mémoire court (30s) pour éviter les requêtes répétitives inutiles
+// Cache mémoire ultra-court (5s) pour synchronisation quasi-instantanée
 let _cachedChargemapMois: any = null;
 let _cachedChargemapTime = 0;
 
@@ -25,7 +25,7 @@ export const invalidateFacturesCache = () => {
 export const getChargemapMois = createServerFn({ method: 'GET' })
   .validator(z.object({}).optional())
   .handler(async () => {
-    if (_cachedChargemapMois && Date.now() - _cachedChargemapTime < 30_000) {
+    if (_cachedChargemapMois && Date.now() - _cachedChargemapTime < 5_000) {
       return _cachedChargemapMois;
     }
 
@@ -82,7 +82,7 @@ export interface TotalPeriodMonth {
 export const getTotalBimonthlyStatus = createServerFn({ method: 'GET' })
   .validator(z.object({}).optional())
   .handler(async () => {
-    if (_cachedTotalBimonthly && Date.now() - _cachedTotalTime < 30_000) {
+    if (_cachedTotalBimonthly && Date.now() - _cachedTotalTime < 5_000) {
       return _cachedTotalBimonthly;
     }
 
