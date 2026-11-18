@@ -87,41 +87,59 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
       .finally(() => setPeriodLoading(false));
   }, [selectedPeriodDetail, variant]);
 
-  const filteredPeriodTransactions = periodTransactions.filter((t) => {
-    if (!periodSearch.trim()) return true;
+  // Transactions nettoyées : dédoublonnées automatiquement (on ne garde qu'une seule occurrence)
+  // et on ignore les lignes totalement vides créées par erreur sur Monday
+  const { cleanTransactions, rawCount, duplicatesRemovedCount, cleanTotalMontant } = useMemo(() => {
+    const seen = new Set<string>();
+    const clean: PeriodTransactionItem[] = [];
+    let dupsCount = 0;
+    let total = 0;
+
+    for (const t of periodTransactions) {
+      // Ignorer les lignes fantômes vides (sans véhicule et sans montant)
+      const isVehiculeEmpty = !t.vehicule || t.vehicule === '—' || !t.vehicule.trim();
+      const isMontantEmpty = !t.montant || t.montant === '—' || !t.montant.trim();
+      if (isVehiculeEmpty && isMontantEmpty) {
+        continue;
+      }
+
+      // Clé d'unicité basée sur la date, le véhicule, le produit, le montant et le volume
+      const key = `${t.date}_${t.vehicule}_${t.produit}_${t.montant}_${t.quantite}`.toLowerCase().trim();
+      if (seen.has(key)) {
+        dupsCount++;
+        continue;
+      }
+      seen.add(key);
+      clean.push(t);
+
+      const m = parseFloat(t.montant.replace(',', '.').replace(/[^\d.]/g, ''));
+      if (!isNaN(m)) total += m;
+    }
+
+    return {
+      cleanTransactions: clean,
+      rawCount: periodTransactions.length,
+      duplicatesRemovedCount: dupsCount,
+      cleanTotalMontant: total,
+    };
+  }, [periodTransactions]);
+
+  const filteredPeriodTransactions = useMemo(() => {
+    if (!periodSearch.trim()) return cleanTransactions;
     const s = periodSearch.toLowerCase();
-    return (
+    return cleanTransactions.filter((t) =>
       t.vehicule.toLowerCase().includes(s) ||
       t.produit.toLowerCase().includes(s) ||
       t.station.toLowerCase().includes(s) ||
       t.date.toLowerCase().includes(s)
     );
-  });
-
-  // Détection des doublons réels présents sur le tableau Monday (même date, véhicule, montant)
-  const duplicateIds = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const t of periodTransactions) {
-      if (!t.vehicule || t.vehicule === '—') continue;
-      const key = `${t.date}_${t.vehicule}_${t.montant}_${t.quantite}`.toLowerCase().trim();
-      const existing = map.get(key) || [];
-      existing.push(t.id);
-      map.set(key, existing);
-    }
-    const dupSet = new Set<string>();
-    for (const [, ids] of map.entries()) {
-      if (ids.length > 1) {
-        ids.forEach((id) => dupSet.add(id));
-      }
-    }
-    return dupSet;
-  }, [periodTransactions]);
+  }, [cleanTransactions, periodSearch]);
 
   // Export des lignes de la période sélectionnée au format Excel / CSV avec BOM UTF-8
   const handleDownloadPeriodXls = () => {
-    if (!selectedPeriodDetail || !periodTransactions.length) return;
+    if (!selectedPeriodDetail || !cleanTransactions.length) return;
     const headers = ['Date', 'Véhicule', 'Produit / Carte', 'Volume / Quantité', 'Montant HT', 'Station / Lieu'];
-    const rows = periodTransactions.map((t) => [
+    const rows = cleanTransactions.map((t) => [
       t.date,
       t.vehicule,
       t.produit,
@@ -602,9 +620,9 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                       €
                     </div>
                     <div>
-                      <div className="text-[11px] text-muted-foreground font-semibold">Total Montant</div>
+                      <div className="text-[11px] text-muted-foreground font-semibold">Total Net (Dédoublonné)</div>
                       <div className="font-extrabold text-foreground text-sm">
-                        {periodLoading ? '…' : `${periodTotalMontant.toFixed(2)} €`}
+                        {periodLoading ? '…' : `${cleanTotalMontant.toFixed(2)} €`}
                       </div>
                     </div>
                   </div>
@@ -614,12 +632,12 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                       #
                     </div>
                     <div>
-                      <div className="text-[11px] text-muted-foreground font-semibold">Transactions Monday</div>
+                      <div className="text-[11px] text-muted-foreground font-semibold">Transactions Uniques</div>
                       <div className="font-extrabold text-foreground text-sm flex items-center gap-1.5 flex-wrap">
-                        <span>{periodLoading ? '…' : `${periodTransactions.length} ligne(s)`}</span>
-                        {duplicateIds.size > 0 && !periodLoading && (
-                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-md border border-amber-500/30">
-                            {duplicateIds.size} doublons
+                        <span>{periodLoading ? '…' : `${cleanTransactions.length} transaction(s)`}</span>
+                        {duplicatesRemovedCount > 0 && !periodLoading && (
+                          <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md border border-border">
+                            {duplicatesRemovedCount} doublon(s) masqué(s)
                           </span>
                         )}
                       </div>
@@ -633,18 +651,8 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     <span>Recherche des transactions de cette période sur Monday...</span>
                   </div>
-                ) : periodTransactions.length > 0 ? (
+                ) : cleanTransactions.length > 0 ? (
                   <div className="space-y-2.5">
-                    {/* Alerte doublons déjà enregistrés sur Monday */}
-                    {duplicateIds.size > 0 && (
-                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-semibold">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                        <span>
-                          {duplicateIds.size} transactions apparaissent en doublon sur le tableau Monday (même véhicule, date et montant importés plusieurs fois).
-                        </span>
-                      </div>
-                    )}
-
                     <div className="flex items-center justify-between gap-2">
                       <div className="relative flex-1">
                         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -657,7 +665,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                         />
                       </div>
                       <span className="text-[11px] text-muted-foreground font-semibold shrink-0">
-                        {filteredPeriodTransactions.length} sur {periodTransactions.length}
+                        {filteredPeriodTransactions.length} sur {cleanTransactions.length}
                       </span>
                     </div>
 
@@ -666,53 +674,37 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                         <table className="w-full text-left text-[11px] border-collapse">
                           <thead className="bg-muted/70 text-foreground font-bold sticky top-0 z-10 border-b border-border">
                             <tr>
-                              <th className="py-2 px-3">Date</th>
-                              <th className="py-2 px-3">Véhicule</th>
-                              <th className="py-2 px-3">Produit</th>
-                              <th className="py-2 px-3">Volume</th>
-                              <th className="py-2 px-3">Montant</th>
-                              <th className="py-2 px-3">Station / Lieu</th>
+                              <th className="py-2.5 px-3">Date</th>
+                              <th className="py-2.5 px-3">Véhicule</th>
+                              <th className="py-2.5 px-3">Produit</th>
+                              <th className="py-2.5 px-3">Volume</th>
+                              <th className="py-2.5 px-3">Montant</th>
+                              <th className="py-2.5 px-3">Station / Lieu</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border/40 font-medium">
-                            {filteredPeriodTransactions.map((t) => {
-                              const isDup = duplicateIds.has(t.id);
-                              return (
-                                <tr
-                                  key={t.id}
-                                  className={cn(
-                                    'transition-colors',
-                                    isDup ? 'bg-amber-500/10 hover:bg-amber-500/20' : 'hover:bg-muted/40'
-                                  )}
-                                >
-                                  <td className="py-2 px-3 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
-                                    {t.date}
-                                  </td>
-                                  <td className="py-2 px-3 font-bold text-foreground whitespace-nowrap">
-                                    <div className="flex items-center gap-1.5">
-                                      <span>{t.vehicule}</span>
-                                      {isDup && (
-                                        <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/40">
-                                          Doublon
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-2 px-3 text-foreground whitespace-nowrap">
-                                    {t.produit}
-                                  </td>
-                                  <td className="py-2 px-3 text-muted-foreground whitespace-nowrap font-mono">
-                                    {t.quantite}
-                                  </td>
-                                  <td className="py-2 px-3 font-bold text-primary whitespace-nowrap">
-                                    {t.montant}
-                                  </td>
-                                  <td className="py-2 px-3 text-muted-foreground truncate max-w-[160px]">
-                                    {t.station}
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                            {filteredPeriodTransactions.map((t) => (
+                              <tr key={t.id} className="hover:bg-muted/50 transition-colors">
+                                <td className="py-2 px-3 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
+                                  {t.date}
+                                </td>
+                                <td className="py-2 px-3 font-bold text-foreground whitespace-nowrap">
+                                  {t.vehicule}
+                                </td>
+                                <td className="py-2 px-3 text-foreground whitespace-nowrap">
+                                  {t.produit}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground whitespace-nowrap font-mono">
+                                  {t.quantite}
+                                </td>
+                                <td className="py-2 px-3 font-bold text-primary whitespace-nowrap">
+                                  {t.montant}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground truncate max-w-[160px]">
+                                  {t.station}
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
@@ -756,12 +748,12 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                     <button
                       type="button"
                       onClick={handleDownloadPeriodXls}
-                      disabled={periodLoading || periodTransactions.length === 0}
+                      disabled={periodLoading || cleanTransactions.length === 0}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
                       title="Télécharger les lignes de cette période au format Excel / CSV"
                     >
                       <Download className="h-3.5 w-3.5" />
-                      <span>Télécharger le XLS ({periodTransactions.length})</span>
+                      <span>Télécharger le XLS ({cleanTransactions.length})</span>
                     </button>
 
                     <button
@@ -773,7 +765,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                       className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
                     >
                       <Upload className="h-3.5 w-3.5" />
-                      <span>{periodTransactions.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
+                      <span>{cleanTransactions.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
                     </button>
                   </div>
                 </div>
