@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Lightbulb,
   PlusCircle,
@@ -8,8 +8,6 @@ import {
   AlertTriangle,
   Send,
   Search,
-  Filter,
-  Layers,
   Sparkles,
   X,
   User,
@@ -19,9 +17,7 @@ import {
   Truck,
   FileSpreadsheet,
   Trash2,
-  HelpCircle,
   Check,
-  ChevronRight,
   TrendingUp,
 } from 'lucide-react';
 
@@ -33,6 +29,7 @@ export interface RoadmapItem {
   priority: '1 (Urgent)' | '2 (Normal)' | '3 (Basse)' | string;
   status: 'En cours' | 'Fait' | 'Bloqué' | string;
   description: string;
+  author: string;
   workspace: string; // 'Animatrices', 'Gros Matos', 'Suivi Vehicules', 'Enchantement client'
   date: string;
   timeline: string;
@@ -48,6 +45,7 @@ interface RoadmapModalProps {
 
 const BOARD_ROADMAP_ID = 5105479748;
 const GROUP_TODO_ID = 'group_mm7y5mjp'; // Tache à faire
+const GROUP_DONE_ID = 'group_mm7y1vv8'; // Tâches effectuées
 
 const POLE_OPTIONS = [
   { id: 'Animatrices', label: 'Animatrices & Chantiers', icon: Building2, color: '#0073EA', bg: '#EBF6FC' },
@@ -75,26 +73,19 @@ export default function RoadmapModal({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successSent, setSuccessSent] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Filtres onglet Roadmap
   const [search, setSearch] = useState('');
   const [selectedPoleFilter, setSelectedPoleFilter] = useState<string>('all');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'todo' | 'done'>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'todo' | 'done' | 'mine'>('all');
 
-  // Champs du formulaire
+  // Champs du formulaire (le nom du demandeur est 100% automatique via currentUserName)
   const [typeDemande, setTypeDemande] = useState<string>('adjust');
   const [poleConcerne, setPoleConcerne] = useState<string>('Animatrices');
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
   const [priorite, setPriorite] = useState<'1 (Urgent)' | '2 (Normal)' | '3 (Basse)'>('2 (Normal)');
-  const [demandeur, setDemandeur] = useState(currentUserName);
-
-  // Synchronisation nom utilisateur
-  useEffect(() => {
-    if (currentUserName && currentUserName !== 'Utilisateur') {
-      setDemandeur(currentUserName);
-    }
-  }, [currentUserName]);
 
   // Synchronisation onglet initial
   useEffect(() => {
@@ -133,6 +124,15 @@ export default function RoadmapModal({
           if (cv.id && cv.text) valMap.set(cv.id, cv.text);
         });
 
+        const rawDesc = valMap.get('short_text2v8w5gvp') || '';
+        let author = '';
+        let cleanDesc = rawDesc;
+        if (rawDesc.startsWith('Demandé par :')) {
+          const parts = rawDesc.split('|');
+          author = parts[0].replace('Demandé par :', '').trim();
+          cleanDesc = parts.slice(1).join('|').trim();
+        }
+
         return {
           id: it.id,
           name: it.name || 'Sans titre',
@@ -140,7 +140,8 @@ export default function RoadmapModal({
           groupId: it.group?.id || '',
           priority: (valMap.get('color_mm7yntfh') as any) || '2 (Normal)',
           status: valMap.get('status') || 'En cours',
-          description: valMap.get('short_text2v8w5gvp') || '',
+          description: cleanDesc,
+          author: author,
           workspace: valMap.get('multi_selectp70jvoio') || 'Général',
           date: valMap.get('date_mm7yphvc') || '',
           timeline: valMap.get('timerange_mm7wqn4x') || '',
@@ -155,6 +156,58 @@ export default function RoadmapModal({
     }
   };
 
+  // Cocher / décocher une demande (Marquer comme Fait / En cours)
+  const handleToggleItemStatus = async (item: RoadmapItem) => {
+    const isCurrentlyDone = /effectu|fait/i.test(item.groupTitle) || item.status === 'Fait';
+    const newStatus = isCurrentlyDone ? 'En cours' : 'Fait';
+    const newGroupId = isCurrentlyDone ? GROUP_TODO_ID : GROUP_DONE_ID;
+    const newGroupTitle = isCurrentlyDone ? 'Tache à faire' : 'Tâches effectuées';
+
+    setUpdatingId(item.id);
+
+    // Mise à jour optimiste instantanée dans l'UI
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === item.id
+          ? {
+              ...it,
+              status: newStatus,
+              groupId: newGroupId,
+              groupTitle: newGroupTitle,
+            }
+          : it
+      )
+    );
+
+    // Mise à jour en tâche de fond sur Monday
+    try {
+      const mutation = `mutation ($itemId: ID!) {
+        change_simple_column_value(
+          board_id: ${BOARD_ROADMAP_ID},
+          item_id: $itemId,
+          column_id: "status",
+          value: "${newStatus}"
+        ) {
+          id
+        }
+        move_item_to_group(
+          item_id: $itemId,
+          group_id: "${newGroupId}"
+        ) {
+          id
+        }
+      }`;
+
+      await monday.api(mutation, { variables: { itemId: item.id } });
+    } catch (err) {
+      console.error('Erreur mise à jour statut Monday:', err);
+      // Restaurer les données en cas d'erreur
+      await loadRoadmap();
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   // Soumission d'une nouvelle demande vers Monday
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,12 +215,12 @@ export default function RoadmapModal({
 
     setSubmitting(true);
     try {
-      // Déterminer le préfixe du type
       const typeObj = TYPE_OPTIONS.find((t) => t.id === typeDemande);
       const formattedTitle = `[${typeObj?.label.split('/')[0].trim() || 'Demande'}] ${titre.trim()}`;
 
-      // Construction de la description avec auteur
-      const fullDesc = `Demandé par : ${demandeur.trim()} | ${description.trim()}`;
+      // Auteur automatiquement injecté via currentUserName
+      const senderName = currentUserName && currentUserName !== 'Utilisateur' ? currentUserName.trim() : 'Collaborateur';
+      const fullDesc = `Demandé par : ${senderName} | ${description.trim()}`;
 
       const todayIso = new Date().toISOString().slice(0, 10);
 
@@ -209,7 +262,7 @@ export default function RoadmapModal({
       setTimeout(() => {
         setSuccessSent(false);
         setActiveTab('list');
-      }, 1600);
+      }, 1500);
     } catch (err) {
       console.error('Erreur création suggestion:', err);
       alert("Une erreur s'est produite lors de la transmission à Monday.");
@@ -233,11 +286,16 @@ export default function RoadmapModal({
   // Filtrage des éléments pour la vue liste
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
+      const isDone = /effectu|fait/i.test(it.groupTitle) || it.status === 'Fait';
+
       // Filtre statut
-      if (selectedStatusFilter === 'todo') {
-        if (/effectu|fait/i.test(it.groupTitle) || it.status === 'Fait') return false;
-      } else if (selectedStatusFilter === 'done') {
-        if (!/effectu|fait/i.test(it.groupTitle) && it.status !== 'Fait') return false;
+      if (selectedStatusFilter === 'todo' && isDone) return false;
+      if (selectedStatusFilter === 'done' && !isDone) return false;
+      if (selectedStatusFilter === 'mine') {
+        const u = currentUserName.toLowerCase();
+        if (!it.author.toLowerCase().includes(u) && !it.description.toLowerCase().includes(u)) {
+          return false;
+        }
       }
 
       // Filtre pôle
@@ -251,39 +309,63 @@ export default function RoadmapModal({
         const matchName = it.name.toLowerCase().includes(s);
         const matchDesc = it.description.toLowerCase().includes(s);
         const matchWs = it.workspace.toLowerCase().includes(s);
-        if (!matchName && !matchDesc && !matchWs) return false;
+        const matchAuth = it.author.toLowerCase().includes(s);
+        if (!matchName && !matchDesc && !matchWs && !matchAuth) return false;
       }
 
       return true;
     });
-  }, [items, selectedStatusFilter, selectedPoleFilter, search]);
+  }, [items, selectedStatusFilter, selectedPoleFilter, search, currentUserName]);
 
   if (!isOpen) return null;
 
   return (
     <div
+      className="roadmap-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(5px)',
+        backgroundColor: 'rgba(15, 23, 42, 0.7)',
+        backdropFilter: 'blur(6px)',
         zIndex: 300,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
+        padding: '16px',
         animation: 'fadeIn 0.15s ease-out',
       }}
       onClick={onClose}
     >
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.98); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @media (max-width: 640px) {
+          .roadmap-modal-overlay { padding: 6px !important; }
+          .roadmap-modal-container { max-height: 96vh !important; border-radius: 16px !important; }
+          .roadmap-header { padding: 18px 16px !important; }
+          .roadmap-header-kpis { flex-direction: column !important; gap: 8px !important; align-items: stretch !important; }
+          .roadmap-kpi-chip { width: 100% !important; justify-content: flex-start !important; }
+          .roadmap-card-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+          .roadmap-card-badges { width: 100% !important; justify-content: flex-start !important; }
+          .roadmap-filter-bar { flex-direction: column !important; align-items: stretch !important; }
+          .roadmap-filter-buttons { overflow-x: auto !important; width: 100% !important; padding-bottom: 4px !important; }
+          .roadmap-tab-button { padding: 12px 14px !important; font-size: 12px !important; }
+          .roadmap-footer { flex-direction: column !important; gap: 10px !important; align-items: stretch !important; }
+          .roadmap-footer button { width: 100% !important; }
+        }
+      `}</style>
+
       <div
+        className="roadmap-modal-container"
         style={{
           width: '920px',
-          maxWidth: '96vw',
+          maxWidth: '100%',
           maxHeight: '90vh',
           backgroundColor: '#FFFFFF',
-          borderRadius: '22px',
-          boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.35)',
+          borderRadius: '20px',
+          boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.4)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -292,13 +374,14 @@ export default function RoadmapModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* ============================================================== */}
-        {/* EN-TÊTE ÉLÉGANT AVEC GRADIENT & STATS EN DIRECT                */}
+        {/* EN-TÊTE ÉPURÉ & PROFESSIONNEL                                  */}
         {/* ============================================================== */}
         <div
+          className="roadmap-header"
           style={{
-            padding: '24px 28px',
+            padding: '22px 28px',
             backgroundColor: '#0F172A',
-            backgroundImage: 'radial-gradient(circle at top right, #1E3A8A 0%, #0F172A 70%)',
+            backgroundImage: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
             color: '#FFFFFF',
             position: 'relative',
           }}
@@ -308,8 +391,8 @@ export default function RoadmapModal({
             onClick={onClose}
             style={{
               position: 'absolute',
-              top: '20px',
-              right: '20px',
+              top: '18px',
+              right: '18px',
               width: '32px',
               height: '32px',
               borderRadius: '50%',
@@ -327,57 +410,60 @@ export default function RoadmapModal({
             <X size={18} />
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
             <div
               style={{
                 width: '42px',
                 height: '42px',
                 borderRadius: '12px',
-                backgroundColor: 'rgba(251, 191, 36, 0.2)',
-                border: '1px solid rgba(251, 191, 36, 0.4)',
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
-              <Lightbulb size={24} color="#FBBF24" />
+              <Lightbulb size={22} color="#FBBF24" />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, letterSpacing: '-0.3px' }}>
-                  Boîte à Idées & Roadmap Collaborative
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, letterSpacing: '-0.3px' }}>
+                  Boîte à Idées & Suivi des Améliorations
                 </h2>
                 <span
                   style={{
                     fontSize: '11px',
                     fontWeight: 700,
-                    padding: '3px 8px',
+                    padding: '2px 8px',
                     borderRadius: '20px',
                     backgroundColor: 'rgba(16, 185, 129, 0.25)',
                     color: '#34D399',
                     border: '1px solid rgba(52, 211, 153, 0.4)',
                   }}
                 >
-                  ● En direct Monday.com
+                  ● En direct
                 </span>
               </div>
-              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94A3B8' }}>
-                Formulez un souhait, un ajustement ou un retrait • Vos demandes alimentent directement le tableau Roadmap de Guillaume
+              <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94A3B8', lineHeight: 1.4 }}>
+                Exprimez vos besoins ou remarques • Suivez l'avancement et la mise en production des demandes
               </p>
             </div>
           </div>
 
-          {/* Mini-Badges KPI */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '14px', flexWrap: 'wrap' }}>
+          {/* Badges KPI Épurés */}
+          <div className="roadmap-header-kpis" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '14px', flexWrap: 'wrap' }}>
             <div
+              className="roadmap-kpi-chip"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
                 fontSize: '12px',
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 padding: '6px 12px',
-                borderRadius: '10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
               <Clock size={14} color="#F59E0B" />
@@ -387,36 +473,40 @@ export default function RoadmapModal({
             </div>
 
             <div
+              className="roadmap-kpi-chip"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
                 fontSize: '12px',
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 padding: '6px 12px',
-                borderRadius: '10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
               <CheckCircle2 size={14} color="#10B981" />
               <span>
-                <strong>{stats.doneCount}</strong> fonctionnalités livrées
+                <strong>{stats.doneCount}</strong> déjà livrées
               </span>
             </div>
 
             <div
+              className="roadmap-kpi-chip"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
                 fontSize: '12px',
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 padding: '6px 12px',
-                borderRadius: '10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
-              <Layers size={14} color="#60A5FA" />
+              <TrendingUp size={14} color="#60A5FA" />
               <span>
-                Taux de réalisation : <strong>{stats.pctDone}%</strong>
+                Avancement global : <strong>{stats.pctDone}%</strong>
               </span>
             </div>
           </div>
@@ -431,17 +521,18 @@ export default function RoadmapModal({
             alignItems: 'center',
             borderBottom: '1px solid #E2E8F0',
             backgroundColor: '#F8FAFC',
-            padding: '0 24px',
+            padding: '0 20px',
           }}
         >
           <button
             type="button"
+            className="roadmap-tab-button"
             onClick={() => setActiveTab('list')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '14px 18px',
+              padding: '13px 18px',
               fontSize: '13px',
               fontWeight: 700,
               border: 'none',
@@ -453,17 +544,18 @@ export default function RoadmapModal({
             }}
           >
             <ListTodo size={16} />
-            <span>Consulter la Roadmap ({items.length})</span>
+            <span>Toutes les demandes ({items.length})</span>
           </button>
 
           <button
             type="button"
+            className="roadmap-tab-button"
             onClick={() => setActiveTab('form')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '14px 18px',
+              padding: '13px 18px',
               fontSize: '13px',
               fontWeight: 700,
               border: 'none',
@@ -475,16 +567,16 @@ export default function RoadmapModal({
             }}
           >
             <PlusCircle size={16} />
-            <span>Formuler une demande ou idée</span>
+            <span>Formuler une demande</span>
           </button>
         </div>
 
         {/* ============================================================== */}
         {/* CONTENU PRINCIPAL DES ONGLETS                                  */}
         {/* ============================================================== */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', backgroundColor: '#FFFFFF' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
           {/* ------------------------------------------------------------ */}
-          {/* ONGLET 1 : FORMULAIRE DE PROPOSITION                         */}
+          {/* ONGLET 1 : FORMULAIRE DE DEMANDE (ÉPURÉ & SANS CHAMP NOM)     */}
           {/* ------------------------------------------------------------ */}
           {activeTab === 'form' && (
             <div style={{ maxWidth: '680px', margin: '0 auto' }}>
@@ -500,35 +592,73 @@ export default function RoadmapModal({
                 >
                   <div
                     style={{
-                      width: '60px',
-                      height: '60px',
+                      width: '56px',
+                      height: '56px',
                       borderRadius: '50%',
                       backgroundColor: '#10B981',
                       color: '#FFFFFF',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      margin: '0 auto 16px auto',
-                      boxShadow: '0 10px 20px rgba(16, 185, 129, 0.3)',
+                      margin: '0 auto 14px auto',
+                      boxShadow: '0 8px 18px rgba(16, 185, 129, 0.25)',
                     }}
                   >
-                    <Check size={32} />
+                    <Check size={28} />
                   </div>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#065F46' }}>
-                    Demande transmise avec succès !
+                    Demande enregistrée avec succès !
                   </h3>
-                  <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#047857' }}>
-                    Votre suggestion a été enregistrée directement dans le tableau <strong>Road map de Guillaume</strong>.
+                  <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#047857' }}>
+                    Elle apparaît dès maintenant dans la liste pour un suivi direct.
                   </p>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {/* Badge d'identification automatique (zéro saisie demandée) */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      fontSize: '12px',
+                      color: '#475569',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        backgroundColor: '#E0F2FE',
+                        color: '#0284C7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                      }}
+                    >
+                      <User size={14} />
+                    </div>
+                    <div>
+                      Demandeur identifié : <strong>{currentUserName || 'Collaborateur connecté'}</strong>
+                    </div>
+                    <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#10B981', fontWeight: 700 }}>
+                      ● Pris en compte
+                    </span>
+                  </div>
+
                   {/* Type d'intervention */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E293B', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                      Type d'intervention <span style={{ color: '#EF4444' }}>*</span>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Nature de la demande <span style={{ color: '#EF4444' }}>*</span>
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+                    <div className="roadmap-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
                       {TYPE_OPTIONS.map((t) => {
                         const Icon = t.icon;
                         const isSelected = typeDemande === t.id;
@@ -563,10 +693,10 @@ export default function RoadmapModal({
 
                   {/* Pôle concerné */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E293B', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                      Pôle ou Espace concerné <span style={{ color: '#EF4444' }}>*</span>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Pôle concerné <span style={{ color: '#EF4444' }}>*</span>
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+                    <div className="roadmap-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
                       {POLE_OPTIONS.map((p) => {
                         const Icon = p.icon;
                         const isSelected = poleConcerne === p.id;
@@ -601,22 +731,22 @@ export default function RoadmapModal({
 
                   {/* Titre de la demande */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E293B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                      Titre de votre demande ou idée <span style={{ color: '#EF4444' }}>*</span>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Objet de la demande <span style={{ color: '#EF4444' }}>*</span>
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="Ex : Ajouter un export Excel sur les inventaires, modifier l'ordre des colonnes..."
+                      placeholder="Ex : Pouvoir exporter la liste des inventaires en Excel..."
                       value={titre}
                       onChange={(e) => setTitre(e.target.value)}
                       style={{
                         width: '100%',
-                        height: '44px',
+                        height: '42px',
                         padding: '0 14px',
                         borderRadius: '10px',
                         border: '1.5px solid #CBD5E1',
-                        fontSize: '14px',
+                        fontSize: '13px',
                         outline: 'none',
                         boxSizing: 'border-box',
                         transition: 'border-color 0.15s',
@@ -626,19 +756,19 @@ export default function RoadmapModal({
                     />
                   </div>
 
-                  {/* Détails et explications */}
+                  {/* Explication / détails */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E293B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                      Détail de votre besoin ou problème actuel
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Précisions ou contexte du besoin
                     </label>
                     <textarea
                       rows={3}
-                      placeholder="Expliquez concrètement ce que vous aimeriez améliorer, ajouter ou retirer, et pourquoi cela vous ferait gagner du temps..."
+                      placeholder="Décrivez en quelques mots la situation ou ce qui vous ferait gagner du temps au quotidien..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       style={{
                         width: '100%',
-                        padding: '12px 14px',
+                        padding: '10px 14px',
                         borderRadius: '10px',
                         border: '1.5px solid #CBD5E1',
                         fontSize: '13px',
@@ -653,78 +783,48 @@ export default function RoadmapModal({
                     />
                   </div>
 
-                  {/* Ligne : Priorité ressentie + Nom du demandeur */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E293B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                        Niveau de Priorité
-                      </label>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {(['3 (Basse)', '2 (Normal)', '1 (Urgent)'] as const).map((p) => {
-                          const isSelected = priorite === p;
-                          const color = p.includes('1') ? '#EF4444' : p.includes('2') ? '#F59E0B' : '#10B981';
-                          return (
-                            <button
-                              type="button"
-                              key={p}
-                              onClick={() => setPriorite(p)}
-                              style={{
-                                flex: 1,
-                                height: '40px',
-                                borderRadius: '8px',
-                                border: isSelected ? `2px solid ${color}` : '1px solid #E2E8F0',
-                                backgroundColor: isSelected ? `${color}15` : '#FFFFFF',
-                                color: isSelected ? color : '#64748B',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s',
-                              }}
-                            >
-                              {p.includes('1') ? '🔴 Urgent' : p.includes('2') ? '🟠 Normal' : '🟢 Basse'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E293B', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                        Votre Nom / Demandeur
-                      </label>
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                        <User size={16} color="#64748B" style={{ position: 'absolute', left: '12px' }} />
-                        <input
-                          type="text"
-                          required
-                          value={demandeur}
-                          onChange={(e) => setDemandeur(e.target.value)}
-                          placeholder="Votre prénom & nom..."
-                          style={{
-                            width: '100%',
-                            height: '40px',
-                            paddingLeft: '36px',
-                            paddingRight: '12px',
-                            borderRadius: '8px',
-                            border: '1.5px solid #CBD5E1',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                          }}
-                        />
-                      </div>
+                  {/* Niveau de Priorité */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Degré d'importance souhaité
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {(['3 (Basse)', '2 (Normal)', '1 (Urgent)'] as const).map((p) => {
+                        const isSelected = priorite === p;
+                        const color = p.includes('1') ? '#EF4444' : p.includes('2') ? '#F59E0B' : '#10B981';
+                        return (
+                          <button
+                            type="button"
+                            key={p}
+                            onClick={() => setPriorite(p)}
+                            style={{
+                              flex: 1,
+                              height: '38px',
+                              borderRadius: '8px',
+                              border: isSelected ? `2px solid ${color}` : '1px solid #E2E8F0',
+                              backgroundColor: isSelected ? `${color}15` : '#FFFFFF',
+                              color: isSelected ? color : '#64748B',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            {p.includes('1') ? '🔴 Urgent' : p.includes('2') ? '🟠 Normal' : '🟢 Basse'}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Bouton de validation */}
-                  <div style={{ marginTop: '8px' }}>
+                  <div style={{ marginTop: '6px' }}>
                     <button
                       type="submit"
                       disabled={submitting || !titre.trim()}
                       style={{
                         width: '100%',
-                        height: '48px',
+                        height: '46px',
                         backgroundColor: '#0073EA',
                         color: '#FFFFFF',
                         border: 'none',
@@ -737,12 +837,12 @@ export default function RoadmapModal({
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
-                        boxShadow: '0 4px 14px rgba(0, 115, 234, 0.3)',
+                        boxShadow: '0 4px 12px rgba(0, 115, 234, 0.25)',
                         transition: 'all 0.15s ease',
                       }}
                     >
                       <Send size={16} />
-                      <span>{submitting ? 'Envoi en cours sur Monday...' : 'Transmettre à Guillaume & Ajouter à la Roadmap'}</span>
+                      <span>{submitting ? 'Enregistrement...' : 'Envoyer ma demande'}</span>
                     </button>
                   </div>
                 </form>
@@ -751,36 +851,37 @@ export default function RoadmapModal({
           )}
 
           {/* ------------------------------------------------------------ */}
-          {/* ONGLET 2 : LISTE DE LA ROADMAP EN DIRECT                     */}
+          {/* ONGLET 2 : LISTE DES DEMANDES AVEC COCHAGE RAPIDE             */}
           {/* ------------------------------------------------------------ */}
           {activeTab === 'list' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* Barre de filtres & recherche */}
               <div
+                className="roadmap-filter-bar"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '12px',
+                  gap: '10px',
                   flexWrap: 'wrap',
-                  padding: '12px 16px',
+                  padding: '10px 14px',
                   borderRadius: '12px',
                   backgroundColor: '#F8FAFC',
                   border: '1px solid #E2E8F0',
                 }}
               >
                 {/* Recherche */}
-                <div style={{ position: 'relative', flex: 1, minWidth: '220px', display: 'flex', alignItems: 'center' }}>
-                  <Search size={15} color="#64748B" style={{ position: 'absolute', left: '12px' }} />
+                <div style={{ position: 'relative', flex: 1, minWidth: '180px', display: 'flex', alignItems: 'center' }}>
+                  <Search size={14} color="#64748B" style={{ position: 'absolute', left: '10px' }} />
                   <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Filtrer une demande par mot-clé..."
+                    placeholder="Filtrer une demande..."
                     style={{
                       width: '100%',
-                      height: '36px',
-                      paddingLeft: '36px',
+                      height: '34px',
+                      paddingLeft: '32px',
                       paddingRight: '12px',
                       borderRadius: '8px',
                       border: '1px solid #CBD5E1',
@@ -796,25 +897,25 @@ export default function RoadmapModal({
                       onClick={() => setSearch('')}
                       style={{
                         position: 'absolute',
-                        right: '10px',
+                        right: '8px',
                         border: 'none',
                         background: 'none',
                         cursor: 'pointer',
                         color: '#94A3B8',
                       }}
                     >
-                      <X size={14} />
+                      <X size={13} />
                     </button>
                   )}
                 </div>
 
-                {/* Filtre Statut */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#FFFFFF', padding: '3px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                {/* Filtres de statut */}
+                <div className="roadmap-filter-buttons" style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#FFFFFF', padding: '3px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
                   <button
                     type="button"
                     onClick={() => setSelectedStatusFilter('all')}
                     style={{
-                      padding: '4px 10px',
+                      padding: '4px 9px',
                       borderRadius: '6px',
                       border: 'none',
                       fontSize: '11px',
@@ -830,7 +931,7 @@ export default function RoadmapModal({
                     type="button"
                     onClick={() => setSelectedStatusFilter('todo')}
                     style={{
-                      padding: '4px 10px',
+                      padding: '4px 9px',
                       borderRadius: '6px',
                       border: 'none',
                       fontSize: '11px',
@@ -840,13 +941,13 @@ export default function RoadmapModal({
                       color: selectedStatusFilter === 'todo' ? '#FFFFFF' : '#64748B',
                     }}
                   >
-                    À faire / En cours ({stats.todoCount})
+                    En cours ({stats.todoCount})
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedStatusFilter('done')}
                     style={{
-                      padding: '4px 10px',
+                      padding: '4px 9px',
                       borderRadius: '6px',
                       border: 'none',
                       fontSize: '11px',
@@ -860,7 +961,7 @@ export default function RoadmapModal({
                   </button>
                 </div>
 
-                {/* Bouton ajouter rapide */}
+                {/* Bouton Proposer une idée */}
                 <button
                   type="button"
                   onClick={() => setActiveTab('form')}
@@ -868,7 +969,7 @@ export default function RoadmapModal({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '8px 14px',
+                    padding: '7px 12px',
                     borderRadius: '8px',
                     backgroundColor: '#0073EA',
                     color: '#FFFFFF',
@@ -876,34 +977,34 @@ export default function RoadmapModal({
                     fontSize: '12px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0, 115, 234, 0.25)',
+                    boxShadow: '0 2px 6px rgba(0, 115, 234, 0.2)',
                   }}
                 >
-                  <PlusCircle size={15} />
-                  <span>Proposer une idée</span>
+                  <PlusCircle size={14} />
+                  <span>Ajouter</span>
                 </button>
               </div>
 
               {/* Liste des cartes Roadmap */}
               {loading ? (
-                <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748B' }}>
+                <div style={{ padding: '50px 0', textAlign: 'center', color: '#64748B' }}>
                   <div
                     style={{
-                      width: '32px',
-                      height: '32px',
+                      width: '28px',
+                      height: '28px',
                       border: '3px solid #CBD5E1',
                       borderTopColor: '#0073EA',
                       borderRadius: '50%',
                       animation: 'spin 1s linear infinite',
-                      margin: '0 auto 12px auto',
+                      margin: '0 auto 10px auto',
                     }}
                   />
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>Chargement de la Roadmap Monday...</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>Chargement des demandes...</span>
                 </div>
               ) : filteredItems.length === 0 ? (
-                <div style={{ padding: '50px 0', textAlign: 'center', color: '#94A3B8' }}>
-                  <ListTodo size={36} color="#CBD5E1" style={{ margin: '0 auto 10px auto' }} />
-                  <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Aucune demande trouvée avec ces critères.</p>
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#94A3B8' }}>
+                  <ListTodo size={32} color="#CBD5E1" style={{ margin: '0 auto 8px auto' }} />
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>Aucune demande trouvée avec ces critères.</p>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
@@ -915,62 +1016,78 @@ export default function RoadmapModal({
                       ? '#F59E0B'
                       : '#10B981';
 
+                    const isBeingUpdated = updatingId === item.id;
+
                     return (
                       <div
                         key={item.id}
                         style={{
-                          padding: '16px 18px',
-                          borderRadius: '14px',
+                          padding: '14px 16px',
+                          borderRadius: '12px',
                           border: isDone ? '1px solid #E2E8F0' : '1px solid #CBD5E1',
+                          borderLeft: isDone ? '4px solid #10B981' : `4px solid ${priorityColor}`,
                           backgroundColor: isDone ? '#F8FAFC' : '#FFFFFF',
-                          boxShadow: isDone ? 'none' : '0 2px 8px rgba(15, 23, 42, 0.04)',
+                          boxShadow: isDone ? 'none' : '0 2px 6px rgba(15, 23, 42, 0.03)',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '8px',
+                          gap: '6px',
                           transition: 'all 0.15s ease',
+                          opacity: isBeingUpdated ? 0.6 : 1,
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-                            <div
+                        <div className="roadmap-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                          {/* Checkbox d'action rapide + Titre */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleItemStatus(item)}
+                              title={isDone ? 'Cliquer pour repasser en cours' : 'Cliquer pour marquer comme fait'}
                               style={{
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '8px',
-                                backgroundColor: isDone ? '#DCFCE7' : '#FEF3C7',
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '50%',
+                                border: isDone ? '2px solid #10B981' : '2px solid #94A3B8',
+                                backgroundColor: isDone ? '#10B981' : '#FFFFFF',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                shrink: 0,
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                                padding: 0,
+                                transition: 'all 0.15s ease',
                               }}
                             >
-                              {isDone ? <CheckCircle2 size={16} color="#16A34A" /> : <Clock size={16} color="#D97706" />}
-                            </div>
+                              {isDone ? (
+                                <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                              ) : (
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'transparent' }} />
+                              )}
+                            </button>
 
-                            <div style={{ flex: 1 }}>
-                              <h4
-                                style={{
-                                  margin: 0,
-                                  fontSize: '14px',
-                                  fontWeight: 700,
-                                  color: isDone ? '#475569' : '#0F172A',
-                                  textDecoration: isDone ? 'line-through' : 'none',
-                                }}
-                              >
-                                {item.name}
-                              </h4>
-                            </div>
+                            <h4
+                              style={{
+                                margin: 0,
+                                fontSize: '13.5px',
+                                fontWeight: 700,
+                                color: isDone ? '#64748B' : '#0F172A',
+                                textDecoration: isDone ? 'line-through' : 'none',
+                                lineHeight: 1.3,
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {item.name}
+                            </h4>
                           </div>
 
                           {/* Badges statut & priorité */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', shrink: 0 }}>
+                          <div className="roadmap-card-badges" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                             {item.workspace && (
                               <span
                                 style={{
-                                  fontSize: '11px',
+                                  fontSize: '10.5px',
                                   fontWeight: 700,
-                                  padding: '3px 8px',
-                                  borderRadius: '6px',
+                                  padding: '2px 7px',
+                                  borderRadius: '5px',
                                   backgroundColor: '#F1F5F9',
                                   color: '#475569',
                                 }}
@@ -981,30 +1098,37 @@ export default function RoadmapModal({
 
                             <span
                               style={{
-                                fontSize: '11px',
+                                fontSize: '10.5px',
                                 fontWeight: 700,
-                                padding: '3px 8px',
-                                borderRadius: '6px',
+                                padding: '2px 7px',
+                                borderRadius: '5px',
                                 backgroundColor: `${priorityColor}15`,
                                 color: priorityColor,
                                 border: `1px solid ${priorityColor}30`,
                               }}
                             >
-                              {item.priority.includes('1') ? '🔴 Urgent' : item.priority.includes('2') ? '🟠 Normal' : '🟢 Basse'}
+                              {item.priority.includes('1') ? 'Urgent' : item.priority.includes('2') ? 'Normal' : 'Basse'}
                             </span>
 
-                            <span
+                            <button
+                              type="button"
+                              onClick={() => handleToggleItemStatus(item)}
                               style={{
-                                fontSize: '11px',
+                                fontSize: '10.5px',
                                 fontWeight: 800,
-                                padding: '3px 9px',
-                                borderRadius: '6px',
+                                padding: '2px 8px',
+                                borderRadius: '5px',
                                 backgroundColor: isDone ? '#10B981' : '#F59E0B',
                                 color: '#FFFFFF',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
                               }}
                             >
-                              {item.status || (isDone ? 'Fait' : 'En cours')}
-                            </span>
+                              {isDone ? 'Livrée' : 'En cours'}
+                            </button>
                           </div>
                         </div>
 
@@ -1012,40 +1136,47 @@ export default function RoadmapModal({
                         {item.description && (
                           <p
                             style={{
-                              margin: '2px 0 0 38px',
+                              margin: '2px 0 0 34px',
                               fontSize: '12px',
                               color: '#64748B',
                               lineHeight: 1.4,
+                              wordBreak: 'break-word',
                             }}
                           >
                             {item.description}
                           </p>
                         )}
 
-                        {/* Pied de carte avec timeline ou date */}
-                        {(item.timeline || item.date) && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '12px',
-                              margin: '4px 0 0 38px',
-                              fontSize: '11px',
-                              color: '#94A3B8',
-                            }}
-                          >
-                            {item.timeline && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Calendar size={12} /> Période prévue : <strong>{item.timeline}</strong>
-                              </span>
-                            )}
-                            {item.date && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Clock size={12} /> Enregistré le : {item.date}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        {/* Auteur & date */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            margin: '2px 0 0 34px',
+                            fontSize: '11px',
+                            color: '#94A3B8',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {item.author && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#0073EA', fontWeight: 600 }}>
+                              <User size={11} /> {item.author}
+                            </span>
+                          )}
+
+                          {item.date && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={11} /> Enregistré le {item.date}
+                            </span>
+                          )}
+
+                          {item.timeline && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <Calendar size={11} /> Prévu : {item.timeline}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1056,11 +1187,12 @@ export default function RoadmapModal({
         </div>
 
         {/* ============================================================== */}
-        {/* PIED DE MODAL                                                  */}
+        {/* PIED DE MODAL ÉPURÉ (SANS TEXTE TECHNIQUE NI ID DE TABLEAU)     */}
         {/* ============================================================== */}
         <div
+          className="roadmap-footer"
           style={{
-            padding: '14px 28px',
+            padding: '12px 24px',
             backgroundColor: '#F8FAFC',
             borderTop: '1px solid #E2E8F0',
             display: 'flex',
@@ -1071,23 +1203,26 @@ export default function RoadmapModal({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
-            <span>Tableau relié : <strong>Road map (5105479748)</strong> dans l'espace Guillaume TEST</span>
+            <Sparkles size={13} color="#F59E0B" />
+            <span>Feuille de route collaborative Groupe Facility</span>
           </div>
 
           <button
             type="button"
             onClick={onClose}
             style={{
-              padding: '6px 14px',
+              padding: '6px 16px',
               borderRadius: '8px',
               border: '1px solid #CBD5E1',
               backgroundColor: '#FFFFFF',
               color: '#334155',
               fontSize: '12px',
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: 'pointer',
+              transition: 'background-color 0.15s',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
           >
             Fermer
           </button>

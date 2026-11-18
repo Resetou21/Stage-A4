@@ -942,7 +942,7 @@ export default function App() {
               setRoadmapInitialTab('list');
               setShowRoadmapModal(true);
             }}
-            title="Boîte à Idées & Roadmap Guillaume TEST (Tableau 5105479748)"
+            title="Boîte à Idées & Suivi des Améliorations"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1578,7 +1578,7 @@ export default function App() {
                     Une idée, un besoin ou une suggestion pour vos outils ?
                   </h3>
                   <p style={{ margin: 0, fontSize: '13px', color: '#64748B', maxWidth: '640px', lineHeight: 1.5 }}>
-                    Chaque pôle (Animatrices, Atelier, Flotte Véhicules, Commercial) peut formuler ses demandes. Vos suggestions alimentent directement la feuille de route sur le tableau <strong>Road map (Guillaume TEST)</strong>.
+                    Chaque pôle (Animatrices, Atelier, Flotte Véhicules, Commercial) peut formuler ses demandes. Vos suggestions alimentent directement la feuille de route collaborative du Groupe Facility.
                   </p>
                 </div>
               </div>
