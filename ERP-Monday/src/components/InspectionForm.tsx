@@ -197,11 +197,51 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
     return showAllPoints ? allBasePoints : adaptedChecklist;
   }, [showAllPoints, allBasePoints, adaptedChecklist]);
 
-  // Points non conformes détectés
+  // Points non conformes, moyens et conformes détectés
   const nonConformePoints = useMemo(() => {
     return Object.entries(evaluations)
       .filter(([_, status]) => status === 'NC')
       .map(([pointName]) => pointName);
+  }, [evaluations]);
+
+  const moyenPoints = useMemo(() => {
+    return Object.entries(evaluations)
+      .filter(([_, status]) => status === 'Moyen')
+      .map(([pointName]) => pointName);
+  }, [evaluations]);
+
+  const okPoints = useMemo(() => {
+    return Object.entries(evaluations)
+      .filter(([_, status]) => status === 'OK')
+      .map(([pointName]) => pointName);
+  }, [evaluations]);
+
+  // Synchronisation intelligente & cohérence automatique des statuts selon la règle du maillon faible
+  useEffect(() => {
+    const evalList = Object.values(evaluations);
+    if (evalList.length === 0) return;
+
+    const hasNC = evalList.some((s) => s === 'NC');
+    const hasMoyen = evalList.some((s) => s === 'Moyen');
+
+    if (hasNC) {
+      // 1. Au moins 1 point NC ➔ Machine non conforme direct (Arrêt / Réparation nécessaire)
+      setEtatGeneral('Non conforme');
+      setDecisionFinale('Non conforme');
+      setPastilleConforme(false);
+      setNoteSurDix((prev) => (prev > 4 ? 4 : prev));
+    } else if (hasMoyen) {
+      // 2. Aucun NC mais au moins un Moyen ➔ Moyen (Orange / À surveiller)
+      setEtatGeneral('Moyen');
+      setDecisionFinale((prev) => (prev === 'Non conforme' ? 'A voir animatrice' : prev));
+      setNoteSurDix((prev) => (prev < 6 || prev > 8 ? 7 : prev));
+    } else {
+      // 3. 100% des points évalués sont OK ➔ Conforme (Vert / Opérationnelle)
+      setEtatGeneral('OK');
+      setDecisionFinale('Favorable');
+      setPastilleConforme(true);
+      setNoteSurDix((prev) => (prev < 8 ? 10 : prev));
+    }
   }, [evaluations]);
 
   // Définir l'évaluation pour un point (avec comportement Toggle : recliquer sur l'état actif le désélectionne)
@@ -1047,6 +1087,72 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 État général constaté
               </label>
             </div>
+
+            {/* Bannière de cohérence automatique selon les points de contrôle */}
+            {nonConformePoints.length > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FDECEE',
+                  border: '1.5px solid #E2445C',
+                  color: '#961C2E',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  marginBottom: '14px',
+                }}
+              >
+                <XCircle size={18} color="#E2445C" style={{ flexShrink: 0 }} />
+                <span>
+                  <b>Règle de sécurité automatique :</b> {nonConformePoints.length} point(s) non conforme(s) détecté(s) ({nonConformePoints.join(', ')}) ➔ La machine est classée <b>Non conforme (Arrêt &amp; Réparation curative requise)</b>.
+                </span>
+              </div>
+            ) : moyenPoints.length > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FFF8EC',
+                  border: '1.5px solid #F7AC37',
+                  color: '#9A4A1A',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  marginBottom: '14px',
+                }}
+              >
+                <AlertTriangle size={18} color="#F7AC37" style={{ flexShrink: 0 }} />
+                <span>
+                  <b>Points de vigilance :</b> {moyenPoints.length} point(s) d’usure relevé(s) ➔ Machine classée <b>Moyen (À surveiller)</b>.
+                </span>
+              </div>
+            ) : okPoints.length > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#E6F8F0',
+                  border: '1.5px solid #00C875',
+                  color: '#0E7042',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  marginBottom: '14px',
+                }}
+              >
+                <CheckCircle size={18} color="#00C875" style={{ flexShrink: 0 }} />
+                <span>
+                  <b>Conformité totale :</b> 100% des organes vérifiés ({okPoints.length} points) sont conformes ➔ Machine <b>Opérationnelle</b>.
+                </span>
+              </div>
+            ) : null}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
               {[
