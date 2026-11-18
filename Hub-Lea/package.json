@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "deploy": "tsc -b && vite build && npx @mondaycom/apps-cli code:push -d dist -i 18946593 -c -z eu -f",
+    "deploy": "tsc -b && vite build && npx @mondaycom/apps-cli code:push -d dist -i 20377620 -c -z eu -f",
     "preview": "vite preview"
   },
   "dependencies": {

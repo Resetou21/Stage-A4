@@ -207,7 +207,7 @@ const POLES: PoleMenu[] = [
 const URL_SECTEUR_HUB = 'https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.app';
 const URL_ATELIER_ERP = 'https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app';
 const URL_CHRISTINE_HUB = 'https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app';
-const URL_LEA_HUB = 'https://vc46f6a20b04c2258a7807255aa0fa8f5.cdn2.monday.app';
+const URL_LEA_HUB = 'https://v35f08750a3aaae38eb0904b41deaf718.cdn2.monday.app';
 
 // ==========================================
 // COMPOSANT PRINCIPAL DU PORTAIL GLOBAL
@@ -2477,7 +2477,7 @@ export default function App() {
             <iframe
               ref={activeIframeRef}
               key={`comm_lea_${refreshKey}`}
-              src={`${URL_LEA_HUB}?v=18946593&ts=${refreshKey}`}
+              src={`${URL_LEA_HUB}?v=20377620&ts=${refreshKey}`}
               title="Hub de Léa — Communication & Contacts Clients"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
