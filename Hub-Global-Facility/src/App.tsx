@@ -660,13 +660,13 @@ export default function App() {
         }}
       >
         {/* Logo & Identité Groupe Facility (Charte Graphique Officielle 2026) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div
             onClick={() => handleNavigate('home')}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: '10px',
               cursor: 'pointer',
               userSelect: 'none',
             }}
@@ -675,44 +675,42 @@ export default function App() {
               src="https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg"
               alt="Groupe Facility"
               style={{
-                height: '38px',
+                height: '34px',
                 width: 'auto',
                 objectFit: 'contain',
               }}
             />
-            <div style={{ borderLeft: '1.5px solid #E2E8F0', paddingLeft: '12px' }}>
+            <div style={{ borderLeft: '1.5px solid #E2E8F0', paddingLeft: '10px' }}>
               <div
                 style={{
                   fontFamily: "'Ruda', sans-serif",
-                  fontSize: '14px',
+                  fontSize: '13px',
                   fontWeight: 900,
                   color: '#0F172A',
-                  letterSpacing: '0.4px',
+                  letterSpacing: '0.3px',
                   lineHeight: 1.1,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 PORTAIL GLOBAL
               </div>
-              <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '11px', fontWeight: 600, color: '#3989B7' }}>
-                Intranet Multi-Hubs 2026
-              </div>
             </div>
           </div>
 
-          <div style={{ height: '26px', width: '1px', backgroundColor: '#E2E8F0' }} />
+          <div style={{ height: '22px', width: '1px', backgroundColor: '#E2E8F0' }} />
 
           {/* Menus Déroulants pour chaque Pôle */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               type="button"
               onClick={() => handleNavigate('home')}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '8px 14px',
-                borderRadius: '9px',
-                fontSize: '13px',
+                gap: '6px',
+                padding: '7px 11px',
+                borderRadius: '8px',
+                fontSize: '12.5px',
                 fontWeight: 700,
                 border: 'none',
                 cursor: 'pointer',
@@ -721,7 +719,7 @@ export default function App() {
                 color: currentView === 'home' ? '#FFFFFF' : '#475569',
               }}
             >
-              <Home size={16} />
+              <Home size={15} />
               <span>Accueil</span>
             </button>
 
@@ -738,10 +736,10 @@ export default function App() {
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '7px',
-                      padding: '8px 14px',
-                      borderRadius: '9px',
-                      fontSize: '13px',
+                      gap: '6px',
+                      padding: '7px 11px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
                       fontWeight: 700,
                       border: isPoleActive
                         ? `1.5px solid ${pole.accentColor}`
@@ -758,10 +756,10 @@ export default function App() {
                       color: isPoleActive ? pole.accentColor : '#334155',
                     }}
                   >
-                    <Icon size={16} color={isPoleActive ? pole.accentColor : '#64748B'} />
+                    <Icon size={15} color={isPoleActive ? pole.accentColor : '#64748B'} />
                     <span>{pole.label}</span>
                     <ChevronDown
-                      size={14}
+                      size={13}
                       style={{
                         transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                         transition: 'transform 0.2s ease',
@@ -901,16 +899,16 @@ export default function App() {
         </div>
 
         {/* Côté Droit : Recherche, Actualisation, Plein Écran, Profil */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             type="button"
             onClick={() => setShowSearchModal(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '7px 12px',
-              borderRadius: '9px',
+              gap: '6px',
+              padding: '6px 10px',
+              borderRadius: '8px',
               backgroundColor: '#F1F5F9',
               border: '1px solid #E2E8F0',
               color: '#64748B',
@@ -919,14 +917,14 @@ export default function App() {
               fontWeight: 500,
             }}
           >
-            <Search size={14} color="#64748B" />
+            <Search size={13} color="#64748B" />
             <span>Rechercher...</span>
             <kbd
               style={{
                 backgroundColor: '#FFFFFF',
                 border: '1px solid #CBD5E1',
                 borderRadius: '4px',
-                padding: '1px 5px',
+                padding: '1px 4px',
                 fontSize: '10px',
                 fontWeight: 700,
                 color: '#475569',
@@ -946,9 +944,9 @@ export default function App() {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '7px',
-              padding: '7px 13px',
-              borderRadius: '9px',
+              gap: '6px',
+              padding: '6px 11px',
+              borderRadius: '8px',
               border: '1.5px solid #FCD34D',
               backgroundColor: '#FEF3C7',
               color: '#B45309',
@@ -956,10 +954,11 @@ export default function App() {
               fontWeight: 800,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              boxShadow: '0 2px 6px rgba(245, 158, 11, 0.12)',
+              boxShadow: '0 2px 5px rgba(245, 158, 11, 0.12)',
+              whiteSpace: 'nowrap',
             }}
           >
-            <Lightbulb size={14} color="#D97706" />
+            <Lightbulb size={13} color="#D97706" />
             <span>Idées & Roadmap</span>
           </button>
 
@@ -972,8 +971,8 @@ export default function App() {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '7px 12px',
+              gap: '5px',
+              padding: '6px 10px',
               borderRadius: '8px',
               border: '1px solid #CBD5E1',
               backgroundColor: '#FFFFFF',
@@ -981,35 +980,41 @@ export default function App() {
               fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
             <RefreshCw size={13} className={loadingStats ? 'animate-spin' : ''} />
             <span>Actualiser</span>
           </button>
 
+          {/* Profil utilisateur : Prénom uniquement pour un design épuré sans débordement */}
           <div
+            title={`Connecté en tant que ${userName}`}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '5px 12px',
-              borderRadius: '20px',
+              gap: '6px',
+              padding: '5px 10px',
+              borderRadius: '16px',
               backgroundColor: '#F1F5F9',
               border: '1px solid #E2E8F0',
               fontSize: '12px',
               fontWeight: 700,
               color: '#334155',
+              cursor: 'default',
+              userSelect: 'none',
+              whiteSpace: 'nowrap',
             }}
           >
             <span
               style={{
-                width: '8px',
-                height: '8px',
+                width: '7px',
+                height: '7px',
                 borderRadius: '50%',
                 backgroundColor: '#00C875',
               }}
             />
-            <span>{userName}</span>
+            <span>{userName ? userName.split(' ')[0] : 'Profil'}</span>
           </div>
         </div>
       </header>
