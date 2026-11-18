@@ -230,9 +230,9 @@ export default function App() {
       Emilie: 57,
       Autre: 2,
     },
-    visitesTotal: 1759,
-    visitesBonnes: 1406,
-    tauxSatisfactionGlobal: 80,
+    visitesTotal: 1744,
+    visitesBonnes: 1463,
+    tauxSatisfactionGlobal: 84,
     visitesParAnim: {
       Natacha: { total: 631, bon: 585, pct: 93 },
       Ketty: { total: 629, bon: 454, pct: 72 },
@@ -260,7 +260,7 @@ export default function App() {
   const activeIframeRef = useRef<HTMLIFrameElement>(null);
 
   const CACHE_KEY = 'facility_portal_stats_v3';
-  const CACHE_DURATION_MS = 60 * 1000; // 60 secondes pour une réactivité maximale
+  const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes de cache pour une parfaite stabilité
 
   // Requête en direct vers l'API Monday.com pour charger les stats consolidées (avec pagination complète curseur)
   const loadLiveStats = async (force: boolean = false) => {
@@ -495,9 +495,9 @@ export default function App() {
       const newStats = {
         chantiersActifs: chantierItems.length || 371,
         chantiersParAnim: byAnim,
-        visitesTotal: vTotal || 1759,
-        visitesBonnes: vBon || 1406,
-        tauxSatisfactionGlobal: satGlobal || 80,
+        visitesTotal: vTotal || 1744,
+        visitesBonnes: vBon || 1463,
+        tauxSatisfactionGlobal: satGlobal || 84,
         visitesParAnim: vByAnim,
         etoiles: starsMap,
         alertes: { insatisfaits3x, nonVus11Mois, qualitePlus2Mois, rdv2Mois },
@@ -903,11 +903,12 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowSearchModal(true)}
+            title="Rechercher (raccourci clavier Ctrl + K)"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 10px',
+              padding: '6px 11px',
               borderRadius: '8px',
               backgroundColor: '#F1F5F9',
               border: '1px solid #E2E8F0',
@@ -915,23 +916,11 @@ export default function App() {
               fontSize: '12px',
               cursor: 'pointer',
               fontWeight: 500,
+              transition: 'all 0.15s ease',
             }}
           >
             <Search size={13} color="#64748B" />
             <span>Rechercher...</span>
-            <kbd
-              style={{
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #CBD5E1',
-                borderRadius: '4px',
-                padding: '1px 4px',
-                fontSize: '10px',
-                fontWeight: 700,
-                color: '#475569',
-              }}
-            >
-              Ctrl K
-            </kbd>
           </button>
 
           <button
