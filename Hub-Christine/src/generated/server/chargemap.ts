@@ -212,7 +212,9 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
     })
   )
   .handler(async ({ data }) => {
-    const { variant, mois, quinzaine } = data;
+    const { variant, quinzaine } = data;
+    // Garantir le format YYYY-MM pour matcher tout le mois (et pas seulement le 1er jour)
+    const mois = data.mois.slice(0, 7);
     const transactions: PeriodTransactionItem[] = [];
 
     if (variant === 'total') {

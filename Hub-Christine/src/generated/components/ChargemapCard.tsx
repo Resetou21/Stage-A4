@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, useMemo, type ChangeEvent } from 'react';
 import { Check, Upload, Info, Loader2, X, Download, ShieldCheck, FileSpreadsheet, AlertTriangle, Eye, Fuel, Zap, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
+import { cn } from '@lib/utils';
 import { getChargemapMois, getTotalBimonthlyStatus, getPeriodTransactions, type TotalPeriodMonth, type PeriodTransactionItem } from '@generated/server/chargemap';
 import { analyzeFacturesChargemap, importFactures } from '@generated/server/factures';
 import { analyzeFacturesTotal, importFacturesTotal } from '@generated/server/facturesTotal';
@@ -96,6 +97,25 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
       t.date.toLowerCase().includes(s)
     );
   });
+
+  // Détection des doublons réels présents sur le tableau Monday (même date, véhicule, montant)
+  const duplicateIds = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const t of periodTransactions) {
+      if (!t.vehicule || t.vehicule === '—') continue;
+      const key = `${t.date}_${t.vehicule}_${t.montant}_${t.quantite}`.toLowerCase().trim();
+      const existing = map.get(key) || [];
+      existing.push(t.id);
+      map.set(key, existing);
+    }
+    const dupSet = new Set<string>();
+    for (const [, ids] of map.entries()) {
+      if (ids.length > 1) {
+        ids.forEach((id) => dupSet.add(id));
+      }
+    }
+    return dupSet;
+  }, [periodTransactions]);
 
   // Export des lignes de la période sélectionnée au format Excel / CSV avec BOM UTF-8
   const handleDownloadPeriodXls = () => {
@@ -527,7 +547,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                           label: label.replace('.', ''),
                           quinzaine: null,
                           present: m.present,
-                          moisStr: m.mois,
+                          moisStr: m.mois.slice(0, 7),
                         })
                       }
                       title={`Cliquer pour prévisualiser ${label}`}
@@ -595,8 +615,13 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                     </div>
                     <div>
                       <div className="text-[11px] text-muted-foreground font-semibold">Transactions Monday</div>
-                      <div className="font-extrabold text-foreground text-sm">
-                        {periodLoading ? '…' : `${periodTransactions.length} ligne(s)`}
+                      <div className="font-extrabold text-foreground text-sm flex items-center gap-1.5 flex-wrap">
+                        <span>{periodLoading ? '…' : `${periodTransactions.length} ligne(s)`}</span>
+                        {duplicateIds.size > 0 && !periodLoading && (
+                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-md border border-amber-500/30">
+                            {duplicateIds.size} doublons
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -610,6 +635,16 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                   </div>
                 ) : periodTransactions.length > 0 ? (
                   <div className="space-y-2.5">
+                    {/* Alerte doublons déjà enregistrés sur Monday */}
+                    {duplicateIds.size > 0 && (
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-semibold">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span>
+                          {duplicateIds.size} transactions apparaissent en doublon sur le tableau Monday (même véhicule, date et montant importés plusieurs fois).
+                        </span>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between gap-2">
                       <div className="relative flex-1">
                         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -640,28 +675,44 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border/40 font-medium">
-                            {filteredPeriodTransactions.map((t) => (
-                              <tr key={t.id} className="hover:bg-muted/40 transition-colors">
-                                <td className="py-2 px-3 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
-                                  {t.date}
-                                </td>
-                                <td className="py-2 px-3 font-bold text-foreground whitespace-nowrap">
-                                  {t.vehicule}
-                                </td>
-                                <td className="py-2 px-3 text-foreground whitespace-nowrap">
-                                  {t.produit}
-                                </td>
-                                <td className="py-2 px-3 text-muted-foreground whitespace-nowrap font-mono">
-                                  {t.quantite}
-                                </td>
-                                <td className="py-2 px-3 font-bold text-primary whitespace-nowrap">
-                                  {t.montant}
-                                </td>
-                                <td className="py-2 px-3 text-muted-foreground truncate max-w-[160px]">
-                                  {t.station}
-                                </td>
-                              </tr>
-                            ))}
+                            {filteredPeriodTransactions.map((t) => {
+                              const isDup = duplicateIds.has(t.id);
+                              return (
+                                <tr
+                                  key={t.id}
+                                  className={cn(
+                                    'transition-colors',
+                                    isDup ? 'bg-amber-500/10 hover:bg-amber-500/20' : 'hover:bg-muted/40'
+                                  )}
+                                >
+                                  <td className="py-2 px-3 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
+                                    {t.date}
+                                  </td>
+                                  <td className="py-2 px-3 font-bold text-foreground whitespace-nowrap">
+                                    <div className="flex items-center gap-1.5">
+                                      <span>{t.vehicule}</span>
+                                      {isDup && (
+                                        <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/40">
+                                          Doublon
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-3 text-foreground whitespace-nowrap">
+                                    {t.produit}
+                                  </td>
+                                  <td className="py-2 px-3 text-muted-foreground whitespace-nowrap font-mono">
+                                    {t.quantite}
+                                  </td>
+                                  <td className="py-2 px-3 font-bold text-primary whitespace-nowrap">
+                                    {t.montant}
+                                  </td>
+                                  <td className="py-2 px-3 text-muted-foreground truncate max-w-[160px]">
+                                    {t.station}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
