@@ -97,6 +97,40 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
     );
   });
 
+  // Export des lignes de la période sélectionnée au format Excel / CSV avec BOM UTF-8
+  const handleDownloadPeriodXls = () => {
+    if (!selectedPeriodDetail || !periodTransactions.length) return;
+    const headers = ['Date', 'Véhicule', 'Produit / Carte', 'Volume / Quantité', 'Montant HT', 'Station / Lieu'];
+    const rows = periodTransactions.map((t) => [
+      t.date,
+      t.vehicule,
+      t.produit,
+      t.quantite,
+      t.montant,
+      t.station,
+    ]);
+
+    const content = [
+      headers.join(';'),
+      ...rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(';')),
+    ].join('\r\n');
+
+    const filename = isTotal
+      ? `TOTAL_${selectedPeriodDetail.moisStr.slice(0, 7)}_${selectedPeriodDetail.quinzaine || '15'}.csv`
+      : `CHARGEMAP_${selectedPeriodDetail.moisStr.slice(0, 7)}_VINCENT.csv`;
+
+    const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Export de ${periodTransactions.length} transactions (${filename}) réussi !`);
+  };
+
   // État d'importation en cours
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState('');
@@ -653,22 +687,36 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                   </div>
                 )}
 
-                {/* 3. Informations & Action Import */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-border">
-                  <span className="text-[11px] text-muted-foreground">
-                    Format recommandé : <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px]">{isTotal ? `TOTAL_${selectedPeriodDetail.moisStr.slice(0, 7)}_${selectedPeriodDetail.quinzaine}.xlsx` : `CHARGEMAP_${selectedPeriodDetail.moisStr.slice(0, 7)}_VINCENT.xlsx`}</code>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedPeriodDetail(null);
-                      inputRef.current?.click();
-                    }}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline cursor-pointer self-end sm:self-auto"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>{periodTransactions.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
-                  </button>
+                {/* 3. Informations & Actions Export / Import */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border">
+                  <div className="text-[11px] text-muted-foreground">
+                    Format recommandé : <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-foreground font-bold">{isTotal ? `TOTAL_${selectedPeriodDetail.moisStr.slice(0, 7)}_${selectedPeriodDetail.quinzaine || '15'}.xlsx` : `CHARGEMAP_${selectedPeriodDetail.moisStr.slice(0, 7)}_VINCENT.xlsx`}</code>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleDownloadPeriodXls}
+                      disabled={periodLoading || periodTransactions.length === 0}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                      title="Télécharger les lignes de cette période au format Excel / CSV"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Télécharger le XLS ({periodTransactions.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPeriodDetail(null);
+                        inputRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{periodTransactions.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

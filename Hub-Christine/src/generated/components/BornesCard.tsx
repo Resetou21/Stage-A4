@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Car, Info, Loader2, Upload, X, Check, Download, AlertTriangle, Eye, ShieldCheck, Clock, Zap } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { Car, Info, Loader2, Upload, X, Check, Download, AlertTriangle, Eye, ShieldCheck, Clock, Zap, Search } from 'lucide-react';
 import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 import { getWellborneMois } from '@generated/server/chargemap';
-import { getWellborneNames, getWellborneMonthlyStats, importWellborne, getWellborneMonthCharges } from '@generated/server/wellborne';
+import { getWellborneNames, getWellborneMonthlyStats, importWellborne, getWellborneMonthCharges, type WellborneChargeItem } from '@generated/server/wellborne';
 import { readSheet } from '@generated/components/readSheet';
 
 type Mois = { mois: string; ym: string; present: boolean; count: number };
@@ -71,6 +71,47 @@ export default function BornesCard() {
     present: boolean;
   } | null>(null);
 
+  // Données réelles des charges du mois sélectionné pour prévisualisation et export
+  const [monthCharges, setMonthCharges] = useState<WellborneChargeItem[]>([]);
+  const [chargesLoading, setChargesLoading] = useState(false);
+  const [chargesSearch, setChargesSearch] = useState('');
+
+  useEffect(() => {
+    if (!selectedBornesMonth) {
+      setMonthCharges([]);
+      setChargesSearch('');
+      return;
+    }
+    setChargesLoading(true);
+    getWellborneMonthCharges({ data: { ym: selectedBornesMonth.ym } })
+      .then((res: any) => {
+        setMonthCharges(res?.charges || []);
+      })
+      .catch((err) => {
+        console.error('Erreur chargement charges Wellborne:', err);
+      })
+      .finally(() => setChargesLoading(false));
+  }, [selectedBornesMonth]);
+
+  const filteredMonthCharges = useMemo(() => {
+    if (!chargesSearch.trim()) return monthCharges;
+    const s = chargesSearch.toLowerCase();
+    return monthCharges.filter(
+      (c) =>
+        c.startTime.toLowerCase().includes(s) ||
+        c.endTime.toLowerCase().includes(s) ||
+        c.duration.toLowerCase().includes(s) ||
+        c.energyKwh.toLowerCase().includes(s)
+    );
+  }, [monthCharges, chargesSearch]);
+
+  const totalMonthEnergy = useMemo(() => {
+    return monthCharges.reduce(
+      (acc, c) => acc + (parseFloat(String(c.energyKwh || '0').replace(',', '.')) || 0),
+      0
+    );
+  }, [monthCharges]);
+
   // Historique des 3 derniers imports Wellborne avec horodatage et période
   const [history, setHistory] = useState<ScanHistoryEntry[]>(() => {
     try {
@@ -92,8 +133,10 @@ export default function BornesCard() {
     if (!selectedBornesMonth) return;
     setExporting(true);
     try {
-      const res = await getWellborneMonthCharges({ data: { ym: selectedBornesMonth.ym } });
-      const charges = res?.charges ?? [];
+      const charges = monthCharges.length > 0
+        ? monthCharges
+        : ((await getWellborneMonthCharges({ data: { ym: selectedBornesMonth.ym } }))?.charges ?? []);
+
       if (!charges.length) {
         toast.info(`Aucune charge trouvée pour ${selectedBornesMonth.label} ${year}.`);
         return;
@@ -427,9 +470,9 @@ export default function BornesCard() {
             })}
         </div>
 
-        {/* MODALE DE PRÉVISUALISATION D'UN MOIS WELLBORNE AU CLIC */}
+        {/* MODALE DE PRÉVISUALISATION D'UN MOIS WELLBORNE AU CLIC AVEC LIGNES ET EXPORT */}
         <Dialog open={!!selectedBornesMonth} onOpenChange={(o) => !o && setSelectedBornesMonth(null)}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base font-bold">
                 <Zap className="h-5 w-5 text-emerald-600" />
@@ -438,88 +481,170 @@ export default function BornesCard() {
             </DialogHeader>
 
             {selectedBornesMonth && (
-              <div className="space-y-3.5 text-xs mt-1">
-                {/* Badge compteur */}
-                <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-black text-emerald-700">
-                      {selectedBornesMonth.count} charges
+              <div className="space-y-4 text-xs mt-1">
+                {/* 1. Résumé en Cartes KPI (3 cartes harmonisées avec Chargemap/Total) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="p-3 rounded-xl border border-border bg-muted/30 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-base shrink-0">
+                      <Zap className="h-5 w-5" />
                     </div>
-                    <div className="text-[11px] text-emerald-700 font-medium">
-                      Enregistrées sur le tableau Monday
+                    <div className="min-w-0">
+                      <div className="text-[11px] text-muted-foreground font-semibold">Période</div>
+                      <div className="font-bold text-foreground text-xs truncate">
+                        {selectedBornesMonth.label} {year}
+                      </div>
                     </div>
                   </div>
-                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded bg-white border border-emerald-300 text-emerald-800">
-                    {selectedBornesMonth.count > 0 ? 'Mois Actif' : '0 Donnée'}
-                  </span>
-                </div>
 
-                {/* Détails techniques */}
-                <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Filtre strict de date :</span>
-                    <span className="font-bold text-foreground">Charges &gt; 15-05-{year} uniquement</span>
+                  <div className="p-3 rounded-xl border border-border bg-muted/30 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-base shrink-0">
+                      ⚡
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-muted-foreground font-semibold">Total Énergie</div>
+                      <div className="font-extrabold text-foreground text-sm">
+                        {chargesLoading ? '…' : `${totalMonthEnergy.toFixed(1)} kWh`}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Cadencement anti-blocage :</span>
-                    <span className="font-semibold text-foreground">Pause de 1s toutes les 50 lignes</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Tableau relié :</span>
-                    <span className="font-bold text-primary">Data sur véhicule / Bornes (5106822028)</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Nom normé de fichier :</span>
-                    <span className="font-mono text-[11px] font-bold text-foreground bg-muted px-1.5 py-0.5 rounded">
-                      WELLBORNE_{selectedBornesMonth.ym}_BORNE.xlsx
-                    </span>
-                  </div>
-                </div>
 
-                {/* Règle métier & Sources */}
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[11px] text-muted-foreground leading-relaxed space-y-1.5">
-                  <div>
-                    ⚡ <strong>Règle Wellborne :</strong> Le fichier téléchargé sur <a href="https://wellborneplus.com" target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">wellborneplus.com</a> est toujours nommé à l'identique (<em>Enregistrement de charge.xlsx</em>). Le moteur compare chaque ligne avec les 4000+ existantes et ignore silencieusement les doublons.
-                  </div>
-                  <div className="text-[10px] text-muted-foreground border-t border-primary/10 pt-1.5 flex items-center justify-between">
-                    <span>Export direct :</span>
-                    <span className="font-medium text-foreground">Fichier Excel/CSV formaté prêt pour analyse</span>
+                  <div className="p-3 rounded-xl border border-border bg-muted/30 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold text-base shrink-0">
+                      #
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-muted-foreground font-semibold">Charges Monday</div>
+                      <div className="font-extrabold text-foreground text-sm">
+                        {chargesLoading ? '…' : `${monthCharges.length || selectedBornesMonth.count} charge(s)`}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Actions : Télécharger le fichier existant OU Importer un nouveau */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleDownloadXls}
-                    disabled={exporting || selectedBornesMonth.count === 0}
-                    className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition disabled:opacity-50 cursor-pointer"
-                    title="Télécharger le fichier Excel/CSV des charges de ce mois"
-                  >
-                    {exporting ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Génération Excel...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="h-3.5 w-3.5" />
-                        <span>Télécharger le XLS ({selectedBornesMonth.count})</span>
-                      </>
-                    )}
-                  </button>
+                {/* 2. Tableau des lignes réelles ou état d'attente d'importation */}
+                {chargesLoading ? (
+                  <div className="py-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                    <span>Recherche des charges de cette période sur Monday...</span>
+                  </div>
+                ) : monthCharges.length > 0 ? (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                        <input
+                          type="text"
+                          value={chargesSearch}
+                          onChange={(e) => setChargesSearch(e.target.value)}
+                          placeholder="Rechercher par date, heure, durée, kWh..."
+                          className="w-full rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <span className="text-[11px] text-muted-foreground font-semibold shrink-0">
+                        {filteredMonthCharges.length} sur {monthCharges.length}
+                      </span>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedBornesMonth(null);
-                      inputRef.current?.click();
-                    }}
-                    className="h-10 rounded-xl bg-primary text-primary-foreground font-bold text-xs flex items-center justify-center gap-2 hover:opacity-95 shadow-xs transition cursor-pointer"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>Importer un fichier</span>
-                  </button>
+                    <div className="rounded-xl border border-border overflow-hidden shadow-xs">
+                      <div className="max-h-72 overflow-y-auto">
+                        <table className="w-full text-left text-[11px] border-collapse">
+                          <thead className="bg-muted/70 text-foreground font-bold sticky top-0 z-10 border-b border-border">
+                            <tr>
+                              <th className="py-2 px-3">Date / Début (StartTime)</th>
+                              <th className="py-2 px-3">Fin (EndTime)</th>
+                              <th className="py-2 px-3">Durée</th>
+                              <th className="py-2 px-3">Énergie (kWh)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40 font-medium">
+                            {filteredMonthCharges.map((c) => (
+                              <tr key={c.id} className="hover:bg-muted/40 transition-colors">
+                                <td className="py-2 px-3 font-mono text-[10px] whitespace-nowrap text-foreground font-bold">
+                                  {c.startTime}
+                                </td>
+                                <td className="py-2 px-3 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
+                                  {c.endTime || '—'}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground whitespace-nowrap font-mono">
+                                  {c.duration ? `${c.duration} min` : '—'}
+                                </td>
+                                <td className="py-2 px-3 font-bold text-emerald-600 whitespace-nowrap font-mono">
+                                  {c.energyKwh} kWh
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 p-6 text-center space-y-3">
+                    <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+                      <Upload className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-foreground">
+                        Aucune charge enregistrée sur Monday pour ce mois
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                        Le fichier Wellborne pour {selectedBornesMonth.label} {year} n'a pas encore été importé.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBornesMonth(null);
+                        inputRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-95 transition cursor-pointer"
+                    >
+                      <Upload className="h-4 w-4" />
+                      <span>Importer le fichier de charges (.xlsx)</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 3. Informations normées & Actions Télécharger (Export) / Importer */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border">
+                  <div className="text-[11px] text-muted-foreground">
+                    Format recommandé : <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-foreground font-bold">WELLBORNE_{selectedBornesMonth.ym}_BORNE.xlsx</code>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleDownloadXls}
+                      disabled={exporting || (monthCharges.length === 0 && selectedBornesMonth.count === 0)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                      title="Télécharger les charges de ce mois au format Excel / CSV"
+                    >
+                      {exporting ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Export en cours...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-3.5 w-3.5" />
+                          <span>Télécharger le XLS ({monthCharges.length || selectedBornesMonth.count})</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBornesMonth(null);
+                        inputRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{monthCharges.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
