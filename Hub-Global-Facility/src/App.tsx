@@ -210,8 +210,36 @@ const URL_CHRISTINE_HUB = 'https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday
 // ==========================================
 // COMPOSANT PRINCIPAL DU PORTAIL GLOBAL
 // ==========================================
+const VALID_VIEWS: ViewId[] = [
+  'home',
+  'secteur_global',
+  'secteur_natacha',
+  'secteur_ketty',
+  'secteur_emilie',
+  'atelier_erp',
+  'atelier_vehicules',
+  'atelier_fournisseurs',
+  'comm_alertes',
+  'commercial_contrats',
+];
+
+const getInitialView = (): ViewId => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const qView = params.get('view') as ViewId;
+    if (qView && VALID_VIEWS.includes(qView)) return qView;
+
+    const hash = window.location.hash.replace('#', '') as ViewId;
+    if (hash && VALID_VIEWS.includes(hash)) return hash;
+
+    const saved = (localStorage.getItem('hub_global_active_view') || sessionStorage.getItem('hub_global_active_view')) as ViewId;
+    if (saved && VALID_VIEWS.includes(saved)) return saved;
+  } catch {}
+  return 'home';
+};
+
 export default function App() {
-  const [currentView, setCurrentView] = useState<ViewId>('home');
+  const [currentView, setCurrentView] = useState<ViewId>(getInitialView);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -599,6 +627,18 @@ export default function App() {
     return null;
   }, [currentView]);
 
+  // Écouter les changements éventuels de hash dans l'URL
+  useEffect(() => {
+    const onHashChange = () => {
+      const h = window.location.hash.replace('#', '') as ViewId;
+      if (h && VALID_VIEWS.includes(h) && h !== currentView) {
+        setCurrentView(h);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [currentView]);
+
   const handleNavigate = (view: ViewId) => {
     setOpenDropdown(null);
     setShowSearchModal(false);
@@ -607,6 +647,13 @@ export default function App() {
       return;
     }
     setCurrentView(view);
+    try {
+      localStorage.setItem('hub_global_active_view', view);
+      sessionStorage.setItem('hub_global_active_view', view);
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', view === 'home' ? window.location.pathname : `#${view}`);
+      }
+    } catch {}
   };
 
   const toggleFullscreen = () => {
