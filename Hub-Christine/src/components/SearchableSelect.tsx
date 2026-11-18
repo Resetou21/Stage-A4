@@ -238,16 +238,16 @@ export default function SearchableSelect({
         key={item.value}
         onClick={() => handleSelect(item)}
         className={cn(
-          'flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors group',
+          'flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors group min-w-0',
           isSelected ? 'bg-primary/10 text-primary font-bold' : 'text-foreground hover:bg-muted/70'
         )}
       >
-        <div className="flex items-center gap-2.5 truncate flex-1">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
           <span
             className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
             style={{ backgroundColor: isRestitue ? '#fdab3d' : (item.badgeColor || '#0073ea') }}
           />
-          <span className="truncate">{item.label}</span>
+          <span className="truncate block">{item.label}</span>
           {isRestitue ? (
             <span className="text-[10px] px-1.5 py-0.2 rounded-md font-bold uppercase tracking-wider bg-amber-500/20 text-amber-800 dark:text-amber-300 shrink-0 border border-amber-500/30">
               Restitué
@@ -449,10 +449,10 @@ export default function SearchableSelect({
             <button
               type="button"
               onClick={handleCreate}
-              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold text-primary bg-primary/8 hover:bg-primary/15 border-t border-border transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold text-primary bg-primary/8 hover:bg-primary/15 border-t border-border transition-colors cursor-pointer text-left min-w-0 overflow-hidden"
             >
               <Plus className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate flex-1">
+              <span className="truncate flex-1 min-w-0 block">
                 {createLabelPrefix} « <b>{autoUppercase ? search.trim().toUpperCase() : search.trim()}</b> »
               </span>
               <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-500 animate-pulse ml-auto" />

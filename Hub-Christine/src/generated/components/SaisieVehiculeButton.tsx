@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
-import { createSaisieVehicule, getVehicules, type VehiculeItem } from '@generated/server/vehicules';
+import { createSaisieVehicule, getVehicules, getSaisieFormOptions, type VehiculeItem } from '@generated/server/vehicules';
 import { monday } from '@api/mondayApi';
 
 const DEFAULT_FOURNISSEURS = [
@@ -166,15 +166,43 @@ export default function SaisieVehiculeButton() {
     setF((p) => ({ ...p, [k]: e.target.value }));
 
   useEffect(() => {
-    if (!open || vehicules.length) return;
-    setLoadingV(true);
-    getVehicules()
-      .then((r) => setVehicules((r?.vehicules as VehiculeItem[]) ?? []))
-      .catch((e) => {
-        console.error(e);
-        toast.error('Impossible de charger les véhicules.');
+    if (!open) return;
+
+    if (!vehicules.length) {
+      setLoadingV(true);
+      getVehicules()
+        .then((r) => setVehicules((r?.vehicules as VehiculeItem[]) ?? []))
+        .catch((e) => {
+          console.error(e);
+          toast.error('Impossible de charger les véhicules.');
+        })
+        .finally(() => setLoadingV(false));
+    }
+
+    // Récupérer les vraies étiquettes en direct depuis les colonnes Monday
+    getSaisieFormOptions()
+      .then((opts) => {
+        if (opts.fournisseurs?.length) {
+          setFournisseurs((prev) => {
+            const merged = Array.from(new Set([...opts.fournisseurs, ...prev])).sort((a, b) =>
+              a.localeCompare(b, 'fr', { sensitivity: 'base' })
+            );
+            return merged;
+          });
+        }
+        if (opts.prestations?.length) {
+          setPrestations((prev) => {
+            const merged = Array.from(new Set([...opts.prestations, ...prev])).sort((a, b) =>
+              a.localeCompare(b, 'fr', { sensitivity: 'base' })
+            );
+            return merged;
+          });
+        }
+        if (opts.menus?.length) {
+          setMenus((prev) => Array.from(new Set([...opts.menus, ...prev])));
+        }
       })
-      .finally(() => setLoadingV(false));
+      .catch((e) => console.error('Erreur chargement options Monday:', e));
   }, [open, vehicules.length]);
 
   // Options véhicules : UNIQUEMENT l'immatriculation du véhicule, groupée et triée impeccablement

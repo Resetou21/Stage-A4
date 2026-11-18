@@ -141,6 +141,84 @@ export const getVehicules = createServerFn({ method: 'GET' })
     return { vehicules };
   });
 
+export interface SaisieFormOptions {
+  fournisseurs: string[];
+  prestations: string[];
+  menus: string[];
+}
+
+let _cachedOptions: SaisieFormOptions | null = null;
+let _cachedOptionsTime = 0;
+
+export const invalidateSaisieOptionsCache = () => {
+  _cachedOptions = null;
+  _cachedOptionsTime = 0;
+};
+
+// Récupération dynamique des étiquettes réelles directement depuis les colonnes Monday
+export const getSaisieFormOptions = createServerFn({ method: 'GET' })
+  .validator(z.object({}).optional())
+  .handler(async (): Promise<SaisieFormOptions> => {
+    if (_cachedOptions && Date.now() - _cachedOptionsTime < 60_000) {
+      return _cachedOptions;
+    }
+
+    try {
+      const board = new DataSurVehiculeBoard();
+      const res = (await board.executeGraphQL(`
+        query {
+          boards(ids: [5092124669]) {
+            columns(ids: ["dropdown_mm0rw6zg", "dropdown_mm0r2vyg", "single_select0akaarp"]) {
+              id
+              settings_str
+            }
+          }
+        }
+      `, {})) as any;
+
+      const cols = res?.boards?.[0]?.columns || [];
+      let fournisseurs: string[] = [];
+      let prestations: string[] = [];
+      let menus: string[] = [];
+
+      for (const c of cols) {
+        try {
+          const s = JSON.parse(c.settings_str || '{}');
+          if (c.id === 'dropdown_mm0rw6zg' && Array.isArray(s.labels)) {
+            fournisseurs = s.labels.map((l: any) => l.name?.trim()).filter(Boolean);
+          } else if (c.id === 'dropdown_mm0r2vyg' && Array.isArray(s.labels)) {
+            prestations = s.labels.map((l: any) => l.name?.trim()).filter(Boolean);
+          } else if (c.id === 'single_select0akaarp' && s.labels && typeof s.labels === 'object') {
+            menus = Object.values(s.labels).map((v: any) => String(v).trim()).filter(Boolean);
+          }
+        } catch {}
+      }
+
+      const cleanFournisseurs = Array.from(new Set(fournisseurs)).sort((a, b) =>
+        a.localeCompare(b, 'fr', { sensitivity: 'base' })
+      );
+      const cleanPrestations = Array.from(new Set(prestations)).sort((a, b) =>
+        a.localeCompare(b, 'fr', { sensitivity: 'base' })
+      );
+      const cleanMenus = Array.from(new Set(menus)).sort((a, b) =>
+        a.localeCompare(b, 'fr', { sensitivity: 'base' })
+      );
+
+      const options: SaisieFormOptions = {
+        fournisseurs: cleanFournisseurs,
+        prestations: cleanPrestations,
+        menus: cleanMenus,
+      };
+
+      _cachedOptions = options;
+      _cachedOptionsTime = Date.now();
+      return options;
+    } catch (e) {
+      console.error('Erreur getSaisieFormOptions:', e);
+      return { fournisseurs: [], prestations: [], menus: [] };
+    }
+  });
+
 // Création d'une nouvelle saisie véhicule avec date et montant obligatoires
 export const createSaisieVehicule = createServerFn({ method: 'POST' })
   .validator(z.object({
@@ -169,8 +247,9 @@ export const createSaisieVehicule = createServerFn({ method: 'POST' })
       ...(data.menuDeSaisie ? { menuDeSaisie: data.menuDeSaisie } : {}),
     }).inGroup('topics').execute();
 
-    // Invalider le cache après création
+    // Invalider les caches après création
     invalidateVehiculesCache();
+    invalidateSaisieOptionsCache();
 
     return { id: res?.id ?? null };
   });
