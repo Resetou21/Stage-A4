@@ -293,7 +293,7 @@ export default function SaisieVehiculeButton() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[95vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between text-xl font-bold pr-6">
+            <DialogTitle className="flex items-center justify-between text-xl font-bold pr-10">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <span>Nouvelle saisie véhicule</span>
@@ -301,7 +301,7 @@ export default function SaisieVehiculeButton() {
               <button
                 type="button"
                 onClick={() => setShowInfo(!showInfo)}
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors cursor-pointer ${
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors cursor-pointer mr-1 ${
                   showInfo
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'

@@ -177,59 +177,47 @@ export default function UsersBadge({ boardId }: Props) {
         <span className="font-bold text-foreground">{info.users.length}</span>
       </DialogTrigger>
 
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between text-base font-bold pr-6">
-            <div className="flex items-center gap-2">
-              <Building className="h-4 w-4 text-primary" />
-              <span>Qui utilise ces données &amp; sur quel Hub ?</span>
-            </div>
-            {/* Bouton petit (i) pour agrandir / réduire */}
-            <button
-              type="button"
-              onClick={() => setExpanded(!expanded)}
-              className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-all cursor-pointer ${
-                expanded
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-              }`}
-              title={expanded ? "Réduire l'explication" : "Agrandir l'explication (i)"}
-              aria-label="Agrandir ou réduire les informations"
-            >
-              <Info className="h-4 w-4" />
-            </button>
+      <DialogContent
+        className="w-[92vw] sm:w-[480px] max-w-[480px] p-5 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        style={{ width: 'min(92vw, 480px)', maxWidth: '480px', boxSizing: 'border-box' }}
+      >
+        <DialogHeader className="pr-8">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+            <Building className="h-4.5 w-4.5 text-primary shrink-0" />
+            <span className="truncate">Qui utilise ces données &amp; sur quel Hub ?</span>
           </DialogTitle>
         </DialogHeader>
 
         {/* Encadré Hub & Finalité métier - Collapsible avec le bouton (i) */}
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2 transition-all">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-primary min-w-0">
-              <ShieldCheck className="h-4 w-4 shrink-0" />
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2 transition-all w-full box-border">
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 text-xs font-bold text-primary min-w-0 flex-1">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
               <span className="truncate">Flux : {info.hubTitle}</span>
             </div>
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer shrink-0 ml-2"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold cursor-pointer transition shrink-0"
+              title={expanded ? "Réduire l'explication" : "Agrandir l'explication (i)"}
             >
-              <Info className="h-3 w-3" />
+              <Info className="h-3.5 w-3.5" />
               <span>{expanded ? 'Réduire' : 'Agrandir (i)'}</span>
-              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
           </div>
 
           {expanded && (
-            <div className="space-y-2 pt-2 border-t border-primary/10 animate-in fade-in-0 duration-150">
-              <div className="text-xs text-foreground font-semibold">
+            <div className="space-y-2 pt-2 border-t border-primary/10 animate-in fade-in-0 duration-150 text-xs">
+              <div className="text-foreground font-semibold">
                 Tableau Monday : <span className="font-bold text-primary">{info.boardName}</span>
               </div>
 
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed m-0">
                 <strong>Finalité métier :</strong> {info.purpose}
               </p>
 
-              <div className="text-[11px] bg-background/80 p-2 rounded-lg border border-border text-foreground">
+              <div className="text-[11px] bg-background/80 p-2.5 rounded-lg border border-border text-foreground leading-relaxed">
                 👉 <strong>Fonctionnement :</strong> {info.workflow}
               </div>
             </div>
@@ -237,13 +225,13 @@ export default function UsersBadge({ boardId }: Props) {
         </div>
 
         {/* Liste des vrais acteurs métiers */}
-        <div className="mt-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center justify-between">
+        <div className="mt-2 w-full">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center justify-between">
             <span>Utilisateurs Métiers Réels ({info.users.length})</span>
             <span className="text-[10px] lowercase font-normal">aucun compte technique</span>
-          </p>
+          </div>
 
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card p-2 space-y-1">
+          <ul className="divide-y divide-border rounded-xl border border-border bg-card p-2 space-y-1 w-full box-border">
             {info.users.map((u) => {
               const tagBg =
                 u.tag === 'Validateur'
@@ -255,7 +243,7 @@ export default function UsersBadge({ boardId }: Props) {
                   : 'bg-primary/10 text-primary border-primary/20';
 
               return (
-                <li key={u.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/40 transition-colors">
+                <li key={u.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/40 transition-colors w-full box-border">
                   <span
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-xs"
                     style={{ backgroundColor: u.color }}
@@ -263,16 +251,16 @@ export default function UsersBadge({ boardId }: Props) {
                     {u.initials}
                   </span>
 
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <div className="flex items-center gap-2">
                       <p className="truncate text-xs font-bold text-foreground">{u.name}</p>
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${tagBg}`}>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tagBg}`}>
                         {u.tag}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground font-medium leading-tight mt-0.5">{u.role}</p>
-                    <p className="text-[10px] text-primary/80 font-semibold mt-0.5 flex items-center gap-1">
-                      <ArrowRight className="h-2.5 w-2.5" /> {u.hub}
+                    <p className="text-[11px] text-muted-foreground font-medium leading-tight mt-0.5 break-words">{u.role}</p>
+                    <p className="text-[10px] text-primary/80 font-semibold mt-0.5 flex items-center gap-1 truncate">
+                      <ArrowRight className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{u.hub}</span>
                     </p>
                   </div>
                 </li>

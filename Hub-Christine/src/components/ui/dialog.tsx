@@ -32,16 +32,16 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 grid gap-4 rounded-2xl border border-border bg-card p-6 shadow-2xl transition-all duration-200 w-[95vw] max-w-lg',
+        'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 grid gap-4 rounded-2xl border border-border bg-card p-6 shadow-2xl transition-all duration-200 w-[95vw] sm:w-full max-w-lg box-border',
         className
       )}
       {...props}
     >
-      {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1.5 opacity-60 transition-all hover:opacity-100 hover:bg-muted focus:outline-none cursor-pointer">
+      <DialogPrimitive.Close className="absolute right-4 top-4 z-20 rounded-full p-1.5 opacity-60 transition-all hover:opacity-100 hover:bg-muted focus:outline-none cursor-pointer">
         <X className="h-4 w-4" />
         <span className="sr-only">Fermer</span>
       </DialogPrimitive.Close>
+      {children}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
