@@ -10,14 +10,27 @@ export const getAllContacts = createServerFn({ method: 'GET' })
     const contacts: { interlocuteur: string; adresseMail: string }[] = [];
     let cursor: string | null | undefined = undefined;
     do {
-      const res: { items: unknown[]; cursor?: string | null } = cursor
-        ? await board.items().withPagination({ cursor }).execute()
-        : await board.items().withColumns(['interlocuteur', 'adresseMail']).withPagination({ limit: 500 }).execute();
+      const res: { items: unknown[]; cursor?: string | null } = await board
+        .items()
+        .withColumns(['interlocuteur', 'adresseMail'])
+        .withPagination({ limit: 500, cursor })
+        .execute();
+
       for (const it of res.items ?? []) {
-        const row = it as { interlocuteur?: string[] | null; adresseMail?: string[] | null };
-        const interlocuteur = (row.interlocuteur ?? []).join(', ').trim();
-        const adresseMail = (row.adresseMail ?? []).join(', ').trim();
-        if (interlocuteur || adresseMail) contacts.push({ interlocuteur, adresseMail });
+        const row = it as { interlocuteur?: string[] | string | null; adresseMail?: string[] | string | null };
+        const interVal = row.interlocuteur;
+        const interlocuteur = Array.isArray(interVal)
+          ? interVal.join(', ').trim()
+          : String(interVal || '').trim();
+
+        const mailVal = row.adresseMail;
+        const adresseMail = Array.isArray(mailVal)
+          ? mailVal.join(', ').trim()
+          : String(mailVal || '').trim();
+
+        if (interlocuteur || adresseMail) {
+          contacts.push({ interlocuteur, adresseMail });
+        }
       }
       cursor = res.cursor;
     } while (cursor);

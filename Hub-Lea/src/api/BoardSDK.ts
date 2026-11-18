@@ -67,10 +67,10 @@ class ItemsQueryBuilder {
           }
         }`;
 
-    const res: any = await callMondayApi(q, this.cursorStr ? { c: this.cursorStr } : undefined);
+    const res: any = await callMondayApi(q, this.cursorStr ? { variables: { c: this.cursorStr } } : undefined);
     const page = this.cursorStr
-      ? res?.data?.next_items_page
-      : res?.data?.boards?.[0]?.items_page;
+      ? (res?.next_items_page || res?.data?.next_items_page)
+      : (res?.boards?.[0]?.items_page || res?.data?.boards?.[0]?.items_page);
 
     const rawItems = page?.items || [];
     const parsedItems = rawItems.map((item: any) => {
