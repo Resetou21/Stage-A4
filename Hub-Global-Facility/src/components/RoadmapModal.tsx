@@ -75,6 +75,12 @@ export default function RoadmapModal({
   const [successSent, setSuccessSent] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // Droits d'administration : SEUL Guillaume Daniel peut cocher / valider les demandes livrées
+  const isManager = useMemo(() => {
+    const u = (currentUserName || '').toLowerCase();
+    return u.includes('guillaume') || u.includes('daniel');
+  }, [currentUserName]);
+
   // Filtres onglet Roadmap
   const [search, setSearch] = useState('');
   const [selectedPoleFilter, setSelectedPoleFilter] = useState<string>('all');
@@ -156,8 +162,9 @@ export default function RoadmapModal({
     }
   };
 
-  // Cocher / décocher une demande (Marquer comme Fait / En cours)
+  // Cocher / décocher une demande (Marquer comme Fait / En cours) - RÉSERVÉ À GUILLAUME
   const handleToggleItemStatus = async (item: RoadmapItem) => {
+    if (!isManager) return;
     const isCurrentlyDone = /effectu|fait/i.test(item.groupTitle) || item.status === 'Fait';
     const newStatus = isCurrentlyDone ? 'En cours' : 'Fait';
     const newGroupId = isCurrentlyDone ? GROUP_TODO_ID : GROUP_DONE_ID;
@@ -1038,31 +1045,54 @@ export default function RoadmapModal({
                         <div className="roadmap-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                           {/* Checkbox d'action rapide + Titre */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleItemStatus(item)}
-                              title={isDone ? 'Cliquer pour repasser en cours' : 'Cliquer pour marquer comme fait'}
-                              style={{
-                                width: '24px',
-                                height: '24px',
-                                borderRadius: '50%',
-                                border: isDone ? '2px solid #10B981' : '2px solid #94A3B8',
-                                backgroundColor: isDone ? '#10B981' : '#FFFFFF',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                                padding: 0,
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              {isDone ? (
-                                <Check size={14} color="#FFFFFF" strokeWidth={3} />
-                              ) : (
-                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'transparent' }} />
-                              )}
-                            </button>
+                            {isManager ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleItemStatus(item)}
+                                title={isDone ? 'Cliquer pour repasser en cours (Action Guillaume)' : 'Cliquer pour marquer comme fait (Action Guillaume)'}
+                                style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '50%',
+                                  border: isDone ? '2px solid #10B981' : '2px solid #94A3B8',
+                                  backgroundColor: isDone ? '#10B981' : '#FFFFFF',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                  padding: 0,
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                {isDone ? (
+                                  <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                                ) : (
+                                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'transparent' }} />
+                                )}
+                              </button>
+                            ) : (
+                              <div
+                                title={isDone ? 'Demande livrée' : 'Demande en cours'}
+                                style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '50%',
+                                  border: isDone ? '2px solid #10B981' : '2px solid #CBD5E1',
+                                  backgroundColor: isDone ? '#10B981' : '#F8FAFC',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {isDone ? (
+                                  <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                                ) : (
+                                  <Clock size={12} color="#F59E0B" />
+                                )}
+                              </div>
+                            )}
 
                             <h4
                               style={{
@@ -1110,25 +1140,45 @@ export default function RoadmapModal({
                               {item.priority.includes('1') ? 'Urgent' : item.priority.includes('2') ? 'Normal' : 'Basse'}
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={() => handleToggleItemStatus(item)}
-                              style={{
-                                fontSize: '10.5px',
-                                fontWeight: 800,
-                                padding: '2px 8px',
-                                borderRadius: '5px',
-                                backgroundColor: isDone ? '#10B981' : '#F59E0B',
-                                color: '#FFFFFF',
-                                border: 'none',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              {isDone ? 'Livrée' : 'En cours'}
-                            </button>
+                            {isManager ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleItemStatus(item)}
+                                title="Cliquer pour changer le statut (Action Guillaume)"
+                                style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: '5px',
+                                  backgroundColor: isDone ? '#10B981' : '#F59E0B',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                {isDone ? 'Livrée' : 'En cours'}
+                              </button>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: '5px',
+                                  backgroundColor: isDone ? '#10B981' : '#F59E0B',
+                                  color: '#FFFFFF',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'default',
+                                }}
+                              >
+                                {isDone ? 'Livrée' : 'En cours'}
+                              </span>
+                            )}
                           </div>
                         </div>
 
