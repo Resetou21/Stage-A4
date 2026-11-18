@@ -88,7 +88,7 @@ const POLES: PoleMenu[] = [
         title: 'Supervision Globale (Tous Secteurs)',
         badge: '371 chantiers',
         badgeColor: '#0073EA',
-        description: 'Vue consolidée des 3 secteurs : chantiers, satisfaction 86% et étoiles',
+        description: 'Vue consolidée des 3 secteurs : chantiers, satisfaction 89% (2026) et étoiles',
         icon: Building2,
         animatrice: 'Tous',
       },
@@ -97,7 +97,7 @@ const POLES: PoleMenu[] = [
         title: 'Secteur Natacha THOMAS',
         badge: '161 chantiers',
         badgeColor: '#6366F1',
-        description: 'Taux de satisfaction : 95% • 78 clients 3 étoiles 🌟',
+        description: 'Taux de satisfaction : 96% (2026) • 78 clients 3 étoiles 🌟',
         icon: User,
         animatrice: 'Natacha',
       },
@@ -106,7 +106,7 @@ const POLES: PoleMenu[] = [
         title: 'Secteur Ketty PAULIN',
         badge: '151 chantiers',
         badgeColor: '#06B6D4',
-        description: 'Taux de satisfaction : 73% • 50 clients 3 étoiles 🌟',
+        description: 'Taux de satisfaction : 80% (2026) • 50 clients 3 étoiles 🌟',
         icon: User,
         animatrice: 'Ketty',
       },
@@ -115,7 +115,7 @@ const POLES: PoleMenu[] = [
         title: 'Secteur Emilie TOBIE',
         badge: '57 chantiers',
         badgeColor: '#EC4899',
-        description: 'Taux de satisfaction : 97% • 38 clients 3 étoiles 🌟',
+        description: 'Taux de satisfaction : 93% (2026) • 38 clients 3 étoiles 🌟',
         icon: User,
         animatrice: 'Emilie',
       },
@@ -230,13 +230,13 @@ export default function App() {
       Emilie: 57,
       Autre: 2,
     },
-    visitesTotal: 1744,
-    visitesBonnes: 1463,
-    tauxSatisfactionGlobal: 84,
+    visitesTotal: 1084,
+    visitesBonnes: 960,
+    tauxSatisfactionGlobal: 89,
     visitesParAnim: {
-      Natacha: { total: 631, bon: 585, pct: 93 },
-      Ketty: { total: 629, bon: 454, pct: 72 },
-      Emilie: { total: 408, bon: 367, pct: 90 },
+      Natacha: { total: 361, bon: 346, pct: 96 },
+      Ketty: { total: 400, bon: 321, pct: 80 },
+      Emilie: { total: 285, bon: 264, pct: 93 },
     },
     etoiles: {
       Global: { s3: 166, s2: 104, s1: 68, bad: 14 },
@@ -259,7 +259,7 @@ export default function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeIframeRef = useRef<HTMLIFrameElement>(null);
 
-  const CACHE_KEY = 'facility_portal_stats_v3';
+  const CACHE_KEY = 'facility_portal_stats_v4';
   const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes de cache pour une parfaite stabilité
 
   // Requête en direct vers l'API Monday.com pour charger les stats consolidées (avec pagination complète curseur)
@@ -357,6 +357,7 @@ export default function App() {
                 cursor
                 items {
                   id
+                  date: column_values(ids: ["date_mkrcgy18"]) { text }
                   qual: column_values(ids: ["status"]) { text }
                   anim: column_values(ids: ["lookup_mkvgpaca"]) {
                     ... on MirrorValue { display_value }
@@ -373,6 +374,7 @@ export default function App() {
                   cursor
                   items {
                     id
+                    date: column_values(ids: ["date_mkrcgy18"]) { text }
                     qual: column_values(ids: ["status"]) { text }
                     anim: column_values(ids: ["lookup_mkvgpaca"]) {
                       ... on MirrorValue { display_value }
@@ -464,7 +466,13 @@ export default function App() {
         Emilie: { total: 0, bon: 0, pct: 0 },
       };
 
+      const curYear = new Date().getFullYear().toString(); // "2026"
+
       allVisites.forEach((v: any) => {
+        // Aligner strictement sur l'année en cours (2026) pour correspondre exactement aux jauges des animatrices
+        const dt = v.date?.[0]?.text || '';
+        if (dt && !dt.startsWith(curYear)) return;
+
         const q = v.qual?.[0]?.text || '';
         if (q) {
           vTotal++;
@@ -495,9 +503,9 @@ export default function App() {
       const newStats = {
         chantiersActifs: chantierItems.length || 371,
         chantiersParAnim: byAnim,
-        visitesTotal: vTotal || 1744,
-        visitesBonnes: vBon || 1463,
-        tauxSatisfactionGlobal: satGlobal || 84,
+        visitesTotal: vTotal || 1084,
+        visitesBonnes: vBon || 960,
+        tauxSatisfactionGlobal: satGlobal || 89,
         visitesParAnim: vByAnim,
         etoiles: starsMap,
         alertes: { insatisfaits3x, nonVus11Mois, qualitePlus2Mois, rdv2Mois },
@@ -1349,7 +1357,7 @@ export default function App() {
                   {stats.tauxSatisfactionGlobal}%
                 </div>
                 <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>
-                  {stats.visitesBonnes} avis favorables / {stats.visitesTotal} visites
+                  {stats.visitesBonnes} avis favorables / {stats.visitesTotal} visites (2026)
                 </div>
               </div>
 
@@ -1704,13 +1712,13 @@ export default function App() {
               <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #00C875', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Satisfaction Visites</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', backgroundColor: '#D1FAE5', padding: '2px 8px', borderRadius: '12px' }}>Toutes Visites</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', backgroundColor: '#D1FAE5', padding: '2px 8px', borderRadius: '12px' }}>Année 2026</span>
                 </div>
                 <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#00C875', marginTop: '6px' }}>
                   {stats.tauxSatisfactionGlobal}%
                 </div>
                 <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
-                  <strong>{stats.visitesBonnes}</strong> satisfaisantes / <strong>{stats.visitesTotal}</strong> notées
+                  <strong>{stats.visitesBonnes}</strong> satisfaisantes / <strong>{stats.visitesTotal}</strong> notées en 2026
                 </div>
               </div>
 
@@ -1768,7 +1776,7 @@ export default function App() {
                       <th style={{ padding: '12px 16px' }}>Responsable de Secteur</th>
                       <th style={{ padding: '12px 14px' }}>Chantiers</th>
                       <th style={{ padding: '12px 14px' }}>Part du Parc</th>
-                      <th style={{ padding: '12px 14px' }}>Satisfaction Visites</th>
+                      <th style={{ padding: '12px 14px' }}>Satisfaction Visites (2026)</th>
                       <th style={{ padding: '12px 14px' }}>3 Étoiles 🌟</th>
                       <th style={{ padding: '12px 14px' }}>2 Étoiles 🌟</th>
                       <th style={{ padding: '12px 14px' }}>1 Étoile 🌟</th>
