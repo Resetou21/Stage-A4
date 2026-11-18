@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { getChargemapMois, getTotalBimonthlyStatus, getPeriodTransactions, type TotalPeriodMonth, type PeriodTransactionItem } from '@generated/server/chargemap';
 import { analyzeFacturesChargemap, importFactures } from '@generated/server/factures';
 import { analyzeFacturesTotal, importFacturesTotal } from '@generated/server/facturesTotal';
-import { readSheet } from '@generated/components/readSheet';
+import { readSheet, extractHeadersAndRows } from '@generated/components/readSheet';
 
 type Mois = { mois: string; present: boolean };
 
@@ -221,17 +221,13 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
     e.target.value = '';
     if (!file) return;
 
-    if (file.name.toLowerCase().endsWith('.xls')) {
-      toast.error('Format .xls ancien non pris en charge : enregistrez le fichier en .xlsx ou .csv.');
-      return;
-    }
-
     setAnalyzing(true);
     try {
       const all = await readSheet(file);
-      const [headers, ...rows] = all;
-      if (!headers || !rows.length) {
-        toast.info('Aucune ligne trouvée dans le fichier.');
+      const { headers, dataRows: rows } = extractHeadersAndRows(all);
+      if (!headers.length || !rows.length) {
+        toast.info('Aucune ligne exploitable trouvée dans le fichier.');
+        setAnalyzing(false);
         return;
       }
 

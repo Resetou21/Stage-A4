@@ -19,8 +19,13 @@ const norm = (s: string) =>
 function toDate(v: string): string | null {
   const s = (v ?? '').trim();
   if (/^\d+(\.\d+)?$/.test(s)) return new Date(Math.round((Number(s) - 25569) * 86400000)).toISOString().slice(0, 10);
-  const fr = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
-  if (fr) return `${fr[3]}-${fr[2]!.padStart(2, '0')}-${fr[1]!.padStart(2, '0')}`;
+  const fr4 = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+  if (fr4) return `${fr4[3]}-${fr4[2]!.padStart(2, '0')}-${fr4[1]!.padStart(2, '0')}`;
+  const fr2 = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2})(?!\d)/);
+  if (fr2) {
+    const year = Number(fr2[3]) < 70 ? `20${fr2[3]}` : `19${fr2[3]}`;
+    return `${year}-${fr2[2]!.padStart(2, '0')}-${fr2[1]!.padStart(2, '0')}`;
+  }
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : null;
 }
@@ -29,7 +34,12 @@ function toNum(v: string): string | null {
   const s = (v ?? '').trim();
   const hms = s.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
   if (hms) return String(Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3] ?? 0));
-  const n = Number(s.replace(/\s/g, '').replace(',', '.').replace(/[€%]/g, ''));
+  const clean = s
+    .replace(/[\s\u00A0\u202F]/g, '')
+    .replace(',', '.')
+    .replace(/[€%]/g, '')
+    .replace(/eur/gi, '');
+  const n = Number(clean);
   return Number.isFinite(n) ? String(n) : null;
 }
 

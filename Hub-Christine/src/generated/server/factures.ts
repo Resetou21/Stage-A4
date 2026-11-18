@@ -67,14 +67,63 @@ const norm = (s: string) =>
     .trim()
     .replace('prix ttc (eur)', 'prix ttc (€)');
 
+export function findChargemapCol(headerStr: string): [string, T] | null {
+  const nh = norm(headerStr);
+  if (COLS[nh]) return COLS[nh];
+
+  for (const [key, val] of Object.entries(COLS)) {
+    if (nh === key) return val;
+  }
+
+  if (nh.includes('immat') || nh.includes('plaque') || (nh.includes('vehicule') && !nh.includes('type'))) {
+    return ['color_mm0xyjbt', 'status'];
+  }
+  if (nh.includes('date') && !nh.includes('cdr')) {
+    return ['date_mm0x7t7d', 'date'];
+  }
+  if (nh.includes('heure') || nh.includes('time')) {
+    return ['numeric_mm0xw0c7', 'num'];
+  }
+  if (nh.includes('energie') || nh.includes('kwh')) {
+    return ['numeric_mm0xk1ka', 'num'];
+  }
+  if (nh.includes('duree') || nh.includes('duration')) {
+    return ['numeric_mm0xr5vm', 'num'];
+  }
+  if (nh.includes('ttc')) {
+    return ['numeric_mm0xgbyh', 'num'];
+  }
+  if (nh.includes('ht') && !nh.includes('total')) {
+    return ['numeric_mm0xkqc5', 'num'];
+  }
+  if (nh.includes('facture')) {
+    return ['color_mm0xxga9', 'status'];
+  }
+  if (nh.includes('badge')) {
+    return ['color_mm0xn4gn', 'status'];
+  }
+  if (nh.includes('conducteur') || nh.includes('chauffeur') || nh.includes('driver')) {
+    return ['color_mm0xwk8k', 'status'];
+  }
+  if (nh.includes('station') || nh.includes('localisation') || nh.includes('borne')) {
+    return ['color_mm0x8e1p', 'status'];
+  }
+  return null;
+}
+
 function toDate(v: string): string | null {
   const s = (v ?? '').trim();
   if (/^\d+(\.\d+)?$/.test(s)) {
     const d = new Date(Math.round((Number(s) - 25569) * 86400000));
     return d.toISOString().slice(0, 10);
   }
-  const fr = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
-  if (fr) return `${fr[3]}-${fr[2]!.padStart(2, '0')}-${fr[1]!.padStart(2, '0')}`;
+  const fr4 = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+  if (fr4) return `${fr4[3]}-${fr4[2]!.padStart(2, '0')}-${fr4[1]!.padStart(2, '0')}`;
+  const fr2 = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2})(?!\d)/);
+  if (fr2) {
+    const year = Number(fr2[3]) < 70 ? `20${fr2[3]}` : `19${fr2[3]}`;
+    return `${year}-${fr2[2]!.padStart(2, '0')}-${fr2[1]!.padStart(2, '0')}`;
+  }
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : null;
 }
@@ -83,7 +132,12 @@ function toNum(v: string): string | null {
   const s = (v ?? '').trim();
   const hms = s.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
   if (hms) return String(Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3] ?? 0));
-  const n = Number(s.replace(/\s/g, '').replace(',', '.').replace(/[€%]/g, ''));
+  const clean = s
+    .replace(/[\s\u00A0\u202F]/g, '')
+    .replace(',', '.')
+    .replace(/[€%]/g, '')
+    .replace(/eur/gi, '');
+  const n = Number(clean);
   return Number.isFinite(n) ? String(n) : null;
 }
 
@@ -92,11 +146,20 @@ export const analyzeFacturesChargemap = createServerFn({ method: 'POST' })
   .validator(z.object({ headers: z.array(z.string()), rows: z.array(z.array(z.string())) }))
   .handler(async ({ data }) => {
     const board = new FactureChargemapBoard();
-    const map = data.headers.map((h) => COLS[norm(h)] ?? null);
+    const map = data.headers.map((h) => findChargemapCol(h));
     const nameIdx = data.headers.findIndex((h) => norm(h) === 'name' || norm(h) === 'nom');
-    const dateIdx = data.headers.findIndex((h) => norm(h) === 'date');
-    const vehiculeIdx = data.headers.findIndex((h) => norm(h) === 'vehicule');
-    const montantIdx = data.headers.findIndex((h) => norm(h).includes('prix ttc') || norm(h).includes('prix ht'));
+    const dateIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('date') || s.includes('jour');
+    });
+    const vehiculeIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('vehicule') || s.includes('immat') || s.includes('plaque');
+    });
+    const montantIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('ttc') || s.includes('montant') || s.includes('prix');
+    });
 
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);
     const seen = new Set(await fetchKeys(gql, BOARD_ID, KEY_COLS));
@@ -152,7 +215,7 @@ export const importFactures = createServerFn({ method: 'POST' })
   .validator(z.object({ headers: z.array(z.string()), rows: z.array(z.array(z.string())).max(50) }))
   .handler(async ({ data }) => {
     const board = new FactureChargemapBoard();
-    const map = data.headers.map((h) => COLS[norm(h)] ?? null);
+    const map = data.headers.map((h) => findChargemapCol(h));
     const nameIdx = data.headers.findIndex((h) => norm(h) === 'name' || norm(h) === 'nom');
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);
     const seen = new Set(await fetchKeys(gql, BOARD_ID, KEY_COLS));

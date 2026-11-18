@@ -140,11 +140,24 @@ export async function readSheet(file: File): Promise<string[][]> {
     return readCsv(text).filter((r) => r.some((c) => c.trim()));
   }
 
-  // Si c'est un fichier .xls (ancien format binaire Excel 97-2003)
+  // Si c'est un fichier .xls (ancien format binaire Excel 97-2003 ou export HTML/CSV déguisé)
   if (name.endsWith('.xls') && !name.endsWith('.xlsx')) {
-    // Vérifier si c'est un CSV/HTML déguisé avec une fausse extension .xls
     try {
       const text = await decodeFileText(file);
+      // Cas 1 : Table HTML déguisée en .xls (courant dans les exports d'outils de facturation)
+      if (text.toLowerCase().includes('<table') || text.toLowerCase().includes('<tr')) {
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        const rows: string[][] = [];
+        doc.querySelectorAll('tr').forEach((tr) => {
+          const row: string[] = [];
+          tr.querySelectorAll('td, th').forEach((cell) => {
+            row.push(cell.textContent?.trim() ?? '');
+          });
+          if (row.some((c) => c.trim())) rows.push(row);
+        });
+        if (rows.length > 0) return rows;
+      }
+      // Cas 2 : CSV ou TSV déguisé en .xls
       if (text.includes(';') || text.includes(',') || text.includes('\t')) {
         return readCsv(text).filter((r) => r.some((c) => c.trim()));
       }
@@ -157,4 +170,56 @@ export async function readSheet(file: File): Promise<string[][]> {
   // Fichier XLSX standard
   const rows = await readXlsx(await file.arrayBuffer());
   return rows.filter((r) => r.some((c) => c.trim()));
+}
+
+// Détection intelligente et automatique de la véritable ligne d'en-tête
+// Ignore les lignes d'introduction, sous-titres ou lignes vides avant le tableau
+export function extractHeadersAndRows(rows: string[][]): { headers: string[]; dataRows: string[][] } {
+  if (!rows || rows.length === 0) return { headers: [], dataRows: [] };
+
+  const headerKeywords = [
+    'date', 'heure', 'time', 'immat', 'plaque', 'vehicule', 'estampe', 'carte',
+    'badge', 'produit', 'carburant', 'montant', 'prix', 'total', 'ttc', 'ht',
+    'tva', 'station', 'volume', 'quantite', 'kwh', 'energie', 'duree', 'facture',
+    'conducteur', 'matricule', 'starttime', 'start', 'nom', 'name'
+  ];
+
+  let bestHeaderIndex = 0;
+  let bestScore = 0;
+
+  // Analyser les 15 premières lignes pour repérer la ligne qui contient les en-têtes
+  const maxScan = Math.min(rows.length, 15);
+  for (let i = 0; i < maxScan; i++) {
+    const r = rows[i];
+    if (!r || !r.length) continue;
+    let score = 0;
+    for (const cell of r) {
+      if (!cell) continue;
+      const clean = cell.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      for (const kw of headerKeywords) {
+        if (clean.includes(kw)) {
+          score += 2;
+          break;
+        }
+      }
+    }
+    const nonEmptyCount = r.filter((c) => c && c.trim()).length;
+    if (nonEmptyCount >= 4) score += 1;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestHeaderIndex = i;
+    }
+  }
+
+  if (bestScore >= 3) {
+    const headers = rows[bestHeaderIndex].map((h) => (h ?? '').trim());
+    const dataRows = rows.slice(bestHeaderIndex + 1).filter((r) => r.some((c) => c && c.trim()));
+    return { headers, dataRows };
+  }
+
+  return {
+    headers: (rows[0] || []).map((h) => (h ?? '').trim()),
+    dataRows: rows.slice(1).filter((r) => r.some((c) => c && c.trim())),
+  };
 }

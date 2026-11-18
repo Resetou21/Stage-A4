@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 import { getWellborneMois } from '@generated/server/chargemap';
 import { getWellborneNames, getWellborneMonthlyStats, importWellborne, getWellborneMonthCharges, type WellborneChargeItem } from '@generated/server/wellborne';
-import { readSheet } from '@generated/components/readSheet';
+import { readSheet, extractHeadersAndRows } from '@generated/components/readSheet';
 
 type Mois = { mois: string; ym: string; present: boolean; count: number };
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -197,10 +197,13 @@ export default function BornesCard() {
 
     setAnalyzing(true);
     try {
-      const [headers = [], ...body] = await readSheet(file);
+      const { headers, dataRows: body } = extractHeadersAndRows(await readSheet(file));
       const all = body.map((r) => headers.map((h, i) => excelDate(r[i] ?? '', h)));
-      const nameIdx = headers.findIndex((h) => h.replace(/\s+/g, '').toLowerCase() === 'starttime');
-      if (nameIdx < 0) throw new Error('Colonne « StartTime » absente du fichier Excel Wellborne');
+      const nameIdx = headers.findIndex((h) => {
+        const s = h.replace(/[\s_-]/g, '').toLowerCase();
+        return s === 'starttime' || s === 'datedebut' || s === 'heuredebut' || s.includes('start');
+      });
+      if (nameIdx < 0) throw new Error('Colonne « StartTime » (ou Date de début) absente du fichier Excel Wellborne');
 
       const kwhIdx = headers.findIndex((h) => /kwh|energy/i.test(h));
 
