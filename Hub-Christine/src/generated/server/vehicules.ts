@@ -159,7 +159,7 @@ export const invalidateSaisieOptionsCache = () => {
 export const getSaisieFormOptions = createServerFn({ method: 'GET' })
   .validator(z.object({}).optional())
   .handler(async (): Promise<SaisieFormOptions> => {
-    if (_cachedOptions && Date.now() - _cachedOptionsTime < 60_000) {
+    if (_cachedOptions && Date.now() - _cachedOptionsTime < 10_000) {
       return _cachedOptions;
     }
 
@@ -259,6 +259,77 @@ export const registerMondayDropdownLabel = createServerFn({ method: 'POST' })
       return { success: true };
     } catch (e) {
       console.error('Erreur registerMondayDropdownLabel:', e);
+      return { success: false };
+    }
+  });
+
+// Supprime définitivement une étiquette dans la colonne Monday et nettoie le cache
+export const deleteMondayDropdownLabel = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    type: z.enum(['fournisseur', 'prestation']),
+    label: z.string().min(1),
+  }))
+  .handler(async ({ data }) => {
+    try {
+      const colId = data.type === 'fournisseur' ? 'dropdown_mm0rw6zg' : 'dropdown_mm0r2vyg';
+      const board = new DataSurVehiculeBoard();
+
+      // 1. Récupérer la révision actuelle et les étiquettes existantes
+      const q = `query {
+        boards(ids: [5092124669]) {
+          columns(ids: ["${colId}"]) {
+            id
+            revision
+            settings_str
+          }
+        }
+      }`;
+
+      const res: any = await board.executeGraphQL(q, {});
+      const col = res?.boards?.[0]?.columns?.[0];
+      if (!col || !col.revision) return { success: false };
+
+      const s = JSON.parse(col.settings_str || '{}');
+      const labels: { id: number; name: string }[] = s.labels || [];
+      const targetLabel = data.label.trim().toLowerCase();
+
+      // Filtrer pour retirer l'étiquette ciblée
+      const newLabels = labels
+        .filter((l) => l.name?.trim().toLowerCase() !== targetLabel)
+        .map((l) => ({
+          id: l.id,
+          label: l.name,
+          is_deactivated: false,
+        }));
+
+      // 2. Mettre à jour la colonne Monday via l'API officielle
+      const mut = `
+        mutation UpdateCol($boardId: ID!, $colId: String!, $rev: String!, $settings: UpdateDropdownColumnSettingsInput!) {
+          update_dropdown_column(
+            board_id: $boardId,
+            id: $colId,
+            revision: $rev,
+            settings: $settings
+          ) {
+            id
+            revision
+          }
+        }
+      `;
+
+      await board.executeGraphQL(mut, {
+        boardId: 5092124669,
+        colId,
+        rev: col.revision,
+        settings: {
+          labels: newLabels,
+        },
+      });
+
+      invalidateSaisieOptionsCache();
+      return { success: true };
+    } catch (e) {
+      console.error('Erreur deleteMondayDropdownLabel:', e);
       return { success: false };
     }
   });

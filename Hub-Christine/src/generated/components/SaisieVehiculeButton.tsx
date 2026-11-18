@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
-import { createSaisieVehicule, getVehicules, getSaisieFormOptions, registerMondayDropdownLabel, type VehiculeItem } from '@generated/server/vehicules';
+import { createSaisieVehicule, getVehicules, getSaisieFormOptions, registerMondayDropdownLabel, deleteMondayDropdownLabel, type VehiculeItem } from '@generated/server/vehicules';
 import { monday } from '@api/mondayApi';
 
 const DEFAULT_FOURNISSEURS = [
@@ -313,7 +313,15 @@ export default function SaisieVehiculeButton() {
       if (f.fournisseur?.toLowerCase() === val.toLowerCase()) {
         setF((p) => ({ ...p, fournisseur: '' }));
       }
-      toast.success(`Fournisseur « ${val} » retiré de la liste.`);
+      toast.success(`Fournisseur « ${val} » retiré du Hub, suppression sur Monday en cours…`);
+      // Supprime l'étiquette directement dans la colonne Monday
+      deleteMondayDropdownLabel({ data: { type: 'fournisseur', label: val } })
+        .then((r) => {
+          if (r?.success) {
+            toast.success(`Fournisseur « ${val} » définitivement supprimé de Monday !`);
+          }
+        })
+        .catch(() => {});
     } else if (type === 'prestation') {
       const updated = prestations.filter((x) => x.toLowerCase() !== val.toLowerCase());
       setPrestations(updated);
@@ -323,7 +331,15 @@ export default function SaisieVehiculeButton() {
       if (f.prestation?.toLowerCase() === val.toLowerCase()) {
         setF((p) => ({ ...p, prestation: '' }));
       }
-      toast.success(`Prestation « ${val} » retirée de la liste.`);
+      toast.success(`Prestation « ${val} » retirée du Hub, suppression sur Monday en cours…`);
+      // Supprime l'étiquette directement dans la colonne Monday
+      deleteMondayDropdownLabel({ data: { type: 'prestation', label: val } })
+        .then((r) => {
+          if (r?.success) {
+            toast.success(`Prestation « ${val} » définitivement supprimée de Monday !`);
+          }
+        })
+        .catch(() => {});
     } else if (type === 'menu') {
       const updated = menus.filter((x) => x.toLowerCase() !== val.toLowerCase());
       setMenus(updated);
