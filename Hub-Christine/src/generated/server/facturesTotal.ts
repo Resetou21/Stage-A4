@@ -43,11 +43,44 @@ export const analyzeFacturesTotal = createServerFn({ method: 'POST' })
     )) as { boards?: { columns?: { id: string; title: string; type: string }[] }[] };
 
     const cols = new Map((meta.boards?.[0]?.columns ?? []).map((c) => [norm(c.title), c]));
-    const map = data.headers.map((h) => cols.get(norm(h)) ?? null);
+    
+    // Recherche tolérante des colonnes Monday avec gestion des synonymes Total
+    const findCol = (headerStr: string) => {
+      const nh = norm(headerStr);
+      if (cols.has(nh)) return cols.get(nh);
+      for (const [colTitle, colObj] of cols.entries()) {
+        if (colTitle === nh) return colObj;
+        if (nh.includes('date') && colTitle.includes('date')) return colObj;
+        if ((nh.includes('immat') || nh.includes('vehicule') || nh.includes('estampe') || nh.includes('plaque')) &&
+            (colTitle.includes('immat') || colTitle.includes('estampe') || colTitle.includes('vehicule'))) return colObj;
+        if ((nh.includes('produit') || nh.includes('carburant')) &&
+            (colTitle.includes('produit') || colTitle.includes('carburant') || colTitle.includes('libelle'))) return colObj;
+        if ((nh.includes('montant ttc') || nh.includes('prix ttc') || nh.includes('total ttc')) &&
+            (colTitle.includes('montant ttc') || colTitle.includes('ttc'))) return colObj;
+        if ((nh.includes('montant ht') || nh.includes('prix ht') || nh.includes('total ht')) &&
+            (colTitle.includes('montant ht') || colTitle.includes('ht'))) return colObj;
+        if ((nh.includes('quantite') || nh.includes('volume') || nh.includes('litre')) &&
+            (colTitle.includes('quantite') || colTitle.includes('volume'))) return colObj;
+        if ((nh.includes('station') || nh.includes('lieu') || nh.includes('centre')) &&
+            (colTitle.includes('station') || colTitle.includes('lieu') || colTitle.includes('centre'))) return colObj;
+      }
+      return null;
+    };
+
+    const map = data.headers.map((h) => findCol(h));
     const nameIdx = data.headers.findIndex((h) => ['name', 'nom', 'element', 'élément'].includes(norm(h)));
-    const dateIdx = data.headers.findIndex((h) => norm(h).includes('date de la transaction') || norm(h) === 'date');
-    const vehiculeIdx = data.headers.findIndex((h) => norm(h).includes('immat') || norm(h).includes('libelle estampe'));
-    const montantIdx = data.headers.findIndex((h) => norm(h).includes('montant ttc') || norm(h).includes('montant ht'));
+    const dateIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('date') || s.includes('jour');
+    });
+    const vehiculeIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('immat') || s.includes('vehicule') || s.includes('estampe') || s.includes('plaque');
+    });
+    const montantIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('ttc') || s.includes('montant') || s.includes('prix') || s.includes('total');
+    });
 
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);
     const seen = new Set(await fetchKeys(gql, BOARD, KEY_COLS));
@@ -119,7 +152,28 @@ export const importFacturesTotal = createServerFn({ method: 'POST' })
     )) as { boards?: { columns?: { id: string; title: string; type: string }[] }[] };
 
     const cols = new Map((meta.boards?.[0]?.columns ?? []).map((c) => [norm(c.title), c]));
-    const map = data.headers.map((h) => cols.get(norm(h)) ?? null);
+    const findCol = (headerStr: string) => {
+      const nh = norm(headerStr);
+      if (cols.has(nh)) return cols.get(nh);
+      for (const [colTitle, colObj] of cols.entries()) {
+        if (colTitle === nh) return colObj;
+        if (nh.includes('date') && colTitle.includes('date')) return colObj;
+        if ((nh.includes('immat') || nh.includes('vehicule') || nh.includes('estampe') || nh.includes('plaque')) &&
+            (colTitle.includes('immat') || colTitle.includes('estampe') || colTitle.includes('vehicule'))) return colObj;
+        if ((nh.includes('produit') || nh.includes('carburant')) &&
+            (colTitle.includes('produit') || colTitle.includes('carburant') || colTitle.includes('libelle'))) return colObj;
+        if ((nh.includes('montant ttc') || nh.includes('prix ttc') || nh.includes('total ttc')) &&
+            (colTitle.includes('montant ttc') || colTitle.includes('ttc'))) return colObj;
+        if ((nh.includes('montant ht') || nh.includes('prix ht') || nh.includes('total ht')) &&
+            (colTitle.includes('montant ht') || colTitle.includes('ht'))) return colObj;
+        if ((nh.includes('quantite') || nh.includes('volume') || nh.includes('litre')) &&
+            (colTitle.includes('quantite') || colTitle.includes('volume'))) return colObj;
+        if ((nh.includes('station') || nh.includes('lieu') || nh.includes('centre')) &&
+            (colTitle.includes('station') || colTitle.includes('lieu') || colTitle.includes('centre'))) return colObj;
+      }
+      return null;
+    };
+    const map = data.headers.map((h) => findCol(h));
     const nameIdx = data.headers.findIndex((h) => ['name', 'nom', 'element', 'élément'].includes(norm(h)));
 
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);

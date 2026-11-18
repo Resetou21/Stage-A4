@@ -1,4 +1,5 @@
 // Lecture d'un fichier XLSX ou CSV dans le navigateur, sans librairie externe.
+// Supporte UTF-8, Windows-1252, délimiteurs multiples (;, ,, \t) et formats tolérants.
 
 async function inflate(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream('deflate-raw');
@@ -11,7 +12,7 @@ async function unzip(buf: ArrayBuffer): Promise<Map<string, Uint8Array>> {
   const bytes = new Uint8Array(buf);
   let eocd = -1;
   for (let i = buf.byteLength - 22; i >= 0; i--) if (v.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
-  if (eocd < 0) throw new Error('Fichier non reconnu');
+  if (eocd < 0) throw new Error('Fichier non reconnu (non-ZIP)');
   const count = v.getUint16(eocd + 10, true);
   let p = v.getUint32(eocd + 16, true);
   const out = new Map<string, Uint8Array>();
@@ -48,8 +49,10 @@ async function readXlsx(buf: ArrayBuffer): Promise<string[][]> {
   if (ss) xml(dec.decode(ss)).querySelectorAll('si').forEach((si) => {
     shared.push(Array.from(si.getElementsByTagName('t')).map((t) => t.textContent ?? '').join(''));
   });
-  const sheetName = [...files.keys()].filter((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort()[0];
-  if (!sheetName) throw new Error('Aucune feuille trouvée');
+  // Recherche tolérante de la première feuille de calcul
+  const sheetNames = [...files.keys()].filter((k) => /^xl\/worksheets\/.*\.xml$/i.test(k));
+  const sheetName = sheetNames.find((k) => /sheet1\.xml$/i.test(k)) || sheetNames.sort()[0];
+  if (!sheetName) throw new Error('Aucune feuille trouvée dans le fichier Excel');
   const doc = xml(dec.decode(files.get(sheetName)!));
   const rows: string[][] = [];
   doc.querySelectorAll('sheetData > row').forEach((r) => {
@@ -66,24 +69,92 @@ async function readXlsx(buf: ArrayBuffer): Promise<string[][]> {
   return rows;
 }
 
+// Détection automatique du délimiteur CSV dominant (; , ou tabulation \t)
+function detectDelimiter(text: string): string {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0).slice(0, 5);
+  if (!lines.length) return ';';
+  let semi = 0;
+  let comma = 0;
+  let tab = 0;
+  for (const line of lines) {
+    semi += (line.match(/;/g) || []).length;
+    comma += (line.match(/,/g) || []).length;
+    tab += (line.match(/\t/g) || []).length;
+  }
+  if (semi >= comma && semi >= tab && semi > 0) return ';';
+  if (tab > comma && tab > semi) return '\t';
+  if (comma > 0) return ',';
+  return ';';
+}
+
 function readCsv(text: string): string[][] {
-  const sep = (text.split('\n')[0] ?? '').includes(';') ? ';' : ',';
+  const sep = detectDelimiter(text);
   const rows: string[][] = [];
   let row: string[] = [], cell = '', q = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (q) { if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (ch === '"') q = false; else cell += ch; }
-    else if (ch === '"') q = true;
-    else if (ch === sep) { row.push(cell); cell = ''; }
-    else if (ch === '\n') { row.push(cell.replace(/\r$/, '')); rows.push(row); row = []; cell = ''; }
-    else cell += ch;
+    if (q) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') q = false;
+      else cell += ch;
+    } else if (ch === '"') {
+      q = true;
+    } else if (ch === sep) {
+      row.push(cell);
+      cell = '';
+    } else if (ch === '\n') {
+      row.push(cell.replace(/\r$/, ''));
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += ch;
+    }
   }
-  if (cell || row.length) { row.push(cell); rows.push(row); }
+  if (cell || row.length) {
+    row.push(cell.replace(/\r$/, ''));
+    rows.push(row);
+  }
   return rows;
+}
+
+// Décodage intelligent du texte : UTF-8 avec bascule automatique Windows-1252 si accents corrompus
+async function decodeFileText(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+  if (utf8.includes('\uFFFD')) {
+    try {
+      const win1252 = new TextDecoder('windows-1252').decode(buf);
+      return win1252.replace(/^\uFEFF/, '');
+    } catch {}
+  }
+  return utf8.replace(/^\uFEFF/, '');
 }
 
 export async function readSheet(file: File): Promise<string[][]> {
   const name = file.name.toLowerCase();
-  const rows = name.endsWith('.csv') ? readCsv((await file.text()).replace(/^\uFEFF/, '')) : await readXlsx(await file.arrayBuffer());
+
+  // Si c'est un fichier CSV ou TXT
+  if (name.endsWith('.csv') || name.endsWith('.txt')) {
+    const text = await decodeFileText(file);
+    return readCsv(text).filter((r) => r.some((c) => c.trim()));
+  }
+
+  // Si c'est un fichier .xls (ancien format binaire Excel 97-2003)
+  if (name.endsWith('.xls') && !name.endsWith('.xlsx')) {
+    // Vérifier si c'est un CSV/HTML déguisé avec une fausse extension .xls
+    try {
+      const text = await decodeFileText(file);
+      if (text.includes(';') || text.includes(',') || text.includes('\t')) {
+        return readCsv(text).filter((r) => r.some((c) => c.trim()));
+      }
+    } catch {}
+    throw new Error(
+      "Le fichier est au format ancien Excel (.xls binaire). Veuillez l'ouvrir dans Excel et l'enregistrer sous le format moderne (.xlsx) ou (.csv) avant de l'importer."
+    );
+  }
+
+  // Fichier XLSX standard
+  const rows = await readXlsx(await file.arrayBuffer());
   return rows.filter((r) => r.some((c) => c.trim()));
 }
