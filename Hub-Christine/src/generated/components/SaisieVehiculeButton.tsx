@@ -37,8 +37,37 @@ export default function SaisieVehiculeButton() {
   const [f, setF] = useState(empty);
   const [vehicules, setVehicules] = useState<VehiculeItem[]>([]);
   const [loadingV, setLoadingV] = useState(false);
-  const [sortMode, setSortMode] = useState<'immat' | 'flotte'>('immat');
-  const [groupFilter, setGroupFilter] = useState<'all' | 'active' | 'restitue'>('all');
+  const [sortMode, setSortModeState] = useState<'immat' | 'flotte'>(() => {
+    try {
+      const saved = localStorage.getItem('hub_christine_vehicules_sort_mode');
+      return saved === 'flotte' || saved === 'immat' ? saved : 'immat';
+    } catch {
+      return 'immat';
+    }
+  });
+
+  const [groupFilter, setGroupFilterState] = useState<'all' | 'active' | 'restitue'>(() => {
+    try {
+      const saved = localStorage.getItem('hub_christine_vehicules_group_filter');
+      return saved === 'all' || saved === 'active' || saved === 'restitue' ? saved : 'all';
+    } catch {
+      return 'all';
+    }
+  });
+
+  const setSortMode = (m: 'immat' | 'flotte') => {
+    setSortModeState(m);
+    try {
+      localStorage.setItem('hub_christine_vehicules_sort_mode', m);
+    } catch {}
+  };
+
+  const setGroupFilter = (g: 'all' | 'active' | 'restitue') => {
+    setGroupFilterState(g);
+    try {
+      localStorage.setItem('hub_christine_vehicules_group_filter', g);
+    } catch {}
+  };
   const [showInfo, setShowInfo] = useState(false);
 
   const countActive = useMemo(() => vehicules.filter((v) => !v.isRestitue).length, [vehicules]);
