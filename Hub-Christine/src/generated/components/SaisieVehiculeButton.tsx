@@ -320,7 +320,7 @@ export default function SaisieVehiculeButton() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[95vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[95vh] overflow-y-auto w-[95vw] sm:max-w-[620px]">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between text-xl font-bold pr-10">
               <div className="flex items-center gap-2">
@@ -368,12 +368,12 @@ export default function SaisieVehiculeButton() {
           <form onSubmit={submit} className="grid gap-3.5 sm:grid-cols-2 mt-1">
             {/* 1. Sélection du véhicule : UNIQUEMENT l'immatriculation avec séparation En service / Restitué */}
             <div className="sm:col-span-2 space-y-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wide">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-bold text-foreground uppercase tracking-wide shrink-0">
                   Véhicule concerné <span className="text-destructive">*</span>
                 </label>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {/* Onglets Filtre par Groupe Monday */}
                   <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px]">
                     <button
