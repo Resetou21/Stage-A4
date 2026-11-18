@@ -5,6 +5,7 @@ import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 import { createSaisieVehicule, getVehicules, type VehiculeItem } from '@generated/server/vehicules';
+import { monday } from '@api/mondayApi';
 
 const DEFAULT_FOURNISSEURS = [
   '123 PAREBRISE', 'AD', 'AP AUTO', 'AUTRE', 'BPM', 'CHARGEMAP', 'CLARO AUTOMOBILE',
@@ -31,42 +32,112 @@ const empty = {
   menuDeSaisie: 'Entretien',
 };
 
+const STORAGE_SORT_KEY = 'hub_christine_vehicules_sort_mode';
+const STORAGE_GROUP_KEY = 'hub_christine_vehicules_group_filter';
+
+function getCookie(name: string): string | null {
+  try {
+    const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+    return match ? decodeURIComponent(match[3]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCookie(name: string, value: string) {
+  try {
+    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
+  } catch {}
+}
+
+function readStorageImmediate<T extends string>(key: string, valid: T[], fallback: T): T {
+  try {
+    const fromLocal = localStorage.getItem(key);
+    if (fromLocal && valid.includes(fromLocal as T)) return fromLocal as T;
+  } catch {}
+  try {
+    const fromSession = sessionStorage.getItem(key);
+    if (fromSession && valid.includes(fromSession as T)) return fromSession as T;
+  } catch {}
+  try {
+    const fromCookie = getCookie(key);
+    if (fromCookie && valid.includes(fromCookie as T)) return fromCookie as T;
+  } catch {}
+  return fallback;
+}
+
+function writeStorageAll(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch {}
+  try { sessionStorage.setItem(key, value); } catch {}
+  try { setCookie(key, value); } catch {}
+  try {
+    if (monday?.storage?.instance?.setItem) {
+      monday.storage.instance.setItem(key, value).catch(() => {});
+    }
+  } catch {}
+  try {
+    if (monday?.storage?.setItem) {
+      monday.storage.setItem(key, value).catch(() => {});
+    }
+  } catch {}
+}
+
 export default function SaisieVehiculeButton() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [f, setF] = useState(empty);
   const [vehicules, setVehicules] = useState<VehiculeItem[]>([]);
   const [loadingV, setLoadingV] = useState(false);
-  const [sortMode, setSortModeState] = useState<'immat' | 'flotte'>(() => {
-    try {
-      const saved = localStorage.getItem('hub_christine_vehicules_sort_mode');
-      return saved === 'flotte' || saved === 'immat' ? saved : 'immat';
-    } catch {
-      return 'immat';
-    }
-  });
 
-  const [groupFilter, setGroupFilterState] = useState<'all' | 'active' | 'restitue'>(() => {
+  const [sortMode, setSortModeState] = useState<'immat' | 'flotte'>(() =>
+    readStorageImmediate(STORAGE_SORT_KEY, ['immat', 'flotte'], 'immat')
+  );
+
+  const [groupFilter, setGroupFilterState] = useState<'all' | 'active' | 'restitue'>(() =>
+    readStorageImmediate(STORAGE_GROUP_KEY, ['all', 'active', 'restitue'], 'all')
+  );
+
+  // Synchronisation asynchrone depuis Monday Storage sur le montage
+  useEffect(() => {
+    let mounted = true;
     try {
-      const saved = localStorage.getItem('hub_christine_vehicules_group_filter');
-      return saved === 'all' || saved === 'active' || saved === 'restitue' ? saved : 'all';
-    } catch {
-      return 'all';
-    }
-  });
+      if (monday?.storage?.instance?.getItem) {
+        monday.storage.instance.getItem(STORAGE_SORT_KEY).then((res: any) => {
+          if (!mounted) return;
+          const val = res?.data?.value;
+          if (val === 'flotte' || val === 'immat') {
+            setSortModeState(val);
+            try { localStorage.setItem(STORAGE_SORT_KEY, val); } catch {}
+            try { sessionStorage.setItem(STORAGE_SORT_KEY, val); } catch {}
+            setCookie(STORAGE_SORT_KEY, val);
+          }
+        }).catch(() => {});
+
+        monday.storage.instance.getItem(STORAGE_GROUP_KEY).then((res: any) => {
+          if (!mounted) return;
+          const val = res?.data?.value;
+          if (val === 'all' || val === 'active' || val === 'restitue') {
+            setGroupFilterState(val);
+            try { localStorage.setItem(STORAGE_GROUP_KEY, val); } catch {}
+            try { sessionStorage.setItem(STORAGE_GROUP_KEY, val); } catch {}
+            setCookie(STORAGE_GROUP_KEY, val);
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const setSortMode = (m: 'immat' | 'flotte') => {
     setSortModeState(m);
-    try {
-      localStorage.setItem('hub_christine_vehicules_sort_mode', m);
-    } catch {}
+    writeStorageAll(STORAGE_SORT_KEY, m);
   };
 
   const setGroupFilter = (g: 'all' | 'active' | 'restitue') => {
     setGroupFilterState(g);
-    try {
-      localStorage.setItem('hub_christine_vehicules_group_filter', g);
-    } catch {}
+    writeStorageAll(STORAGE_GROUP_KEY, g);
   };
   const [showInfo, setShowInfo] = useState(false);
 
@@ -149,8 +220,8 @@ export default function SaisieVehiculeButton() {
 
     return list.map((v) => ({
       value: v.id,
-      label: v.immat, // Uniquement l'immatriculation (ex: "CW-637-NE")
-      sublabel: v.num ? `N° ${v.num}` : undefined,
+      label: sortMode === 'flotte' && v.num ? `#${v.num} — ${v.immat}` : v.immat,
+      sublabel: sortMode === 'flotte' ? undefined : (v.num ? `N° ${v.num}` : undefined),
       group: v.groupTitle || (v.isRestitue ? 'Véhicule restitué' : 'Véhicules en service'),
       searchTokens: [
         v.immat,
@@ -366,82 +437,80 @@ export default function SaisieVehiculeButton() {
           )}
 
           <form onSubmit={submit} className="grid gap-3.5 sm:grid-cols-2 mt-1">
-            {/* 1. Sélection du véhicule : UNIQUEMENT l'immatriculation avec séparation En service / Restitué */}
+            {/* 1. Sélection du véhicule : Label indépendant + Filtres & Tri pleine largeur */}
             <div className="sm:col-span-2 space-y-1.5">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wide shrink-0">
-                  Véhicule concerné <span className="text-destructive">*</span>
-                </label>
+              <label className="block text-xs font-bold text-foreground uppercase tracking-wide">
+                Véhicule concerné <span className="text-destructive">*</span>
+              </label>
 
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Onglets Filtre par Groupe Monday */}
-                  <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setGroupFilter('all')}
-                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
-                        groupFilter === 'all'
-                          ? 'bg-background text-foreground shadow-xs font-bold'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Tous ({vehicules.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGroupFilter('active')}
-                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                        groupFilter === 'active'
-                          ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 shadow-xs font-bold'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="Afficher uniquement les véhicules en service"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      En service ({countActive})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGroupFilter('restitue')}
-                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                        groupFilter === 'restitue'
-                          ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 shadow-xs font-bold'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="Afficher uniquement les véhicules restitués"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                      Restitués ({countRestitue})
-                    </button>
-                  </div>
+              <div className="flex items-center justify-between gap-2 w-full">
+                {/* Onglets Filtre par Groupe Monday */}
+                <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setGroupFilter('all')}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                      groupFilter === 'all'
+                        ? 'bg-background text-foreground shadow-xs font-bold'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Tous {loadingV ? '' : `(${vehicules.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGroupFilter('active')}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      groupFilter === 'active'
+                        ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 shadow-xs font-bold'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    title="Afficher uniquement les véhicules en service"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    En service {loadingV ? '' : `(${countActive})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGroupFilter('restitue')}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      groupFilter === 'restitue'
+                        ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 shadow-xs font-bold'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    title="Afficher uniquement les véhicules restitués"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Restitués {loadingV ? '' : `(${countRestitue})`}
+                  </button>
+                </div>
 
-                  {/* Toggle Tri */}
-                  <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setSortMode('immat')}
-                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
-                        sortMode === 'immat'
-                          ? 'bg-background text-primary shadow-xs font-bold'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="Trier par plaque d'immatriculation A-Z"
-                    >
-                      A-Z
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSortMode('flotte')}
-                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
-                        sortMode === 'flotte'
-                          ? 'bg-background text-primary shadow-xs font-bold'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="Trier par numéro de flotte (1, 2, ... 10)"
-                    >
-                      N° Flotte
-                    </button>
-                  </div>
+                {/* Toggle Tri */}
+                <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('immat')}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                      sortMode === 'immat'
+                        ? 'bg-background text-primary shadow-xs font-bold'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    title="Trier par plaque d'immatriculation A-Z"
+                  >
+                    A-Z
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('flotte')}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                      sortMode === 'flotte'
+                        ? 'bg-background text-primary shadow-xs font-bold'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    title="Trier par numéro de flotte (#1, #2, ... #10)"
+                  >
+                    N° Flotte
+                  </button>
                 </div>
               </div>
 

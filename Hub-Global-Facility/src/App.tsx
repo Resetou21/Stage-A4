@@ -560,6 +560,18 @@ export default function App() {
   useEffect(() => {
     loadLiveStats();
 
+    // Restauration de la vue active via Monday storage
+    try {
+      if (monday?.storage?.instance?.getItem) {
+        monday.storage.instance.getItem('hub_global_active_view').then((res: any) => {
+          const v = res?.data?.value as ViewId;
+          if (v && VALID_VIEWS.includes(v)) {
+            setCurrentView(v);
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+
     // Pont bidirectionnel transparent Monday SDK (reprise exacte du commit 4662344) :
     // Relaye les requêtes postMessage du sous-hub affiché vers Monday parent,
     // et renvoie les réponses de Monday au sous-hub !
@@ -650,6 +662,9 @@ export default function App() {
     try {
       localStorage.setItem('hub_global_active_view', view);
       sessionStorage.setItem('hub_global_active_view', view);
+      if (monday?.storage?.instance?.setItem) {
+        monday.storage.instance.setItem('hub_global_active_view', view).catch(() => {});
+      }
       if (window.history && window.history.replaceState) {
         window.history.replaceState(null, '', view === 'home' ? window.location.pathname : `#${view}`);
       }
