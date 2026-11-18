@@ -19,6 +19,7 @@ import {
   User,
   ShieldCheck,
   Layers,
+  ArrowLeft,
   ArrowRight,
   ExternalLink,
   Phone,
@@ -1017,57 +1018,300 @@ export default function App() {
       </header>
 
       {/* ============================================================== */}
-      {/* 2. FIL D'ARIANE (BREADCRUMB)                                  */}
+      {/* 2. BARRE CONTEXTUELLE UNIQUE (FUSIONNÉE & ULTRA CLEAN)        */}
       {/* ============================================================== */}
-      {currentView !== 'home' && activeSubItem && (
+      {currentView !== 'home' && (
         <div
           style={{
-            height: '36px',
+            height: '46px',
             backgroundColor: '#FFFFFF',
             borderBottom: '1px solid #E2E8F0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 20px',
-            fontSize: '12px',
             flexShrink: 0,
-            color: '#64748B',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
-              onClick={() => handleNavigate('home')}
-              style={{ cursor: 'pointer', fontWeight: 600, color: '#0284C7' }}
-            >
-              Accueil
-            </span>
-            <ChevronRight size={13} color="#94A3B8" />
-            <span style={{ fontWeight: 600, color: activeSubItem.pole.accentColor }}>
-              {activeSubItem.pole.label}
-            </span>
-            <ChevronRight size={13} color="#94A3B8" />
-            <span style={{ fontWeight: 700, color: '#0F172A' }}>
-              {activeSubItem.item.title}
-            </span>
+          {/* CÔTÉ GAUCHE : Bouton retour direct + Séparateur + Titre & Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Bouton Retour contextuel */}
+            {(() => {
+              const isAnimatrice =
+                currentView === 'secteur_natacha' ||
+                currentView === 'secteur_ketty' ||
+                currentView === 'secteur_emilie';
+              const backTarget: ViewId = isAnimatrice ? 'secteur_global' : 'home';
+              const backLabel = isAnimatrice ? 'Supervision Globale' : 'Accueil';
+
+              return (
+                <button
+                  type="button"
+                  onClick={() => handleNavigate(backTarget)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '5px 12px',
+                    borderRadius: '8px',
+                    backgroundColor: '#F8FAFC',
+                    color: '#475569',
+                    border: '1px solid #E2E8F0',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F1F5F9';
+                    e.currentTarget.style.borderColor = '#CBD5E1';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F8FAFC';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
+                  }}
+                >
+                  <ArrowLeft size={13} />
+                  <span>{backLabel}</span>
+                </button>
+              );
+            })()}
+
+            {/* Séparateur vertical fin */}
+            <div style={{ width: '1px', height: '18px', backgroundColor: '#E2E8F0' }} />
+
+            {/* Titre et badges de la vue actuelle */}
+            {(() => {
+              if (
+                currentView === 'secteur_natacha' ||
+                currentView === 'secteur_ketty' ||
+                currentView === 'secteur_emilie'
+              ) {
+                const animKey =
+                  currentView === 'secteur_natacha'
+                    ? 'Natacha'
+                    : currentView === 'secteur_ketty'
+                    ? 'Ketty'
+                    : 'Emilie';
+                const animFullName =
+                  currentView === 'secteur_natacha'
+                    ? 'Natacha THOMAS'
+                    : currentView === 'secteur_ketty'
+                    ? 'Ketty PAULIN'
+                    : 'Emilie TOBIE';
+                const animInitials =
+                  currentView === 'secteur_natacha'
+                    ? 'NT'
+                    : currentView === 'secteur_ketty'
+                    ? 'KP'
+                    : 'ET';
+                const chantiersCount = stats.chantiersParAnim[animKey];
+                const satPct = stats.visitesParAnim[animKey]?.pct || 0;
+
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        backgroundColor: '#E0F2FE',
+                        color: '#0369A1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                      }}
+                    >
+                      {animInitials}
+                    </div>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                      Secteur {animFullName}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#0073EA',
+                        backgroundColor: '#EBF6FC',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● {chantiersCount} chantiers en cours
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#00C875',
+                        backgroundColor: '#E6F9F1',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● {satPct}% satisfaction (2026)
+                    </span>
+                  </div>
+                );
+              }
+
+              if (currentView === 'secteur_global') {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Building2 size={15} color="#0073EA" />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                      Supervision Globale (Tous Secteurs)
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#0073EA',
+                        backgroundColor: '#EBF6FC',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● {stats.chantiersActifs} chantiers en cours
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#00C875',
+                        backgroundColor: '#E6F9F1',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● {stats.tauxSatisfactionGlobal}% satisfaction 2026
+                    </span>
+                  </div>
+                );
+              }
+
+              if (currentView === 'atelier_erp') {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Wrench size={15} color="#00C875" />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                      ERP Parc Matériel & Atelier
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#00C875',
+                        backgroundColor: '#E6F9F1',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● {stats.machinesTotal} machines réelles
+                    </span>
+                  </div>
+                );
+              }
+
+              if (currentView === 'atelier_vehicules') {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Truck size={15} color="#0284C7" />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                      Hub de Christine — Facturation Véhicules & Énergie
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#0284C7',
+                        backgroundColor: '#E0F2FE',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● TotalEnergies, Chargemap, Wellborne & Réparations
+                    </span>
+                  </div>
+                );
+              }
+
+              // Autres vues
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                    {activeSubItem?.item.title || 'Section'}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* CÔTÉ DROIT : Synchro Monday + Plein Écran */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
               style={{
                 fontSize: '11px',
                 fontWeight: 700,
                 color: '#00C875',
                 backgroundColor: '#E6F9F1',
-                padding: '2px 8px',
+                padding: '3px 10px',
                 borderRadius: '10px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
               }}
             >
-              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00C875' }} />
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: '#00C875',
+                }}
+              />
               <span>Données Monday.com Synchronisées {lastSyncTime ? `(${lastSyncTime})` : ''}</span>
             </span>
+
+            {(currentView === 'secteur_natacha' ||
+              currentView === 'secteur_ketty' ||
+              currentView === 'secteur_emilie' ||
+              currentView === 'atelier_erp' ||
+              currentView === 'atelier_vehicules') && (
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title="Basculer en plein écran natif dans Monday"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 12px',
+                  borderRadius: '7px',
+                  backgroundColor: '#0073EA',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0, 115, 234, 0.25)',
+                  transition: 'background-color 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#0060C0';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#0073EA';
+                }}
+              >
+                <Maximize2 size={12} />
+                <span>Plein Écran</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2090,104 +2334,14 @@ export default function App() {
               const iframeSrc = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}`;
 
               return (
-                <>
-                  <div
-                    style={{
-                      height: '44px',
-                      backgroundColor: '#FFFFFF',
-                      borderBottom: '1px solid #E2E8F0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0 20px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
-                        Hub Secteur • {animFullName}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          color: '#0073EA',
-                          backgroundColor: '#EBF6FC',
-                          padding: '2px 8px',
-                          borderRadius: '10px',
-                        }}
-                      >
-                        ● {chantiersCount} chantiers en cours
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          color: '#00C875',
-                          backgroundColor: '#E6F9F1',
-                          padding: '2px 8px',
-                          borderRadius: '10px',
-                        }}
-                      >
-                        ● {satPct}% satisfaction
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleNavigate('secteur_global')}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '5px 12px',
-                          borderRadius: '6px',
-                          backgroundColor: '#F1F5F9',
-                          color: '#475569',
-                          border: '1px solid #CBD5E1',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Building2 size={12} />
-                        <span>Retour Supervision Globale</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={toggleFullscreen}
-                        title="Basculer en plein écran natif dans Monday"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '5px 12px',
-                          borderRadius: '6px',
-                          backgroundColor: '#0073EA',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Maximize2 size={12} />
-                        <span>Plein Écran</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <iframe
-                    ref={activeIframeRef}
-                    key={animKey}
-                    src={iframeSrc}
-                    title={`Hub Secteur ${animFullName}`}
-                    style={{ flex: 1, width: '100%', height: 'calc(100% - 44px)', border: 'none' }}
-                    allow="clipboard-write; fullscreen; camera; microphone"
-                  />
-                </>
+                <iframe
+                  ref={activeIframeRef}
+                  key={animKey}
+                  src={iframeSrc}
+                  title={`Hub Secteur ${animFullName}`}
+                  style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+                  allow="clipboard-write; fullscreen; camera; microphone"
+                />
               );
             })()}
           </div>
@@ -2198,40 +2352,11 @@ export default function App() {
         {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_erp' && (
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '14px 20px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>ERP Parc Matériel & Atelier</span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#00C875', backgroundColor: '#E6F9F1', padding: '2px 8px', borderRadius: '10px' }}>
-                  ● {stats.machinesTotal} machines réelles
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                title="Basculer en plein écran natif dans Monday"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: '#00C875',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                <Maximize2 size={13} />
-                <span>Plein Écran</span>
-              </button>
-            </div>
             <iframe
               ref={activeIframeRef}
               src={URL_ATELIER_ERP}
               title="ERP Parc Matériel & Machines"
-              style={{ flex: 1, width: '100%', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
           </div>
@@ -2241,52 +2366,12 @@ export default function App() {
         {/* VUE 5 : HUB DE CHRISTINE — FACTURATION VÉHICULES & ÉNERGIE   */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_vehicules' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 108px)', display: 'flex', flexDirection: 'column' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 24px',
-                backgroundColor: '#FFFFFF',
-                borderBottom: '1px solid #E2E8F0',
-                height: '44px',
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
-                  Hub de Christine — Facturation Véhicules & Énergie
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>
-                  • TotalEnergies (15/30), Chargemap, Bornes Wellborne et Réparations
-                </span>
-              </div>
-              <button
-                onClick={toggleFullscreen}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#0F172A',
-                  backgroundColor: '#F1F5F9',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '6px',
-                  padding: '5px 12px',
-                  cursor: 'pointer',
-                }}
-              >
-                <Maximize2 size={13} />
-                <span>Plein Écran</span>
-              </button>
-            </div>
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
               src={`${URL_CHRISTINE_HUB}?v=20267872_v4&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
-              style={{ flex: 1, width: '100%', height: 'calc(100% - 44px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
           </div>
