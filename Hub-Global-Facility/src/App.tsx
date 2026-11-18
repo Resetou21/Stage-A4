@@ -49,6 +49,7 @@ export type ViewId =
   | 'atelier_erp'
   | 'atelier_vehicules'
   | 'atelier_fournisseurs'
+  | 'comm_lea'
   | 'comm_terrain'
   | 'comm_alertes'
   | 'commercial_contrats'
@@ -162,15 +163,15 @@ const POLES: PoleMenu[] = [
     poleIcon: MessageSquare,
     accentColor: '#8B5CF6',
     bgLight: '#F3E8FF',
-    description: 'Transmission inter-services, coordination atelier et alertes',
+    description: 'Transmission inter-services, contacts chantiers et alertes',
     items: [
       {
-        id: 'comm_terrain',
-        title: 'Fil d’Actualités & Messages Terrain',
-        badge: 'Coordination',
+        id: 'comm_lea',
+        title: 'Hub de Léa (Communication & Contacts)',
+        badge: 'Hub Déployé',
         badgeColor: '#8B5CF6',
-        description: 'Échanges en temps réel avec les chefs d’équipe et l’atelier',
-        icon: MessageSquare,
+        description: 'Export des contacts clients (interlocuteurs, adresses mails) du tableau chantiers',
+        icon: Users,
       },
       {
         id: 'comm_alertes',
@@ -206,6 +207,7 @@ const POLES: PoleMenu[] = [
 const URL_SECTEUR_HUB = 'https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.app';
 const URL_ATELIER_ERP = 'https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app';
 const URL_CHRISTINE_HUB = 'https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app';
+const URL_LEA_HUB = 'https://vc46f6a20b04c2258a7807255aa0fa8f5.cdn2.monday.app';
 
 // ==========================================
 // COMPOSANT PRINCIPAL DU PORTAIL GLOBAL
@@ -219,6 +221,7 @@ const VALID_VIEWS: ViewId[] = [
   'atelier_erp',
   'atelier_vehicules',
   'atelier_fournisseurs',
+  'comm_lea',
   'comm_alertes',
   'commercial_contrats',
 ];
@@ -1301,6 +1304,29 @@ export default function App() {
                 );
               }
 
+              if (currentView === 'comm_lea') {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Users size={15} color="#8B5CF6" />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                      Hub de Léa — Communication & Contacts Clients
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#8B5CF6',
+                        backgroundColor: '#F3E8FF',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● Export Excel contacts chantiers
+                    </span>
+                  </div>
+                );
+              }
+
               // Autres vues
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1343,7 +1369,8 @@ export default function App() {
               currentView === 'secteur_ketty' ||
               currentView === 'secteur_emilie' ||
               currentView === 'atelier_erp' ||
-              currentView === 'atelier_vehicules') && (
+              currentView === 'atelier_vehicules' ||
+              currentView === 'comm_lea') && (
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -2433,6 +2460,21 @@ export default function App() {
               ref={activeIframeRef}
               src={`${URL_CHRISTINE_HUB}?v=20267872_v6&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
+              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              allow="clipboard-write; fullscreen; camera; microphone"
+            />
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* VUE : HUB DE LÉA — COMMUNICATION & CONTACTS CLIENTS           */}
+        {/* ------------------------------------------------------------ */}
+        {currentView === 'comm_lea' && (
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+            <iframe
+              ref={activeIframeRef}
+              src={`${URL_LEA_HUB}?v=18946593&ts=${refreshKey}`}
+              title="Hub de Léa — Communication & Contacts Clients"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />

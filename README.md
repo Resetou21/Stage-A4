@@ -31,6 +31,11 @@ Stage-A4/
 │   ├── package.json
 │   └── vite.config.ts
 │
+├── 📁 Hub-Lea/                        👉 Application 5 : Hub Communication & Contacts Clients (Léa)
+│   ├── 📁 src/
+│   ├── package.json
+│   └── vite.config.ts
+│
 └── 📄 README.md                       👉 Documentation générale
 ```
 
@@ -94,6 +99,20 @@ Hub de gestion comptable, facturation carburant, bornes électriques et maintena
 | **App ID Monday** | `12742359` |
 | **Version CDN** | `20267872` |
 | **URL de Production Live** | [Hub Christine](https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app) |
+
+---
+
+### 5. Hub Communication & Contacts Clients Léa (`/Hub-Lea`)
+Application dédiée à la communication et aux relations clients (Léa Gosselin) :
+* **Export Sécurisé des Contacts Clients** : Extraction directe des colonnes `INTERLOCUTEUR` et `ADRESSE MAIL` depuis le *Tableau complet chantier* (`1976599627`).
+* **Génération Native Excel (.xlsx)** : Téléchargement instantané au format Excel propre et structuré (`contacts-clients-YYYY-MM-DD.xlsx`).
+* **Traçabilité & Historique** : Mémorisation du dernier téléchargement, horodatage et compteur dynamique des contacts exportés.
+
+| Paramètre | Valeur |
+| :--- | :--- |
+| **App ID Monday** | `12418621` |
+| **Version CDN** | `18946593` |
+| **URL de Production Live** | [Hub de Léa](https://vc46f6a20b04c2258a7807255aa0fa8f5.cdn2.monday.app) |
 
 ---
 
