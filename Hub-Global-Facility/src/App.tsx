@@ -2416,7 +2416,7 @@ export default function App() {
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
-              src={URL_ATELIER_ERP}
+              src={`${URL_ATELIER_ERP}?v=20004306_v2&ts=${refreshKey}`}
               title="ERP Parc Matériel & Machines"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
@@ -2431,7 +2431,7 @@ export default function App() {
           <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
-              src={`${URL_CHRISTINE_HUB}?v=20267872_v4&ts=${refreshKey}`}
+              src={`${URL_CHRISTINE_HUB}?v=20267872_v6&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"

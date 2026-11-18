@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
-import { createSaisieVehicule, getVehicules, getSaisieFormOptions, type VehiculeItem } from '@generated/server/vehicules';
+import { createSaisieVehicule, getVehicules, getSaisieFormOptions, registerMondayDropdownLabel, type VehiculeItem } from '@generated/server/vehicules';
 import { monday } from '@api/mondayApi';
 
 const DEFAULT_FOURNISSEURS = [
@@ -258,9 +258,11 @@ export default function SaisieVehiculeButton() {
         setFournisseurs(updated);
         try { localStorage.setItem('hub_christine_fournisseurs', JSON.stringify(updated)); } catch {}
         try { monday?.storage?.instance?.setItem('hub_christine_fournisseurs', JSON.stringify(updated)).catch(() => {}); } catch {}
+        // Enregistre instantanément la nouvelle étiquette sur le tableau Monday
+        registerMondayDropdownLabel({ data: { type: 'fournisseur', label: cleanUpper } }).catch(() => {});
       }
       setF((p) => ({ ...p, fournisseur: cleanUpper }));
-      toast.success(`Fournisseur « ${cleanUpper} » ajouté aux favoris`);
+      toast.success(`Fournisseur « ${cleanUpper} » ajouté aux favoris et sur Monday`);
     } else if (type === 'prestation') {
       if (!prestations.includes(trimmed)) {
         const updated = [...prestations, trimmed].sort((a, b) =>
@@ -268,6 +270,8 @@ export default function SaisieVehiculeButton() {
         );
         setPrestations(updated);
         localStorage.setItem('hub_christine_prestations', JSON.stringify(updated));
+        // Enregistre instantanément la nouvelle prestation sur Monday
+        registerMondayDropdownLabel({ data: { type: 'prestation', label: trimmed } }).catch(() => {});
       }
       setF((p) => ({ ...p, prestation: trimmed }));
       toast.success(`Prestation « ${trimmed} » ajoutée`);

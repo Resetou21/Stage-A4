@@ -219,6 +219,50 @@ export const getSaisieFormOptions = createServerFn({ method: 'GET' })
     }
   });
 
+// Enregistre instantanément une nouvelle étiquette dans la colonne Monday dès qu'elle est créée dans le sélecteur
+export const registerMondayDropdownLabel = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    type: z.enum(['fournisseur', 'prestation']),
+    label: z.string().min(1),
+  }))
+  .handler(async ({ data }) => {
+    try {
+      const colId = data.type === 'fournisseur' ? 'dropdown_mm0rw6zg' : 'dropdown_mm0r2vyg';
+      const colVals = JSON.stringify({ [colId]: { labels: [data.label.trim()] } });
+
+      const board = new DataSurVehiculeBoard();
+      const createRes = (await board.executeGraphQL(`
+        mutation CreateTempLabel($vals: JSON!) {
+          create_item(
+            board_id: 5092124669,
+            item_name: "SYNC_LABEL",
+            column_values: $vals,
+            create_labels_if_missing: true
+          ) {
+            id
+          }
+        }
+      `, { vals: colVals })) as any;
+
+      const createdId = createRes?.create_item?.id;
+      if (createdId) {
+        await board.executeGraphQL(`
+          mutation DeleteTempLabel($itemId: ID!) {
+            delete_item(item_id: $itemId) {
+              id
+            }
+          }
+        `, { itemId: createdId });
+      }
+
+      invalidateSaisieOptionsCache();
+      return { success: true };
+    } catch (e) {
+      console.error('Erreur registerMondayDropdownLabel:', e);
+      return { success: false };
+    }
+  });
+
 // Création d'une nouvelle saisie véhicule avec date et montant obligatoires
 export const createSaisieVehicule = createServerFn({ method: 'POST' })
   .validator(z.object({
