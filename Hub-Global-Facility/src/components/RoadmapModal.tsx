@@ -93,6 +93,19 @@ export default function RoadmapModal({
   const [description, setDescription] = useState('');
   const [priorite, setPriorite] = useState<'1 (Urgent)' | '2 (Normal)' | '3 (Basse)'>('2 (Normal)');
 
+  // Plage de temps souhaitée pour le diagramme de Gantt
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const defaultEndIso = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const [dateDebut, setDateDebut] = useState(todayIso);
+  const [dateFin, setDateFin] = useState(defaultEndIso);
+
+  const handlePresetTimeline = (days: number) => {
+    const start = new Date().toISOString().slice(0, 10);
+    const end = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+    setDateDebut(start);
+    setDateFin(end);
+  };
+
   // Synchronisation onglet initial
   useEffect(() => {
     if (isOpen) {
@@ -130,10 +143,11 @@ export default function RoadmapModal({
           if (cv.id && cv.text) valMap.set(cv.id, cv.text);
         });
 
+        const authorFromCol = valMap.get('dropdown_mm978xpa') || '';
         const rawDesc = valMap.get('short_text2v8w5gvp') || '';
-        let author = '';
+        let author = authorFromCol;
         let cleanDesc = rawDesc;
-        if (rawDesc.startsWith('Demandé par :')) {
+        if (!author && rawDesc.startsWith('Demandé par :')) {
           const parts = rawDesc.split('|');
           author = parts[0].replace('Demandé par :', '').trim();
           cleanDesc = parts.slice(1).join('|').trim();
@@ -225,26 +239,37 @@ export default function RoadmapModal({
       const typeObj = TYPE_OPTIONS.find((t) => t.id === typeDemande);
       const formattedTitle = `[${typeObj?.label.split('/')[0].trim() || 'Demande'}] ${titre.trim()}`;
 
-      // Auteur automatiquement injecté via currentUserName
+      // Auteur automatiquement injecté via la colonne dédiée "Personne concerné"
       const senderName = currentUserName && currentUserName !== 'Utilisateur' ? currentUserName.trim() : 'Collaborateur';
-      const fullDesc = `Demandé par : ${senderName} | ${description.trim()}`;
+      const cleanDesc = description.trim(); // Texte propre dans court texte
 
       const todayIso = new Date().toISOString().slice(0, 10);
 
-      const colVals = JSON.stringify({
-        short_text2v8w5gvp: fullDesc,
+      const colValsObj: any = {
+        short_text2v8w5gvp: cleanDesc,
+        dropdown_mm978xpa: { labels: [senderName] },
         color_mm7yntfh: { label: priorite },
         status: { label: 'En cours' },
         date_mm7yphvc: { date: todayIso },
         multi_selectp70jvoio: { labels: [poleConcerne] },
-      });
+      };
+
+      if (dateDebut && dateFin) {
+        colValsObj.timerange_mm7wqn4x = {
+          from: dateDebut,
+          to: dateFin >= dateDebut ? dateFin : dateDebut,
+        };
+      }
+
+      const colVals = JSON.stringify(colValsObj);
 
       const mutation = `mutation ($name: String!, $colVals: JSON!) {
         create_item(
           board_id: ${BOARD_ROADMAP_ID},
           group_id: "${GROUP_TODO_ID}",
           item_name: $name,
-          column_values: $colVals
+          column_values: $colVals,
+          create_labels_if_missing: true
         ) {
           id
           name
@@ -262,6 +287,8 @@ export default function RoadmapModal({
       setSuccessSent(true);
       setTitre('');
       setDescription('');
+      setDateDebut(new Date().toISOString().slice(0, 10));
+      setDateFin(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
 
       // Recharger la liste
       await loadRoadmap();
@@ -849,6 +876,91 @@ export default function RoadmapModal({
                     </div>
                   </div>
 
+                  {/* Plage de temps souhaitée (Timeline / Gantt automatique) */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        Plage de temps souhaitée (Gantt)
+                      </label>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {[
+                          { label: 'Sous 7j', days: 7 },
+                          { label: 'Sous 15j', days: 15 },
+                          { label: 'Ce mois-ci', days: 30 },
+                        ].map((preset) => (
+                          <button
+                            type="button"
+                            key={preset.label}
+                            onClick={() => handlePresetTimeline(preset.days)}
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              backgroundColor: '#FFFFFF',
+                              color: '#0284C7',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', color: '#64748B', fontWeight: 700, marginBottom: '3px' }}>
+                          DATE DE DÉBUT
+                        </span>
+                        <input
+                          type="date"
+                          value={dateDebut}
+                          onChange={(e) => setDateDebut(e.target.value)}
+                          style={{
+                            width: '100%',
+                            height: '38px',
+                            padding: '0 10px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #CBD5E1',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', color: '#64748B', fontWeight: 700, marginBottom: '3px' }}>
+                          DATE D'ÉCHÉANCE / FIN
+                        </span>
+                        <input
+                          type="date"
+                          value={dateFin}
+                          onChange={(e) => setDateFin(e.target.value)}
+                          style={{
+                            width: '100%',
+                            height: '38px',
+                            padding: '0 10px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #CBD5E1',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#64748B', fontStyle: 'italic' }}>
+                      Alimente automatiquement le diagramme de Gantt Monday.com pour planifier la livraison.
+                    </p>
+                  </div>
+
                   {/* Bouton de validation */}
                   <div style={{ marginTop: '6px' }}>
                     <button
@@ -1295,8 +1407,19 @@ export default function RoadmapModal({
                           )}
 
                           {item.timeline && (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <Calendar size={11} /> Prévu : {item.timeline}
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#6366F1',
+                                backgroundColor: '#EEF2FF',
+                                padding: '1px 7px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              <Calendar size={11} /> Gantt : {item.timeline}
                             </span>
                           )}
                         </div>
