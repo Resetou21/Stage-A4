@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react";
-import { Loader2, Plus, Check, Sparkles, Car } from 'lucide-react';
+import { Loader2, Plus, Check, Sparkles, Car, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
@@ -39,6 +39,7 @@ export default function SaisieVehiculeButton() {
   const [loadingV, setLoadingV] = useState(false);
   const [sortMode, setSortMode] = useState<'immat' | 'flotte'>('immat');
   const [groupFilter, setGroupFilter] = useState<'all' | 'active' | 'restitue'>('all');
+  const [showInfo, setShowInfo] = useState(false);
 
   const countActive = useMemo(() => vehicules.filter((v) => !v.isRestitue).length, [vehicules]);
   const countRestitue = useMemo(() => vehicules.filter((v) => v.isRestitue).length, [vehicules]);
@@ -262,27 +263,52 @@ export default function SaisieVehiculeButton() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[95vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Nouvelle saisie véhicule
+            <DialogTitle className="flex items-center justify-between text-xl font-bold pr-6">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <span>Nouvelle saisie véhicule</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfo(!showInfo)}
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors cursor-pointer ${
+                  showInfo
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                }`}
+                title="À qui sert cette saisie et sur quel Hub ? (cliquer pour afficher/masquer)"
+                aria-label="Informations sur la saisie"
+              >
+                <Info className="h-4 w-4" />
+              </button>
             </DialogTitle>
           </DialogHeader>
 
-          {/* Encadré d'information : À qui sert cette saisie et sur quel hub */}
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground leading-relaxed mt-1">
-            <div className="flex items-center gap-2 font-bold text-foreground mb-1">
-              <span className="text-primary text-sm">💡</span>
-              <span>À qui sert cette saisie et sur quel Hub ?</span>
+          {/* Encadré d'information compact (dépliable uniquement au clic sur le bouton (i)) */}
+          {showInfo && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground leading-relaxed animate-in fade-in-0 duration-150">
+              <div className="flex items-center justify-between font-bold text-foreground mb-1">
+                <span className="flex items-center gap-1.5 text-primary">
+                  <Info className="h-4 w-4" /> À qui sert cette saisie et sur quel Hub ?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowInfo(false)}
+                  className="text-muted-foreground hover:text-foreground text-xs cursor-pointer px-1"
+                >
+                  ✕
+                </button>
+              </div>
+              <p>
+                Toute facture ou dépense enregistrée ici est transmise directement au tableau <strong>Data sur véhicule (5092124669)</strong>.
+                Elle est automatiquement partagée avec le <strong>Hub Facturation de Christine</strong>, le <strong>Suivi de Parc de Vincent</strong> (cartes & badges), et l'<strong>ERP Atelier de Christophe</strong> en cas d'intervention mécanique.
+              </p>
             </div>
-            <p>
-              Toute facture ou dépense enregistrée ici est transmise directement au tableau <strong>Data sur véhicule (5092124669)</strong>.
-              Elle est automatiquement partagée avec le <strong>Hub Facturation de Christine</strong>, le <strong>Suivi de Parc de Vincent</strong> (cartes & badges), et l'<strong>ERP Atelier de Christophe</strong> en cas d'intervention mécanique.
-            </p>
-          </div>
+          )}
 
-          <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 mt-2">
+          <form onSubmit={submit} className="grid gap-3.5 sm:grid-cols-2 mt-1">
             {/* 1. Sélection du véhicule : UNIQUEMENT l'immatriculation avec séparation En service / Restitué */}
             <div className="sm:col-span-2 space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
