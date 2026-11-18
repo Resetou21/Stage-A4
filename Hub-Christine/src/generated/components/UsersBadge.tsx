@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, ShieldCheck, CheckCircle2, Building, ArrowRight, UserCheck } from 'lucide-react';
+import { Users, ShieldCheck, CheckCircle2, Building, ArrowRight, UserCheck, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 
 interface Props {
@@ -162,6 +162,8 @@ const BUSINESS_USERS_MAP: Record<number, {
 
 export default function UsersBadge({ boardId }: Props) {
   const info = BUSINESS_USERS_MAP[boardId];
+  const [expanded, setExpanded] = useState(false);
+
   if (!info) return null;
 
   return (
@@ -177,30 +179,61 @@ export default function UsersBadge({ boardId }: Props) {
 
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold">
-            <Building className="h-4 w-4 text-primary" />
-            Qui utilise ces données &amp; sur quel Hub ?
+          <DialogTitle className="flex items-center justify-between text-base font-bold pr-6">
+            <div className="flex items-center gap-2">
+              <Building className="h-4 w-4 text-primary" />
+              <span>Qui utilise ces données &amp; sur quel Hub ?</span>
+            </div>
+            {/* Bouton petit (i) pour agrandir / réduire */}
+            <button
+              type="button"
+              onClick={() => setExpanded(!expanded)}
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-all cursor-pointer ${
+                expanded
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+              }`}
+              title={expanded ? "Réduire l'explication" : "Agrandir l'explication (i)"}
+              aria-label="Agrandir ou réduire les informations"
+            >
+              <Info className="h-4 w-4" />
+            </button>
           </DialogTitle>
         </DialogHeader>
 
-        {/* Encadré Hub & Finalité métier */}
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-primary">
-            <ShieldCheck className="h-4 w-4 shrink-0" />
-            <span>Flux : {info.hubTitle}</span>
+        {/* Encadré Hub & Finalité métier - Collapsible avec le bouton (i) */}
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2 transition-all">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-primary min-w-0">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              <span className="truncate">Flux : {info.hubTitle}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExpanded(!expanded)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer shrink-0 ml-2"
+            >
+              <Info className="h-3 w-3" />
+              <span>{expanded ? 'Réduire' : 'Agrandir (i)'}</span>
+              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
           </div>
 
-          <div className="text-xs text-foreground font-semibold">
-            Tableau Monday : <span className="font-bold text-primary">{info.boardName}</span>
-          </div>
+          {expanded && (
+            <div className="space-y-2 pt-2 border-t border-primary/10 animate-in fade-in-0 duration-150">
+              <div className="text-xs text-foreground font-semibold">
+                Tableau Monday : <span className="font-bold text-primary">{info.boardName}</span>
+              </div>
 
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            <strong>Finalité métier :</strong> {info.purpose}
-          </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <strong>Finalité métier :</strong> {info.purpose}
+              </p>
 
-          <div className="text-[11px] bg-background/80 p-2 rounded-lg border border-border text-foreground">
-            👉 <strong>Fonctionnement :</strong> {info.workflow}
-          </div>
+              <div className="text-[11px] bg-background/80 p-2 rounded-lg border border-border text-foreground">
+                👉 <strong>Fonctionnement :</strong> {info.workflow}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Liste des vrais acteurs métiers */}
