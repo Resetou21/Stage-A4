@@ -19,9 +19,9 @@ export default function NewTopic() {
       await addMeetingTopic({ data: { topic } });
       setText('');
       setOpen(false);
-      setMsg({ ok: true, text: '✓ Sujet ajouté dans « A faire » !' });
+      setMsg({ ok: true, text: '✓ Sujet ajouté avec succès !' });
       toast.success('Sujet ajouté avec succès !', {
-        description: `« ${topic} » est prêt dans « A faire » pour la prochaine réunion d'associés.`,
+        description: `« ${topic} » a été ajouté pour la réunion d'associés.`,
       });
       setTimeout(() => {
         setMsg(null);
