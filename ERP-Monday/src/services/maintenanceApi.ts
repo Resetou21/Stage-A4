@@ -3286,6 +3286,9 @@ export interface MaintenanceAlertMessage {
   machineName?: string;
   direction: 'to_atelier' | 'to_secteur' | 'other';
   senderLabel?: string;
+  fileUrl?: string;
+  fileName?: string;
+  isImage?: boolean;
 }
 
 export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[]> {
@@ -3296,14 +3299,26 @@ export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[
           items {
             id
             name
+            created_at
             group {
               id
               title
             }
-            column_values(ids: ["color_mkzat86a", "board_relation_mkwrnhwg", "date_mkwrkqy5", "boolean_mkwrnzkb"]) {
+            column_values(ids: ["color_mkzat86a", "board_relation_mkwrnhwg", "date_mkwrkqy5", "boolean_mkwrnzkb", "file_mm98hfng"]) {
               id
               text
               value
+              ... on FileValue {
+                files {
+                  ... on FileAssetValue {
+                    name
+                    asset {
+                      url
+                      public_url
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -3329,10 +3344,42 @@ export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[
 
       const person = getCol('color_mkzat86a');
       const clientOrMachine = getCol('board_relation_mkwrnhwg');
-      const dateStr = getCol('date_mkwrkqy5') || '';
+      const dateStr = getCol('date_mkwrkqy5') || it.created_at?.split('T')[0] || '';
       const title = String(it.name || '');
       const titleLower = title.toLowerCase();
       const personLower = person.toLowerCase();
+
+      // Récupération pièce jointe / photo éventuelle (colonne file_mm98hfng)
+      let fileUrl = '';
+      let fileName = '';
+      let isImage = false;
+      const fileCol = it.column_values?.find((c: any) => c.id === 'file_mm98hfng');
+      if (fileCol) {
+        if (fileCol.files && fileCol.files.length > 0) {
+          const first = fileCol.files[0];
+          fileName = first.name || '';
+          fileUrl = first.asset?.public_url || first.asset?.url || fileCol.text || '';
+        } else if (fileCol.value) {
+          try {
+            const parsed = JSON.parse(fileCol.value);
+            if (parsed?.files && parsed.files.length > 0) {
+              fileName = parsed.files[0]?.name || '';
+            }
+          } catch {}
+          fileUrl = fileCol.text || '';
+        } else if (fileCol.text) {
+          fileUrl = fileCol.text;
+        }
+      }
+      if (fileUrl) {
+        const cleanName = (fileName || fileUrl).toLowerCase();
+        isImage =
+          cleanName.endsWith('.png') ||
+          cleanName.endsWith('.jpg') ||
+          cleanName.endsWith('.jpeg') ||
+          cleanName.endsWith('.webp') ||
+          cleanName.endsWith('.gif');
+      }
 
       let direction: MaintenanceAlertMessage['direction'] = 'other';
       if (titleLower.startsWith('[parc machines') || titleLower.startsWith('[maintenance')) {
@@ -3354,6 +3401,9 @@ export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[
         person,
         machineName: clientOrMachine || undefined,
         direction,
+        fileUrl: fileUrl || undefined,
+        fileName: fileName || undefined,
+        isImage,
       };
     });
 
@@ -3372,6 +3422,7 @@ export async function sendMaintenanceAlert(params: {
   siteName?: string;
   message: string;
   senderName?: string;
+  file?: File;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
   const todayIso = new Date().toISOString().split('T')[0];
   const prefix = params.senderName ? `[Parc Machines · ${params.senderName}]` : '[Parc Machines]';
@@ -3400,7 +3451,15 @@ export async function sendMaintenanceAlert(params: {
       }
     );
     if (res?.data?.create_item?.id) {
-      return { success: true, id: String(res.data.create_item.id) };
+      const newItemId = String(res.data.create_item.id);
+      if (params.file) {
+        try {
+          await uploadFileToMonday(newItemId, 'file_mm98hfng', params.file);
+        } catch (fErr) {
+          console.warn('Erreur téléversement pièce jointe alerte:', fErr);
+        }
+      }
+      return { success: true, id: newItemId };
     }
     return { success: false, error: formatMondayError(res) };
   } catch (err: any) {

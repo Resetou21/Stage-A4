@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Bell,
   Send,
@@ -16,6 +16,11 @@ import {
   ArrowUpRight,
   Filter,
   CheckCheck,
+  Camera,
+  Paperclip,
+  Image as ImageIcon,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import type { MaintenanceAlertMessage } from '../services/maintenanceApi';
@@ -33,6 +38,7 @@ interface AtelierAlertsSectionProps {
     machineName?: string;
     message: string;
     senderName?: string;
+    file?: File;
   }) => Promise<{ success: boolean; error?: string }>;
   getCol: (item: any, colId: string) => string;
 }
@@ -79,9 +85,37 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
+  // Gestion des pièces jointes / photos (colonne file_mm98hfng)
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const showFeedback = (msg: string) => {
     setActionFeedback(msg);
     setTimeout(() => setActionFeedback(null), 3500);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setAttachedFile(file);
+      if (file.type.startsWith('image/')) {
+        setFilePreview(URL.createObjectURL(file));
+      } else {
+        setFilePreview(null);
+      }
+    }
+  };
+
+  const removeAttachedFile = () => {
+    setAttachedFile(null);
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview);
+      setFilePreview(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSend = async () => {
@@ -92,12 +126,14 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
       machineName: machineContext.trim() || undefined,
       message: messageText.trim(),
       senderName: 'Christophe (Atelier)',
+      file: attachedFile || undefined,
     });
     setIsSending(false);
 
     if (res.success) {
       setMessageText('');
       setMachineContext('');
+      removeAttachedFile();
       showFeedback(`✓ Message transmis en direct au Hub de ${recipient} !`);
       await onRefresh();
     } else {
@@ -510,6 +546,96 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
               <span>{isSending ? 'Transmission...' : 'Envoyer l’alerte'}</span>
             </button>
           </div>
+
+          {/* Bouton Pièce jointe / Photo & Aperçu */}
+          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: '1px dashed #CBD5E1',
+                backgroundColor: '#F8FAFC',
+                color: '#475569',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#EFF6FF';
+                e.currentTarget.style.borderColor = '#93C5FD';
+                e.currentTarget.style.color = '#1D4ED8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#F8FAFC';
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.color = '#475569';
+              }}
+            >
+              <Camera size={14} />
+              <span>{attachedFile ? 'Changer de photo / fichier' : '📷 Ajouter une photo ou un fichier (optionnel)'}</span>
+            </button>
+
+            {attachedFile && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  fontSize: '12px',
+                  color: '#1E40AF',
+                }}
+              >
+                {filePreview ? (
+                  <img
+                    src={filePreview}
+                    alt="Aperçu"
+                    style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <Paperclip size={14} />
+                )}
+                <span style={{ fontWeight: 600, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {attachedFile.name}
+                </span>
+                <span style={{ fontSize: '10px', color: '#6B7280' }}>
+                  ({Math.round(attachedFile.size / 1024)} ko)
+                </span>
+                <button
+                  type="button"
+                  onClick={removeAttachedFile}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    color: '#EF4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Retirer le fichier"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -820,6 +946,74 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                       >
                         {al.title}
                       </div>
+
+                      {/* Pièce jointe / Photo éventuelle */}
+                      {al.fileUrl && (
+                        <div style={{ marginTop: '8px' }}>
+                          {al.isImage ? (
+                            <a
+                              href={al.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '5px 10px',
+                                borderRadius: '8px',
+                                backgroundColor: '#F8FAFC',
+                                border: '1px solid #E2E8F0',
+                                textDecoration: 'none',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title="Cliquer pour afficher la photo en grand"
+                            >
+                              <img
+                                src={al.fileUrl}
+                                alt={al.fileName || 'Photo alerte'}
+                                style={{
+                                  width: '38px',
+                                  height: '38px',
+                                  borderRadius: '6px',
+                                  objectFit: 'cover',
+                                  border: '1px solid #CBD5E1',
+                                }}
+                              />
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <ImageIcon size={12} color="#0073EA" /> {al.fileName || 'Photo jointe'}
+                                </span>
+                                <span style={{ fontSize: '10.5px', color: '#0073EA', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  <ExternalLink size={10} /> Agrandir
+                                </span>
+                              </div>
+                            </a>
+                          ) : (
+                            <a
+                              href={al.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '5px 10px',
+                                borderRadius: '8px',
+                                backgroundColor: '#F1F5F9',
+                                border: '1px solid #CBD5E1',
+                                color: '#1E293B',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                              }}
+                            >
+                              <Paperclip size={13} color="#0073EA" />
+                              <span>{al.fileName || 'Document joint'}</span>
+                              <ExternalLink size={11} color="#64748B" />
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
