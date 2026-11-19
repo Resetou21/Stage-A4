@@ -3286,6 +3286,10 @@ export interface MaintenanceAlertFile {
 export interface MaintenanceAlertMessage {
   id: string;
   title: string;
+  message?: string;
+  context?: string;
+  sender?: string;
+  recipient?: string;
   date: string;
   seen: boolean;
   person: string;
@@ -3429,13 +3433,67 @@ export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[
         direction = 'to_atelier';
       }
 
+      // Extraction propre de l'expéditeur réel, du destinataire, du contexte et du message
+      let cleanMessage = title;
+      let realSender = '';
+      let realRecipient = '';
+      let detectedContext = clientOrMachine || '';
+
+      const normalizeAnimatrice = (name: string): string => {
+        const n = (name || '').toLowerCase();
+        if (n.includes('emilie') || n.includes('émilie')) return 'Émilie TOBIE';
+        if (n.includes('natacha')) return 'Natacha THOMAS';
+        if (n.includes('ketty')) return 'Ketty PAULIN';
+        return name.trim();
+      };
+
+      if (direction === 'to_atelier') {
+        // Message envoyé par une animatrice à Christophe
+        realRecipient = 'Christophe (Atelier)';
+        // Titre attendu: "[Atelier / Christophe] Emilie (Site : 32 RUE DE LA PAIX...) — mon message"
+        const matchAtelier = title.match(/\[(?:Atelier\s*\/\s*Christophe|Atelier)\]\s*([^—\-]+?)\s*[—\-]\s*([\s\S]*)/i);
+        if (matchAtelier) {
+          const senderAndCtx = matchAtelier[1].trim();
+          cleanMessage = matchAtelier[2].trim();
+
+          const ctxMatch = senderAndCtx.match(/^(.*?)\s*\((?:Site\s*:\s*)?(.*?)\)$/i);
+          if (ctxMatch) {
+            realSender = normalizeAnimatrice(ctxMatch[1].trim());
+            if (!detectedContext) detectedContext = ctxMatch[2].trim();
+          } else {
+            realSender = normalizeAnimatrice(senderAndCtx);
+          }
+        }
+        if (!realSender) {
+          if (titleLower.includes('emilie') || titleLower.includes('émilie')) realSender = 'Émilie TOBIE';
+          else if (titleLower.includes('natacha')) realSender = 'Natacha THOMAS';
+          else if (titleLower.includes('ketty')) realSender = 'Ketty PAULIN';
+          else realSender = 'Responsable de Secteur';
+        }
+      } else {
+        // Message envoyé par Christophe vers une animatrice
+        realSender = 'Christophe (Atelier)';
+        realRecipient = normalizeAnimatrice(person || 'Responsable de Secteur');
+        const matchSecteur = title.match(/\[(?:Parc Machines|Maintenance)[^\]]*\]\s*(?:([^—\-]+?)\s*[—\-])?\s*([\s\S]*)/i);
+        if (matchSecteur) {
+          if (matchSecteur[1] && !detectedContext) {
+            detectedContext = matchSecteur[1].trim();
+          }
+          cleanMessage = matchSecteur[2]?.trim() || title;
+        }
+      }
+
       return {
         id: String(it.id),
         title,
+        message: cleanMessage,
+        context: detectedContext || undefined,
+        sender: realSender,
+        recipient: realRecipient,
         date: dateStr,
         seen,
-        person,
-        machineName: clientOrMachine || undefined,
+        person: direction === 'to_atelier' ? realSender : realRecipient,
+        machineName: detectedContext || clientOrMachine || undefined,
         direction,
         files: attachedFiles.length > 0 ? attachedFiles : undefined,
         fileUrl,

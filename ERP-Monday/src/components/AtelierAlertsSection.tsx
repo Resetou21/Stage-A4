@@ -157,12 +157,18 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
   };
 
   const handleReplyTo = (alert: MaintenanceAlertMessage) => {
-    if (alert.person) {
-      setRecipient(alert.person);
+    const isIncoming = alert.direction === 'to_atelier';
+    const targetRecipient = isIncoming ? (alert.sender || alert.person) : (alert.recipient || alert.person);
+    if (targetRecipient) {
+      setRecipient(targetRecipient);
     }
-    const match = alert.title.match(/\[(.*?)\]/);
-    if (match && match[1]) {
-      setMachineContext(match[1]);
+    if (alert.context) {
+      setMachineContext(alert.context);
+    } else {
+      const match = alert.title.match(/\[(.*?)\]/);
+      if (match && match[1]) {
+        setMachineContext(match[1]);
+      }
     }
     const inputEl = document.getElementById('atelier-alert-message-input');
     if (inputEl) {
@@ -185,10 +191,11 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchTitle = al.title.toLowerCase().includes(q);
-        const matchPerson = (al.person || '').toLowerCase().includes(q);
+        const matchTitle = (al.message || al.title).toLowerCase().includes(q);
+        const matchPerson = (al.sender || al.recipient || al.person || '').toLowerCase().includes(q);
+        const matchContext = (al.context || '').toLowerCase().includes(q);
         const matchDate = (al.date || '').toLowerCase().includes(q);
-        if (!matchTitle && !matchPerson && !matchDate) return false;
+        if (!matchTitle && !matchPerson && !matchContext && !matchDate) return false;
       }
 
       return true;
@@ -848,7 +855,11 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
             {filteredAlerts.map((al) => {
               const isIncoming = al.direction === 'to_atelier';
               const isUnread = !al.seen && isIncoming;
-              const avatar = getPersonAvatar(al.person || (isIncoming ? 'Animatrice' : 'Christophe'));
+              const senderDisplayName = al.sender || (isIncoming ? al.person : 'Christophe (Atelier)');
+              const recipientDisplayName = al.recipient || (isIncoming ? 'Christophe (Atelier)' : al.person);
+              const avatarPerson = isIncoming ? senderDisplayName : recipientDisplayName;
+              const avatar = getPersonAvatar(avatarPerson);
+              const messageText = al.message || al.title;
 
               return (
                 <div
@@ -876,11 +887,11 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                 >
                   {/* Partie gauche : Avatar + Contenu */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '300px' }}>
-                    {/* Avatar Initiale */}
+                    {/* Avatar Initiale Dynamique */}
                     <div
                       style={{
-                        width: '40px',
-                        height: '40px',
+                        width: '42px',
+                        height: '42px',
                         borderRadius: '50%',
                         backgroundColor: avatar.bg,
                         color: avatar.text,
@@ -889,25 +900,27 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 900,
-                        fontSize: '13px',
+                        fontSize: '13.5px',
                         flexShrink: 0,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
                       }}
-                      title={al.person || 'Utilisateur'}
+                      title={isIncoming ? `Expéditeur: ${senderDisplayName}` : `Destinataire: ${recipientDisplayName}`}
                     >
                       {avatar.initials}
                     </div>
 
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      {/* Meta badges */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                      {/* Meta badges ultra propres */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
                         <span
                           style={{
                             fontSize: '11px',
                             fontWeight: 800,
-                            padding: '2px 8px',
+                            padding: '2.5px 9px',
                             borderRadius: '6px',
                             backgroundColor: isIncoming ? '#EFF6FF' : '#ECFDF5',
                             color: isIncoming ? '#1D4ED8' : '#047857',
+                            border: isIncoming ? '1px solid #BFDBFE' : '1px solid #A7F3D0',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
@@ -915,14 +928,39 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                         >
                           {isIncoming ? (
                             <>
-                              <ArrowDownLeft size={12} /> Reçue de {al.person || 'Responsable de Secteur'}
+                              <ArrowDownLeft size={12} /> Reçue de <strong>{senderDisplayName}</strong>
                             </>
                           ) : (
                             <>
-                              <ArrowUpRight size={12} /> Envoyée à {al.person || 'Secteur'}
+                              <ArrowUpRight size={12} /> Envoyée à <strong>{recipientDisplayName}</strong>
                             </>
                           )}
                         </span>
+
+                        {/* Badge Contexte / Chantier */}
+                        {al.context && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              backgroundColor: '#F1F5F9',
+                              color: '#334155',
+                              border: '1px solid #CBD5E1',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              maxWidth: '320px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={`Chantier / Machine: ${al.context}`}
+                          >
+                            <Wrench size={11} color="#0073EA" /> {al.context}
+                          </span>
+                        )}
 
                         {al.date && (
                           <span style={{ fontSize: '11px', color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -961,17 +999,17 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                         )}
                       </div>
 
-                      {/* Corps du message */}
+                      {/* Corps du message propre et lisible */}
                       <div
                         style={{
                           fontSize: '13.5px',
                           fontWeight: isUnread ? 800 : 600,
                           color: '#0F172A',
-                          lineHeight: 1.45,
+                          lineHeight: 1.5,
                           wordBreak: 'break-word',
                         }}
                       >
-                        {al.title}
+                        {messageText}
                       </div>
 
                       {/* Photos et pièces jointes (multiples) */}
