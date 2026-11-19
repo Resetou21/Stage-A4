@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Lightbulb,
   PlusCircle,
@@ -19,6 +19,10 @@ import {
   Trash2,
   Check,
   TrendingUp,
+  Paperclip,
+  ExternalLink,
+  UploadCloud,
+  FileText,
 } from 'lucide-react';
 
 export interface RoadmapItem {
@@ -33,6 +37,8 @@ export interface RoadmapItem {
   workspace: string; // 'Animatrices', 'Gros Matos', 'Suivi Vehicules', 'Enchantement client'
   date: string;
   timeline: string;
+  fileUrl?: string;
+  fileName?: string;
 }
 
 interface RoadmapModalProps {
@@ -99,6 +105,67 @@ export default function RoadmapModal({
   const [dateDebut, setDateDebut] = useState(todayIso);
   const [dateFin, setDateFin] = useState(defaultEndIso);
 
+  // Pièce jointe / Document (PDF, Word, Excel, Images...)
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Upload d'un fichier vers Monday via la colonne file_mm7wtnz1
+  const uploadFileToMonday = async (itemId: string | number, file: File): Promise<boolean> => {
+    const mutation = `mutation ($file: File!) {
+      add_file_to_column(item_id: ${itemId}, column_id: "file_mm7wtnz1", file: $file) {
+        id
+        name
+      }
+    }`;
+
+    // 1. Essai via SDK monday.api
+    try {
+      const res: any = await (monday as any).api(mutation, {
+        variables: { file },
+      });
+      if (res?.data?.add_file_to_column?.id) {
+        return true;
+      }
+    } catch (sdkErr) {
+      console.warn('Tentative monday.api échouée pour fichier, fallback fetch:', sdkErr);
+    }
+
+    // 2. Fallback direct via fetch https://api.monday.com/v2/file
+    try {
+      let token = '';
+      try {
+        const sessionRes: any = await (monday as any).get('sessionToken');
+        token = sessionRes?.data || '';
+      } catch {}
+
+      const formData = new FormData();
+      formData.append('query', mutation);
+      formData.append('variables[file]', file);
+
+      const headers: Record<string, string> = {
+        'API-Version': '2024-04',
+      };
+      if (token) {
+        headers['Authorization'] = token;
+      }
+
+      const res = await fetch('https://api.monday.com/v2/file', {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      const json = await res.json();
+      if (json?.data?.add_file_to_column?.id) {
+        return true;
+      }
+    } catch (fetchErr) {
+      console.warn('Erreur fallback fetch /v2/file:', fetchErr);
+    }
+
+    return false;
+  };
+
   const handlePresetTimeline = (days: number) => {
     const start = new Date().toISOString().slice(0, 10);
     const end = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
@@ -128,6 +195,18 @@ export default function RoadmapModal({
               column_values {
                 id
                 text
+                value
+                ... on FileValue {
+                  files {
+                    ... on FileAssetValue {
+                      name
+                      asset {
+                        url
+                        public_url
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -139,8 +218,30 @@ export default function RoadmapModal({
 
       const parsed: RoadmapItem[] = rawItems.map((it: any) => {
         const valMap = new Map<string, string>();
+        let fileUrl = '';
+        let fileName = '';
+
         it.column_values?.forEach((cv: any) => {
           if (cv.id && cv.text) valMap.set(cv.id, cv.text);
+          if (cv.id === 'file_mm7wtnz1') {
+            if (cv.files && cv.files.length > 0) {
+              const f = cv.files[0];
+              fileName = f.name || '';
+              fileUrl = f.asset?.public_url || f.asset?.url || cv.text || '';
+            } else if (cv.value) {
+              try {
+                const parsed = JSON.parse(cv.value);
+                if (parsed?.files && parsed.files.length > 0) {
+                  fileName = parsed.files[0]?.name || '';
+                }
+              } catch {}
+              fileUrl = cv.text || '';
+            } else if (cv.text) {
+              fileUrl = cv.text;
+              const parts = cv.text.split('/');
+              fileName = decodeURIComponent(parts[parts.length - 1] || 'Document joint');
+            }
+          }
         });
 
         const authorFromCol = valMap.get('dropdown_mm978xpa') || '';
@@ -165,6 +266,8 @@ export default function RoadmapModal({
           workspace: valMap.get('multi_selectp70jvoio') || 'Général',
           date: valMap.get('date_mm7yphvc') || '',
           timeline: valMap.get('timerange_mm7wqn4x') || '',
+          fileUrl,
+          fileName,
         };
       });
 
@@ -276,17 +379,29 @@ export default function RoadmapModal({
         }
       }`;
 
-      await monday.api(mutation, {
+      const res: any = await monday.api(mutation, {
         variables: {
           name: formattedTitle,
           colVals,
         },
       });
 
+      const newItemId = res?.data?.create_item?.id;
+
+      // Si une pièce jointe a été sélectionnée, on l'upload directement vers la colonne file_mm7wtnz1
+      if (newItemId && attachedFile) {
+        try {
+          await uploadFileToMonday(newItemId, attachedFile);
+        } catch (upErr) {
+          console.error("Erreur d'upload du document sur Monday :", upErr);
+        }
+      }
+
       // Notification succès
       setSuccessSent(true);
       setTitre('');
       setDescription('');
+      setAttachedFile(null);
       setDateDebut(new Date().toISOString().slice(0, 10));
       setDateFin(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
 
@@ -961,6 +1076,175 @@ export default function RoadmapModal({
                     </p>
                   </div>
 
+                  {/* Pièce jointe / Document (PDF, Word, Excel, Images...) */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: '#334155',
+                        marginBottom: '6px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.4px',
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <Paperclip size={13} color="#0073EA" />
+                        Pièce jointe / Document explicatif (optionnel)
+                      </span>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 600, textTransform: 'none' }}>
+                        PDF, Word (.docx), Excel, Photos jusqu'à 50 Mo
+                      </span>
+                    </label>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      style={{ display: 'none' }}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setAttachedFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+
+                    {!attachedFile ? (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDragging(true);
+                        }}
+                        onDragLeave={() => setIsDragging(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDragging(false);
+                          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                            setAttachedFile(e.dataTransfer.files[0]);
+                          }
+                        }}
+                        style={{
+                          border: isDragging ? '2px dashed #0073EA' : '1.5px dashed #CBD5E1',
+                          backgroundColor: isDragging ? '#EBF6FC' : '#F8FAFC',
+                          borderRadius: '12px',
+                          padding: '16px 20px',
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            backgroundColor: '#E0F2FE',
+                            color: '#0284C7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <UploadCloud size={20} />
+                        </div>
+                        <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B' }}>
+                          Cliquez pour sélectionner un fichier <span style={{ color: '#64748B', fontWeight: 500 }}>ou glissez-déposez-le ici</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                          Ex : Fichier Word (.docx), PDF de consignes, capture d'écran, devis...
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          backgroundColor: '#EFF6FF',
+                          border: '1.5px solid #BFDBFE',
+                          gap: '12px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          <div
+                            style={{
+                              width: '34px',
+                              height: '34px',
+                              borderRadius: '8px',
+                              backgroundColor: '#DBEAFE',
+                              color: '#1D4ED8',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <FileText size={18} />
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: '13px',
+                                fontWeight: 700,
+                                color: '#1E3A8A',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={attachedFile.name}
+                            >
+                              {attachedFile.name}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#3B82F6', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{(attachedFile.size / 1024).toFixed(1)} Ko</span>
+                              <span>•</span>
+                              <span style={{ color: '#10B981', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <Check size={11} strokeWidth={3} /> Prêt à être joint sur Monday
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAttachedFile(null);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid #FECACA',
+                            backgroundColor: '#FEF2F2',
+                            color: '#DC2626',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            flexShrink: 0,
+                          }}
+                          title="Supprimer ce document"
+                        >
+                          <Trash2 size={13} />
+                          <span>Retirer</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Bouton de validation */}
                   <div style={{ marginTop: '6px' }}>
                     <button
@@ -1421,6 +1705,34 @@ export default function RoadmapModal({
                             >
                               <Calendar size={11} /> Gantt : {item.timeline}
                             </span>
+                          )}
+
+                          {item.fileUrl && (
+                            <a
+                              href={item.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#0073EA',
+                                backgroundColor: '#EBF6FC',
+                                border: '1px solid #BFDBFE',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title="Ouvrir la pièce jointe associée sur Monday"
+                            >
+                              <Paperclip size={11} color="#0073EA" />
+                              <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.fileName || 'Document joint'}
+                              </span>
+                              <ExternalLink size={10} color="#0073EA" />
+                            </a>
                           )}
                         </div>
                       </div>
