@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { InformationsMensuellesBoard } from '@api/BoardSDK';
 
 const BOARD = '5092124669';
+const FLEET_BOARD_ID = '5092005027';
 const AMOUNT_COL = 'numeric_mm0r8ag0';
 const MONTHS = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
 
@@ -14,17 +15,28 @@ type Page = { cursor: string | null; items: Item[] };
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const FIELDS = 'cursor items { name created_at column_values(ids: $ids) { id text ... on FormulaValue { display_value } } }';
 
-type Top = { group: string; vehicleColumn: string | null; vehicles: { name: string; total: number; model: string; holder: string }[]; series: Record<string, string | number>[] };
+type Top = {
+  group: string;
+  vehicleColumn: string | null;
+  vehicles: { name: string; total: number; num: string; model: string; holder: string }[];
+  series: Record<string, string | number>[];
+};
 const TTL = 10 * 60 * 1000;
 const CACHE = new Map<string, { t: number; v: Top }>();
 
-// Top 5 des véhicules au coût le plus élevé sur les 6 derniers mois + évolution mensuelle.
+// Top 5 des véhicules au coût le plus élevé sur les 6 derniers mois + évolution mensuelle et N° de flotte.
 export const getTopVehicles = createServerFn({ method: 'GET' })
   .validator(z.object({ source: z.enum(['chargemap', 'carburant']) }))
   .handler(async ({ data }) => {
     const hit = CACHE.get(data.source);
     if (hit && Date.now() - hit.t < TTL) return hit.v;
     const sdk = new InformationsMensuellesBoard();
+
+    // 1. Récupération des métadonnées du parc (Numéro de flotte, Marque, Modèle)
+    const parcPromise = sdk.executeGraphQL(
+      `query { boards(ids: [${FLEET_BOARD_ID}]) { items_page(limit: 100) { items { name column_values(ids: ["text_mm839fsd", "numeric_mm0rw3mq", "color_mm0p87t0", "text_mm0p386j"]) { id text } } } } }`
+    ).catch(() => null);
+
     const meta = (await sdk.executeGraphQL(
       `query ($b: [ID!]) { boards(ids: $b) { columns { id title type } groups { id title } } }`, { b: [BOARD] },
     )) as { boards?: { columns: Col[]; groups: Group[] }[] };
@@ -33,9 +45,10 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
     if (!group) throw new Error(`Groupe « ${data.source} » introuvable dans le tableau.`);
     const dateCol = cols.find((c) => c.type === 'date')?.id ?? null;
     const vehCol: string | null = 'formula_mm0ztfrj';
+    const textImmatCol: string | null = 'text_mm0xqkkm';
     const modelCol = cols.find((c) => /modele|model/.test(norm(c.title)))?.id ?? null;
     const holderCol = cols.find((c) => /titulaire|conducteur|utilisateur|porteur/.test(norm(c.title)))?.id ?? null;
-    const ids = [AMOUNT_COL, ...(dateCol ? [dateCol] : []), ...(vehCol ? [vehCol] : []), ...(modelCol ? [modelCol] : []), ...(holderCol ? [holderCol] : [])];
+    const ids = [AMOUNT_COL, ...(dateCol ? [dateCol] : []), ...(vehCol ? [vehCol] : []), ...(textImmatCol ? [textImmatCol] : []), ...(modelCol ? [modelCol] : []), ...(holderCol ? [holderCol] : [])];
     const info = new Map<string, { model: string; holder: string }>();
 
     const now = new Date();
@@ -53,7 +66,8 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
         if (Number.isNaN(d.getTime()) || d < start || d > now) continue;
         const n = parseFloat(get(AMOUNT_COL).replace(',', '.'));
         if (Number.isNaN(n)) continue;
-        const veh = ((vehCol && get(vehCol)) || it.name || '—').trim();
+        // Priorité : 🏁immat -> Immat textuelle -> Nom
+        const veh = ((vehCol && get(vehCol)) || (textImmatCol && get(textImmatCol)) || it.name || '—').trim();
         const rec = byVeh.get(veh) ?? {};
         const k = `${d.getFullYear()}-${d.getMonth()}`;
         rec[k] = (rec[k] ?? 0) + n;
@@ -82,6 +96,29 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
       cursor = page?.cursor ?? null;
     }
 
+    // Récupérer le mapping du parc
+    const parcRes = (await parcPromise) as any;
+    const parcItems = parcRes?.boards?.[0]?.items_page?.items || [];
+    const parcMap = new Map<string, { num: string; model: string }>();
+    for (const it of parcItems) {
+      const colPlate = it.column_values?.find((c: any) => c.id === 'text_mm839fsd')?.text?.trim().toUpperCase();
+      const namePlate = it.name.match(/[A-Z]{2}-?\d{3}-?[A-Z]{2}/i)?.[0]?.toUpperCase();
+      const plate = colPlate || namePlate || '';
+      
+      const numVal = it.column_values?.find((c: any) => c.id === 'numeric_mm0rw3mq')?.text?.trim()
+        || it.name.match(/#(\d+)/)?.[1] || '';
+      const marque = it.column_values?.find((c: any) => c.id === 'color_mm0p87t0')?.text?.trim() || '';
+      const modele = it.column_values?.find((c: any) => c.id === 'text_mm0p386j')?.text?.trim() || '';
+      const fullModel = [marque, modele].filter(Boolean).join(' ');
+      const entry = { num: numVal ? `#${numVal}` : (it.name.match(/#\d+/)?.[0] || '—'), model: fullModel };
+      
+      if (plate) {
+        parcMap.set(plate, entry);
+        const normPlate = plate.replace(/[^A-Z0-9]/g, '');
+        if (normPlate) parcMap.set(normPlate, entry);
+      }
+    }
+
     const round = (n: number) => Math.round(n * 100) / 100;
     const top = [...byVeh.entries()]
       .map(([name, rec]) => ({ name, total: round(Object.values(rec).reduce((s, v) => s + v, 0)), rec }))
@@ -92,10 +129,21 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
       top.forEach((v, i) => { row[`v${i}`] = round(v.rec[key] ?? 0); });
       return row;
     });
-    const result = {
+    const result: Top = {
       group: group.title,
       vehicleColumn: cols.find((c) => c.id === vehCol)?.title ?? null,
-      vehicles: top.map(({ name, total }) => ({ name, total, model: info.get(name)?.model || '', holder: info.get(name)?.holder || '' })),
+      vehicles: top.map(({ name, total }) => {
+        const cleanKey = name.trim().toUpperCase();
+        const normKey = cleanKey.replace(/[^A-Z0-9]/g, '');
+        const pInfo = parcMap.get(cleanKey) || parcMap.get(normKey);
+        return {
+          name,
+          total,
+          num: pInfo?.num || (name.match(/#\d+/)?.[0] || '—'),
+          model: pInfo?.model || info.get(name)?.model || '',
+          holder: info.get(name)?.holder || '',
+        };
+      }),
       series,
     };
     CACHE.set(data.source, { t: Date.now(), v: result });

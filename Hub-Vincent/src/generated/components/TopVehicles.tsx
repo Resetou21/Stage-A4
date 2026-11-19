@@ -41,16 +41,26 @@ export default function TopVehicles({ source }: { source: 'chargemap' | 'carbura
         <thead>
           <tr className="border-b border-border text-xs text-muted-foreground">
             <th scope="col" className="sticky left-0 bg-card px-4 py-2 text-left font-semibold">Immatriculation</th>
+            <th scope="col" className="px-3 py-2 text-center font-semibold">N°</th>
+            <th scope="col" className="px-3 py-2 text-left font-semibold">Modèle</th>
             {data.series.map((m) => <th key={String(m.label)} scope="col" className="px-3 py-2 text-right font-semibold">{m.label}</th>)}
             <th scope="col" className="px-4 py-2 text-right font-bold text-foreground">Total</th>
           </tr>
         </thead>
         <tbody>
           {data.vehicles.map((v, i) => (
-            <tr key={v.name} className="border-b border-border">
+            <tr key={v.name} className="border-b border-border hover:bg-muted/30 transition-colors">
               <th scope="row" className="sticky left-0 bg-card px-4 py-2 text-left font-mono font-semibold">
                 <span className="mr-2 text-xs text-muted-foreground">{i + 1}.</span>{v.name}
               </th>
+              <td className="px-3 py-2 text-center">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-bold bg-primary/10 text-primary border border-primary/20">
+                  {v.num || '—'}
+                </span>
+              </td>
+              <td className="px-3 py-2 text-left text-xs text-muted-foreground font-medium whitespace-nowrap">
+                {v.model || '—'}
+              </td>
               {data.series.map((m) => {
                 const val = Number(m[`v${i}`] ?? 0);
                 return <td key={String(m.label)} className={`px-3 py-2 text-right tabular-nums ${val ? '' : 'text-muted-foreground'}`}>{val ? eur(val) : '—'}</td>;
@@ -61,7 +71,7 @@ export default function TopVehicles({ source }: { source: 'chargemap' | 'carbura
         </tbody>
         <tfoot>
           <tr className="bg-muted/50 font-bold">
-            <th scope="row" className="sticky left-0 bg-muted px-4 py-2 text-left">Total</th>
+            <th scope="row" colSpan={3} className="sticky left-0 bg-muted px-4 py-2 text-left">Total</th>
             {monthTotals.map((t, i) => <td key={String(data.series[i]?.label)} className="px-3 py-2 text-right tabular-nums">{eur(t)}</td>)}
             <td className="px-4 py-2 text-right tabular-nums">{eur(grand)}</td>
           </tr>
