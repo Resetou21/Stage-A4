@@ -203,4 +203,41 @@ Lors de la validation d'une fiche de contrôle dans le Hub :
    * Publication automatique d'un compte-rendu HTML formaté dans le fil d'activité / discussion de l'élément Monday.
 2. Si le cadran horaire est renseigné : mise à jour simultanée des heures dans la fiche de contrôle ET dans la colonne `Heures compteur (dernier relevé)` de la machine.
 
+---
+
+## 8. Feuille de Route & Règles Métier Piliers (Christine, Vincent, Léa, Christophe & Hub Global)
+
+### A. Feuille de Route Responsivité Multi-Appareils (Transition Modèle High)
+* **Objectif Prioritaire** : Dès le passage au modèle payant Gemini High, assurer une responsivité mobile / tablette / desktop irréprochable sur l'ensemble de l'écosystème, en particulier le **Hub Global (`Hub-Global-Facility`)** qui centralise tous les accès.
+* **Nomenclature officielle des Pôles Métiers** :
+  * **Vincent** : Hub Véhicules & Direction
+  * **Léa** : Hub Communication & Contacts
+  * **Christine** : Hub Fournisseurs & Facturation
+  * **Christophe** : Hub Matériel & Atelier (ERP)
+  * **Natacha / Animatrices** : Hub Responsables de Secteur
+
+### B. Contrôle & Statut ERP Parc Machines (Christophe)
+* **Validation & Barre de progression (Déjà en place dans `IndicatorsActionPlan.tsx`)** :
+  * Chaque machine en réparation non conforme dispose d'une checklist avec barre d'avancement.
+  * Dès que tous les sous-points défaillants sont cochés, la machine bascule automatiquement en **« Réparée / Conforme »** et sort de l'encadré actif sans intervention manuelle sur Monday.
+
+### C. Facturation & Imports (Christine)
+* **Saisie factures véhicules (`SaisieVehiculeButton.tsx`)** :
+  * Choix du véhicule : sélecteur trié par ordre alphabétique (`SearchableSelect`).
+  * Date et Montant obligatoires.
+  * Enrichissement dynamique à la volée des listes (Fournisseurs, Prestations, Types de saisie).
+  * Affichage de la traçabilité via `UsersBadge` (qui consomme la donnée et sur quel Hub).
+* **Gestion des imports & Dédoublonnage** :
+  * **Chargemap** : Dédoublonnage strict avec prévisualisation claire des lignes retenues.
+  * **Total** : Prise en compte de 2 factures par mois (quinzaines du 15 et du 30).
+  * **Wellborne** : Ignorer les lignes antérieures au 15/05, temporisation anti-surcharge (pause 1s / 50 requêtes).
+  * Affichage des 3 dernières factures scannées sous l'outil d'importation.
+
+### D. Flotte, Coûts Fixes & Immatriculations (Vincent)
+* **Coûts fixes mensuels (`Data sur véhicule` -> groupe `Fixe`)** :
+  * Chaque nouveau mois, réplication des véhicules actifs du parc avec leur montant mensuel HT dans le groupe `Fixe`. Si un véhicule est restitué, arrêt automatique de la charge fixe le mois suivant.
+* **Harmonisation stricte des Immatriculations** :
+  * Toutes les liaisons (contrôles visuels, interventions atelier, consommations carburant/bornes, charges fixes) doivent obligatoirement s'appuyer sur la **plaque d'immatriculation officielle** (format `AA-123-AA`) et non sur un simple numéro de flotte interne, afin d'éliminer tout biais dans le top des consommations importantes.
+
+
 
