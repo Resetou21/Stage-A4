@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import mondaySdk from 'monday-sdk-js';
+import { Toaster } from 'sonner';
 import VehiclesCard from '@generated/components/VehiclesCard';
 import DirectionCard from '@generated/components/DirectionCard';
 
@@ -47,6 +48,7 @@ export default function App() {
           <DirectionCard />
         </section>
       </main>
+      <Toaster richColors position="bottom-right" />
     </div>
   );
 }
