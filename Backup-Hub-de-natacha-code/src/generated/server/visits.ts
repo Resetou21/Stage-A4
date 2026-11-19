@@ -690,6 +690,7 @@ export const markCommunicationSeen = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await new CommunicationViaLesAnimatricesBoard().item(data.itemId).update({ vu: data.vu }).execute();
     commsCache.clear();
+    clearBoardCache('5044808167');
     return { ok: true };
   });
 
@@ -698,6 +699,7 @@ export const archiveCommunication = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await new CommunicationViaLesAnimatricesBoard().item(data.itemId).archive().execute();
     commsCache.clear();
+    clearBoardCache('5044808167');
     return { ok: true };
   });
 
@@ -851,6 +853,8 @@ export const sendAlertToMaintenance = createServerFn({ method: 'POST' })
           columnValues: JSON.stringify(colValues),
         },
       });
+      clearBoardCache('5044808167');
+      commsCache.clear();
       return { ok: true, id: res?.data?.create_item?.id ? String(res.data.create_item.id) : undefined };
     } catch {
       const fallbackRes = await callMondayApi(mutation, {
@@ -861,6 +865,8 @@ export const sendAlertToMaintenance = createServerFn({ method: 'POST' })
           columnValues: JSON.stringify({ date_mkwrkqy5: { date: todayIso } }),
         },
       });
+      clearBoardCache('5044808167');
+      commsCache.clear();
       return { ok: true, id: fallbackRes?.data?.create_item?.id ? String(fallbackRes.data.create_item.id) : undefined };
     }
   });
@@ -993,8 +999,14 @@ export type MaintenanceExchange = {
 export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
   .validator(z.object({ firstName: z.string().min(1) }))
   .handler(async ({ data }): Promise<{ exchanges: MaintenanceExchange[] }> => {
+    clearBoardCache('5044808167');
     const label = labelOf(data.firstName);
-    const firstNameLower = data.firstName.toLowerCase();
+    const firstNameNorm = norm(data.firstName);
+    const labelNorm = norm(label || '');
+    const isAdminUser =
+      firstNameNorm.includes('admin') ||
+      firstNameNorm.includes('guillaume') ||
+      firstNameNorm.includes('laurent');
 
     const query = `
       query GetMaintenanceExchanges {
@@ -1027,7 +1039,7 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
     `;
 
     try {
-      const res = await callMondayApi(query);
+      const res = await callMondayApi(query, { bypassCache: true });
       const items = res?.data?.boards?.[0]?.items_page?.items || [];
 
       const exchanges: MaintenanceExchange[] = [];
@@ -1047,8 +1059,8 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
         const clientOrMachine = getCol('board_relation_mkwrnhwg');
         const dateStr = getCol('date_mkwrkqy5') || it.created_at?.split('T')[0] || '';
         const rawTitle = String(it.name || '');
-        const titleLower = rawTitle.toLowerCase();
-        const personLower = person.toLowerCase();
+        const titleNorm = norm(rawTitle);
+        const personNorm = norm(person);
 
         // Récupération de l'ensemble des pièces jointes / photos (colonne file_mm98hfng)
         const attachedFiles: MaintenanceFile[] = [];
@@ -1111,23 +1123,24 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
         const fileName = firstFile?.name || undefined;
         const isImage = Boolean(firstFile?.isImage);
 
-        // Est-ce que cette alerte concerne cette animatrice ?
+        // Est-ce que cette alerte concerne cette animatrice (ou mode superviseur admin) ?
         const isRelatedToAnimatrice =
-          personLower.includes(firstNameLower) ||
-          (label && personLower.includes(label.toLowerCase())) ||
-          titleLower.includes(firstNameLower) ||
-          (titleLower.includes('[atelier / christophe]') &&
-            !personLower.includes('emilie') &&
-            !personLower.includes('ketty') &&
-            !personLower.includes('natacha'));
+          isAdminUser ||
+          personNorm.includes(firstNameNorm) ||
+          (labelNorm && personNorm.includes(labelNorm)) ||
+          titleNorm.includes(firstNameNorm) ||
+          (titleNorm.includes('[atelier / christophe]') &&
+            !personNorm.includes('emilie') &&
+            !personNorm.includes('ketty') &&
+            !personNorm.includes('natacha'));
 
         if (!isRelatedToAnimatrice) continue;
 
         let direction: 'to_atelier' | 'from_atelier' = 'to_atelier';
         if (
-          titleLower.startsWith('[parc machines') ||
-          titleLower.startsWith('[maintenance') ||
-          (label && personLower.includes(label.toLowerCase()))
+          titleNorm.startsWith('[parc machines') ||
+          titleNorm.startsWith('[maintenance') ||
+          (labelNorm && personNorm.includes(labelNorm))
         ) {
           direction = 'from_atelier';
         } else {
@@ -1137,12 +1150,15 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
         // Nettoyage du message et du contexte
         let cleanMsg = rawTitle;
         let ctx = clientOrMachine;
+        let senderName = data.firstName;
         const matchAtelier = rawTitle.match(/\[Atelier \/ Christophe\]\s*(.*?)\s*—\s*(.*)/i);
         if (matchAtelier) {
           const senderAndCtx = matchAtelier[1];
           cleanMsg = matchAtelier[2];
           const ctxMatch = senderAndCtx.match(/\((.*?)\)/);
           if (ctxMatch && !ctx) ctx = ctxMatch[1];
+          const extractedSender = senderAndCtx.replace(/\(.*?\)/, '').trim();
+          if (extractedSender) senderName = extractedSender;
         }
 
         exchanges.push({
@@ -1151,8 +1167,8 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
           date: dateStr,
           seen,
           direction,
-          sender: direction === 'to_atelier' ? data.firstName : 'Christophe (Atelier)',
-          recipient: direction === 'to_atelier' ? 'Christophe (Atelier)' : data.firstName,
+          sender: direction === 'to_atelier' ? senderName : 'Christophe (Atelier)',
+          recipient: direction === 'to_atelier' ? 'Christophe (Atelier)' : (person || data.firstName),
           context: ctx,
           message: cleanMsg,
           files: attachedFiles.length > 0 ? attachedFiles : undefined,

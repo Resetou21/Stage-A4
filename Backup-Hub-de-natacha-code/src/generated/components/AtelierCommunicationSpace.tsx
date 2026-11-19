@@ -162,19 +162,56 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
       return;
     }
 
+    const optimisticId = `optimistic-${Date.now()}`;
+    const todayIso = new Date().toISOString().split('T')[0];
+    const savedFiles = [...attachedFiles];
+    const savedContext = contextVal;
+
+    // 1. Mise à jour optimiste instantanée : affichage immédiat à droite sans attendre l'API
+    const optimisticExchange: MaintenanceExchange = {
+      id: optimisticId,
+      title: msg,
+      date: todayIso,
+      seen: false,
+      direction: 'to_atelier',
+      sender: firstName,
+      recipient: 'Christophe (Atelier)',
+      context: savedContext || undefined,
+      message: msg,
+      files: savedFiles.map((f) => ({
+        url: f.previewUrl || '',
+        name: f.file.name,
+        isImage: f.isImage,
+      })),
+      fileUrl: savedFiles[0]?.previewUrl || undefined,
+      fileName: savedFiles[0]?.file.name,
+      isImage: savedFiles[0]?.isImage,
+    };
+
+    setExchanges((prev) => [optimisticExchange, ...prev.filter((x) => !x.id.startsWith('optimistic-'))]);
+    if (filterDirection === 'from_atelier') {
+      setFilterDirection('all');
+    }
+
+    // Réinitialisation instantanée du formulaire pour fluidité
+    setMessageText('');
+    setContextVal('');
+    setAttachedFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
     setSending(true);
     try {
       const res = await sendAlertToMaintenance({
         data: {
           senderName: firstName,
-          context: contextVal || undefined,
+          context: savedContext || undefined,
           message: msg,
         },
       });
 
       // Si des photos ou fichiers ont été joints, les uploader sur la colonne file_mm98hfng
-      if (res?.id && attachedFiles.length > 0) {
-        for (const item of attachedFiles) {
+      if (res?.id && savedFiles.length > 0) {
+        for (const item of savedFiles) {
           try {
             await uploadAlertFile(res.id, item.file);
           } catch (fErr) {
@@ -183,22 +220,22 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
         }
       }
 
+      savedFiles.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      });
+
       toast.success('Alerte transmise à Christophe !', {
-        description: attachedFiles.length > 0
-          ? `${attachedFiles.length} photo(s)/document(s) joint(s) avec succès.`
+        description: savedFiles.length > 0
+          ? `${savedFiles.length} photo(s)/document(s) joint(s) avec succès.`
           : 'Votre message a été envoyé vers le tableau de maintenance et le Hub de Christophe.',
       });
 
-      setMessageText('');
-      setContextVal('');
-      attachedFiles.forEach((f) => {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-      });
-      setAttachedFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      // Rafraîchir les échanges depuis Monday pour synchroniser les IDs officiels
       await loadExchanges();
     } catch (err) {
       console.error(err);
+      // En cas d'erreur réseau, retirer le message optimiste
+      setExchanges((prev) => prev.filter((x) => x.id !== optimisticId));
       toast.error("Erreur lors de l'envoi de l'alerte.");
     } finally {
       setSending(false);
@@ -466,7 +503,7 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
 
           {/* Liste des messages */}
           <div className="mt-4 flex-1 overflow-y-auto space-y-3 max-h-[380px] pr-1">
-            {loadingExchanges ? (
+            {loadingExchanges && filteredExchanges.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <Loader2 className="h-7 w-7 animate-spin text-primary" />
                 <p className="text-xs text-muted-foreground">Chargement des échanges…</p>
@@ -482,12 +519,15 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
             ) : (
               filteredExchanges.map((item) => {
                 const isFromAtelier = item.direction === 'from_atelier';
+                const isOptimistic = item.id.startsWith('optimistic-');
                 return (
                   <div
                     key={item.id}
                     className={cn(
                       'group relative rounded-xl border p-4 transition-all',
-                      isFromAtelier
+                      isOptimistic
+                        ? 'border-amber-500/40 bg-amber-500/5 ring-1 ring-amber-500/20'
+                        : isFromAtelier
                         ? item.seen
                           ? 'border-border bg-muted/20'
                           : 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
@@ -500,8 +540,12 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
                           <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 border border-blue-500/20">
                             <ArrowDownLeft className="h-3 w-3" /> De Christophe (Atelier)
                           </span>
+                        ) : isOptimistic ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 border border-amber-500/20">
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" /> Transmission à l'Atelier...
+                          </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 border border-amber-500/20">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 border border-emerald-500/20">
                             <ArrowUpRight className="h-3 w-3" /> Envoyé à Christophe
                           </span>
                         )}
@@ -613,14 +657,16 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
                           </button>
                         )}
 
-                        <button
-                          type="button"
-                          onClick={() => handleArchive(item)}
-                          className="text-muted-foreground hover:text-destructive transition p-1 cursor-pointer"
-                          title="Archiver cette alerte"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                        </button>
+                        {!isOptimistic && (
+                          <button
+                            type="button"
+                            onClick={() => handleArchive(item)}
+                            className="text-muted-foreground hover:text-destructive transition p-1 cursor-pointer"
+                            title="Archiver cette alerte"
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

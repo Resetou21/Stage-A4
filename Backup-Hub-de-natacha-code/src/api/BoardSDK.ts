@@ -47,7 +47,8 @@ function releaseSlot() {
 
 export async function callMondayApi(query: string, options?: any): Promise<any> {
   const isRead = !query.includes('mutation');
-  const cacheKey = isRead ? `${query}::${JSON.stringify(options ?? {})}` : null;
+  const bypassCache = options?.bypassCache === true;
+  const cacheKey = isRead && !bypassCache ? `${query}::${JSON.stringify(options ?? {})}` : null;
 
   if (cacheKey) {
     const cached = queryCache.get(cacheKey);
@@ -59,12 +60,17 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
       return inFlight;
     }
   } else {
-    // Mutation : invalider uniquement le cache du tableau concerné au lieu de vider toute l'application
+    // Mutation ou requête sans cache : invalider le cache du tableau concerné
+    const varBoard = options?.variables?.boardId || options?.variables?.board_id || options?.variables?.boardIds?.[0];
     const match = query.match(/board_id:\s*["']?(\d+)["']?/);
-    if (match && match[1]) {
-      clearBoardCache(match[1]);
-    } else {
-      clearBoardCache(BOARD_IDS.INVENTAIRES_CONSOMMABLES);
+    const boardsMatch = query.match(/boards\s*\(\s*ids\s*:\s*\[?["']?(\d+)["']?/i);
+    const targetBoardId = varBoard ? String(varBoard) : (match && match[1] ? match[1] : (boardsMatch && boardsMatch[1] ? boardsMatch[1] : undefined));
+
+    if (targetBoardId) {
+      clearBoardCache(targetBoardId);
+    } else if (!isRead) {
+      // Mutation sans boardId identifiable : vider l'ensemble du cache par précaution
+      clearBoardCache();
     }
   }
 
@@ -101,10 +107,14 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
             }
           }
           if (cacheKey && (!res?.errors || res.errors.length === 0)) {
-            // Ne pas mettre en cache un résultat vide pour éviter d'empoisonner les sessions
-            const pageData = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
-            if (!pageData || (pageData.items && pageData.items.length > 0)) {
-              queryCache.set(cacheKey, { expires: Date.now() + 300000, data: res });
+            // Ne jamais mettre en cache le tableau de messagerie instantanée (5044808167)
+            const isLiveComm = cacheKey.includes('5044808167') || cacheKey.includes(BOARD_IDS.COMMUNICATION_ANIMATRICES);
+            if (!isLiveComm) {
+              // Ne pas mettre en cache un résultat vide pour éviter d'empoisonner les sessions
+              const pageData = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
+              if (!pageData || (pageData.items && pageData.items.length > 0)) {
+                queryCache.set(cacheKey, { expires: Date.now() + 300000, data: res });
+              }
             }
           }
           return res;
