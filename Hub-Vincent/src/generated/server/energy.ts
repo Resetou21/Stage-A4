@@ -56,8 +56,12 @@ async function monthlySums(sdk: Gql, board: string, amountCol: string, groupMatc
       if (!Number.isNaN(n)) sums[d.getMonth()] += n;
     }
   };
-  // Filtre l'année côté monday quand la date est une vraie colonne date : beaucoup moins de lignes à lire.
-  const qp = isRealDate ? { rules: [{ column_id: dateCol, compare_value: [`${year}-01-01`, `${year}-12-31`], operator: 'between' }] } : null;
+  // Filtre l'année côté monday quand la date est une vraie colonne date ou sur le nom pour Wellborne : beaucoup moins de lignes à lire.
+  const qp = isRealDate
+    ? { rules: [{ column_id: dateCol, compare_value: [`${year}-01-01`, `${year}-12-31`], operator: 'between' }] }
+    : board === WELLBORNE_BOARD
+    ? { rules: [{ column_id: 'name', compare_value: [String(year)], operator: 'contains_text' }] }
+    : null;
   const qpArg = qp ? ', query_params: $qp' : '';
   const qpVar = qp ? ', $qp: ItemsQuery' : '';
   const q = groupId

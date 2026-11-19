@@ -3,6 +3,8 @@ import mondaySdk from 'monday-sdk-js';
 import { Toaster } from 'sonner';
 import VehiclesCard from '@generated/components/VehiclesCard';
 import DirectionCard from '@generated/components/DirectionCard';
+import { loadCost } from '@generated/components/ChargemapCost';
+import { getFleetStats } from '@generated/server/fleet';
 
 const monday = mondaySdk();
 const LOGO = 'https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg';
@@ -15,6 +17,10 @@ export default function App() {
     } catch {
       // ignore
     }
+    // Pré-chargement silencieux en arrière-plan dès l'ouverture du Hub
+    getFleetStats({}).catch(() => {});
+    loadCost('carburant').catch(() => {});
+    loadCost('chargemap').catch(() => {});
   }, []);
 
   return (
