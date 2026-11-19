@@ -144,11 +144,6 @@ export const App = () => {
   const [machineColsMeta, setMachineColsMeta] = useState<Record<string, string>>({});
   const [affectationSearch, setAffectationSearch] = useState<string>('');
   const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlertMessage[]>([]);
-  const [isAlertsModalOpen, setIsAlertsModalOpen] = useState<boolean>(false);
-  const [alertRecipient, setAlertRecipient] = useState<string>('Natacha THOMAS');
-  const [alertMachineInput, setAlertMachineInput] = useState<string>('');
-  const [alertTextInput, setAlertTextInput] = useState<string>('');
-  const [sendingAlert, setSendingAlert] = useState<boolean>(false);
 
   // Filtre tuile KPI
   const [activeTile, setActiveTile] = useState<KpiFilter | null>(null);
@@ -925,7 +920,10 @@ export const App = () => {
             return (
               <button
                 type="button"
-                onClick={() => setIsAlertsModalOpen(true)}
+                onClick={() => {
+                  setActiveTab('alerts');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -939,7 +937,9 @@ export const App = () => {
                   fontWeight: 800,
                   fontFamily: "'Ruda', sans-serif",
                   cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
+                title="Accéder directement à l'espace complet des alertes et échanges secteur"
               >
                 <Bell size={15} color={unreadIncoming > 0 ? '#D66927' : '#39A9DC'} />
                 <span>Alertes Atelier ↔ Secteur</span>
@@ -2264,278 +2264,6 @@ export const App = () => {
               >
                 Fermer
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modale Alertes Bidirectionnelles Atelier (Christophe) <-> Responsables de Secteur */}
-      {isAlertsModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 39, 58, 0.58)',
-            backdropFilter: 'blur(3px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsAlertsModalOpen(false);
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '16px',
-              width: '100%',
-              maxWidth: '720px',
-              maxHeight: '88vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 24px 60px rgba(15, 39, 58, 0.25)',
-              border: '1px solid #DDE7F0',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid #E2E8F0',
-                backgroundColor: '#F8FBFD',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
-                  🔔 Alertes Bidirectionnelles Atelier ↔ Responsables de Secteur
-                </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#57778E' }}>
-                  Recevez les signalements des animatrices et envoyez des alertes vers leurs Hubs
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAlertsModalOpen(false)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  border: '1px solid #E2E8F0',
-                  backgroundColor: '#FFFFFF',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ padding: '18px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Formulaire d'envoi vers Responsable de Secteur */}
-              <div
-                style={{
-                  backgroundColor: '#FFF8EC',
-                  border: '1px solid #F7AC37',
-                  borderRadius: '12px',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                }}
-              >
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#D66927', fontFamily: "'Ruda', sans-serif" }}>
-                  📢 Envoyer une alerte vers un Hub Responsable de Secteur
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <ResponsableSelect
-                    value={alertRecipient}
-                    onChange={setAlertRecipient}
-                    accentColor="#F7AC37"
-                    fullWidth={true}
-                  />
-                  <AlertContextSelect
-                    machines={activeParcMachines}
-                    value={alertMachineInput}
-                    onChange={setAlertMachineInput}
-                    getCol={getColText}
-                    placeholder="Machine / Site concerné (optionnel)"
-                    accentColor="#F7AC37"
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    value={alertTextInput}
-                    onChange={(e) => setAlertTextInput(e.target.value)}
-                    placeholder="Message / Alerte (ex: Machine non rincée, câble abîmé, demander devis...)"
-                    style={{
-                      flex: 1,
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      border: '1px solid #F7AC37',
-                      fontSize: '12.5px',
-                      color: '#1B4565',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    disabled={sendingAlert || !alertTextInput.trim()}
-                    onClick={async () => {
-                      if (!alertTextInput.trim()) return;
-                      setSendingAlert(true);
-                      const res = await sendMaintenanceAlert({
-                        recipientPerson: alertRecipient,
-                        machineName: alertMachineInput.trim() || undefined,
-                        message: alertTextInput.trim(),
-                        senderName: 'Christophe',
-                      });
-                      setSendingAlert(false);
-                      if (res.success) {
-                        setAlertTextInput('');
-                        setAlertMachineInput('');
-                        setSuccessMessage(`Alerte transmise vers le Hub de ${alertRecipient} !`);
-                        await loadMaintenanceData();
-                      } else {
-                        alert(`Erreur envoi alerte : ${res.error}`);
-                      }
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      backgroundColor: '#D66927',
-                      color: '#FFFFFF',
-                      fontSize: '12.5px',
-                      fontWeight: 800,
-                      fontFamily: "'Ruda', sans-serif",
-                      cursor: sendingAlert ? 'wait' : 'pointer',
-                    }}
-                  >
-                    <Send size={13} />
-                    {sendingAlert ? 'Envoi...' : 'Envoyer'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Flux des alertes reçues & envoyées */}
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', fontFamily: "'Ruda', sans-serif", marginBottom: '8px' }}>
-                  Historique des échanges ({maintenanceAlerts.length})
-                </div>
-                {maintenanceAlerts.length === 0 ? (
-                  <div style={{ fontSize: '12.5px', color: '#64748B', fontStyle: 'italic', padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px' }}>
-                    Aucune alerte échangée pour le moment entre l&apos;Atelier et les Responsables de Secteur.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {maintenanceAlerts.map((al) => {
-                      const isIncoming = al.direction === 'to_atelier';
-                      return (
-                        <div
-                          key={al.id}
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: '10px',
-                            border: `1px solid ${al.seen ? '#E2EEF5' : isIncoming ? '#F5C6CB' : '#D2E9F6'}`,
-                            backgroundColor: al.seen ? '#F8FCFE' : isIncoming ? '#FDECEE' : '#EBF6FC',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '10px',
-                          }}
-                        >
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
-                              <span
-                                style={{
-                                  fontSize: '10.5px',
-                                  fontWeight: 800,
-                                  padding: '2px 7px',
-                                  borderRadius: '6px',
-                                  fontFamily: "'Ruda', sans-serif",
-                                  backgroundColor: isIncoming ? '#FDECEE' : '#D2E9F6',
-                                  color: isIncoming ? '#961C2E' : '#1B4565',
-                                }}
-                              >
-                                {isIncoming ? '⬅️ Reçue (Secteur ➔ Atelier)' : `➡️ Envoyée vers ${al.person || 'Secteur'}`}
-                              </span>
-                              {al.date && <span style={{ fontSize: '11px', color: '#64748B' }}>📅 {al.date}</span>}
-                              {al.seen && (
-                                <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>✓ Vu</span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#1B4565' }}>{al.title}</div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                            {!al.seen && isIncoming && (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await markMaintenanceAlertSeen(al.id);
-                                  await loadMaintenanceData();
-                                }}
-                                style={{
-                                  padding: '6px 11px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #10B981',
-                                  backgroundColor: '#ECFDF5',
-                                  color: '#047857',
-                                  fontSize: '11.5px',
-                                  fontWeight: 800,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                Marquer Vu ✓
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              title="Supprimer / archiver cette alerte sur Monday"
-                              onClick={async () => {
-                                const res = await archiveMaintenanceAlert(al.id);
-                                if (res.success) {
-                                  setMaintenanceAlerts((prev) => prev.filter((item) => item.id !== al.id));
-                                } else {
-                                  alert(`Erreur suppression alerte : ${res.error}`);
-                                }
-                              }}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '6px 9px',
-                                borderRadius: '8px',
-                                border: '1px solid #FECACA',
-                                backgroundColor: '#FEF2F2',
-                                color: '#B91C1C',
-                                fontSize: '11.5px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              <Trash2 size={13} />
-                              Supprimer
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>

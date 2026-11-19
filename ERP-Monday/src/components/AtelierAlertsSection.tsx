@@ -9,9 +9,13 @@ import {
   Reply,
   Clock,
   Wrench,
-  UserCheck,
   Check,
   RefreshCw,
+  Sparkles,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Filter,
+  CheckCheck,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import type { MaintenanceAlertMessage } from '../services/maintenanceApi';
@@ -32,6 +36,30 @@ interface AtelierAlertsSectionProps {
   }) => Promise<{ success: boolean; error?: string }>;
   getCol: (item: any, colId: string) => string;
 }
+
+// Suggestions rapides de messages pour Christophe (gain de temps en 1 clic)
+const QUICK_SUGGESTIONS = [
+  '🔧 Machine révisée et disponible à l’atelier, prévoir récupération.',
+  '⚠️ Câble électrique ou bavette à remplacer sur site.',
+  '📦 Pièce détachée commandée, intervention planifiée sous peu.',
+  '📋 Machine conforme après contrôle, remise en service validée.',
+  '❓ Merci de préciser l’anomalie constatée sur le matériel.',
+];
+
+// Helper pour extraire les initiales et la couleur de l'avatar
+const getPersonAvatar = (personName: string) => {
+  const p = (personName || '').toLowerCase();
+  if (p.includes('natacha')) {
+    return { initials: 'NT', bg: '#FCE7F3', text: '#BE185D', border: '#FBCFE8' };
+  }
+  if (p.includes('ketty')) {
+    return { initials: 'KP', bg: '#EDE9FE', text: '#6D28D9', border: '#DDD6FE' };
+  }
+  if (p.includes('emilie') || p.includes('émilie')) {
+    return { initials: 'ET', bg: '#FEF3C7', text: '#B45309', border: '#FDE68A' };
+  }
+  return { initials: 'CH', bg: '#E0F2FE', text: '#0369A1', border: '#BAE6FD' };
+};
 
 export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
   alerts,
@@ -70,7 +98,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
     if (res.success) {
       setMessageText('');
       setMachineContext('');
-      showFeedback(`✓ Message transmis directement au Hub de ${recipient} !`);
+      showFeedback(`✓ Message transmis en direct au Hub de ${recipient} !`);
       await onRefresh();
     } else {
       alert(`Erreur d'envoi de l'alerte : ${res.error || 'Erreur inconnue'}`);
@@ -81,7 +109,6 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
     if (alert.person) {
       setRecipient(alert.person);
     }
-    // Si un contexte machine ou chantier est mentionné dans le titre
     const match = alert.title.match(/\[(.*?)\]/);
     if (match && match[1]) {
       setMachineContext(match[1]);
@@ -89,6 +116,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
     const inputEl = document.getElementById('atelier-alert-message-input');
     if (inputEl) {
       inputEl.focus();
+      inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
@@ -117,8 +145,8 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
   }, [alerts, filterMode, searchQuery]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', margin: '20px 0 60px 0' }}>
-      {/* Toast d'action rapide */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', margin: '20px 0 60px 0' }}>
+      {/* Toast de confirmation temporaire */}
       {actionFeedback && (
         <div
           style={{
@@ -130,140 +158,198 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
             color: '#FFFFFF',
             borderRadius: '12px',
             padding: '12px 20px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+            boxShadow: '0 12px 36px rgba(15, 39, 58, 0.3)',
             fontSize: '13px',
             fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '10px',
             border: '1.5px solid #00C875',
+            animation: 'fadeIn 0.2s ease-out',
           }}
         >
-          <CheckCircle2 size={16} color="#00C875" />
+          <CheckCircle2 size={18} color="#00C875" />
           <span>{actionFeedback}</span>
         </div>
       )}
 
-      {/* En-tête de section */}
+      {/* ============================================================== */}
+      {/* 1. EN-TÊTE ÉLÉGANT & LUMINEUX (DESIGN CORPORATE FACILITY)       */}
+      {/* ============================================================== */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #1B4565 0%, #0F273A 100%)',
-          borderRadius: '16px',
+          background: 'linear-gradient(135deg, #FFFFFF 0%, #F5F9FD 100%)',
+          borderRadius: '18px',
           padding: '24px 28px',
-          color: '#FFFFFF',
+          border: '1.5px solid #D8E7F2',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: '16px',
-          boxShadow: '0 8px 24px rgba(15, 39, 58, 0.15)',
+          gap: '20px',
+          boxShadow: '0 4px 18px rgba(27, 69, 101, 0.05)',
         }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ maxWidth: '640px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span
               style={{
-                backgroundColor: '#F7AC37',
-                color: '#1B4565',
-                padding: '4px 10px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 900,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#EBF6FC',
+                color: '#0284C7',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '11.5px',
+                fontWeight: 800,
+                border: '1px solid #BAE6FD',
               }}
             >
-              Communication Directe
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#0284C7' }} />
+              Communication Directe Monday
             </span>
-            <span style={{ fontSize: '12px', color: '#9FBBD0', fontWeight: 600 }}>
-              Tableau Monday 5044808167
+            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
+              Tableau 5044808167
             </span>
           </div>
+
           <h2
             style={{
-              margin: '8px 0 4px 0',
+              margin: '0 0 6px 0',
               fontSize: '22px',
               fontWeight: 900,
               fontFamily: "'Ruda', sans-serif",
+              color: '#1B4565',
               letterSpacing: '-0.3px',
             }}
           >
             📢 Échanges &amp; Alertes : Atelier ↔ Responsables de Secteur
           </h2>
-          <p style={{ margin: 0, fontSize: '13.5px', color: '#C6DDEE', maxWidth: '780px', lineHeight: 1.4 }}>
-            Recevez instantanément les signalements des animatrices (Natacha THOMAS, Ketty PAULIN, Émilie TOBIE) et
-            envoyez vos consignes techniques directement sur leurs Hubs.
+
+          <p style={{ margin: 0, fontSize: '13px', color: '#57778E', lineHeight: 1.45 }}>
+            Recevez les alertes et besoins matériel transmis par <strong>Natacha THOMAS</strong>, <strong>Ketty PAULIN</strong> et <strong>Émilie TOBIE</strong>, et répondez-leur en un clic.
           </p>
         </div>
 
-        {/* Compteurs / badges rapides */}
+        {/* Cartes KPI visuelles */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Carte À Traiter */}
           <div
             style={{
-              backgroundColor: unreadIncomingCount > 0 ? '#E2445C' : 'rgba(255,255,255,0.12)',
-              borderRadius: '12px',
-              padding: '10px 18px',
+              backgroundColor: unreadIncomingCount > 0 ? '#FFF1F2' : '#FFFFFF',
+              borderRadius: '14px',
+              padding: '12px 22px',
               textAlign: 'center',
-              border: unreadIncomingCount > 0 ? '2px solid #FF8093' : '1px solid rgba(255,255,255,0.2)',
+              border: unreadIncomingCount > 0 ? '2px solid #FECDD3' : '1px solid #E2EEF5',
+              boxShadow: unreadIncomingCount > 0 ? '0 4px 14px rgba(225, 29, 72, 0.12)' : '0 2px 8px rgba(0,0,0,0.03)',
+              minWidth: '105px',
             }}
           >
-            <div style={{ fontSize: '20px', fontWeight: 900, color: '#FFFFFF' }}>{unreadIncomingCount}</div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#FFFFFF', textTransform: 'uppercase' }}>
+            <div
+              style={{
+                fontSize: '24px',
+                fontWeight: 900,
+                color: unreadIncomingCount > 0 ? '#E11D48' : '#1B4565',
+                lineHeight: 1,
+              }}
+            >
+              {unreadIncomingCount}
+            </div>
+            <div
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                color: unreadIncomingCount > 0 ? '#BE123C' : '#64748B',
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+                marginTop: '4px',
+              }}
+            >
               À Traiter
             </div>
           </div>
+
+          {/* Carte Total Échanges */}
           <div
             style={{
-              backgroundColor: 'rgba(255,255,255,0.1)',
-              borderRadius: '12px',
-              padding: '10px 18px',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              padding: '12px 22px',
               textAlign: 'center',
-              border: '1px solid rgba(255,255,255,0.15)',
+              border: '1px solid #E2EEF5',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              minWidth: '105px',
             }}
           >
-            <div style={{ fontSize: '20px', fontWeight: 900, color: '#FFFFFF' }}>{alerts.length}</div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#C6DDEE', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '24px', fontWeight: 900, color: '#39A9DC', lineHeight: 1 }}>
+              {alerts.length}
+            </div>
+            <div
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                color: '#64748B',
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+                marginTop: '4px',
+              }}
+            >
               Total Échanges
             </div>
           </div>
         </div>
       </div>
 
-      {/* Formulaire d'envoi direct d'une alerte */}
+      {/* ============================================================== */}
+      {/* 2. FORMULAIRE D'ENVOI D'UNE ALERTE (DESIGN ÉPURÉ & MODERNE)     */}
+      {/* ============================================================== */}
       <div
         style={{
           backgroundColor: '#FFFFFF',
-          borderRadius: '16px',
-          border: '1.5px solid #F7AC37',
-          padding: '20px 24px',
-          boxShadow: '0 4px 18px rgba(247, 172, 55, 0.12)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
+          borderRadius: '18px',
+          border: '1.5px solid #E2EEF5',
+          padding: '22px 26px',
+          boxShadow: '0 6px 20px rgba(27, 69, 101, 0.04)',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Accent gradient supérieur */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '4px',
+            background: 'linear-gradient(90deg, #39A9DC 0%, #F7AC37 100%)',
+          }}
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                backgroundColor: '#FFF8EC',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                backgroundColor: '#EFF6FF',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                border: '1px solid #F7AC37',
+                color: '#0073EA',
+                border: '1px solid #BFDBFE',
               }}
             >
-              <Send size={16} color="#D66927" />
+              <Send size={18} />
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1B4565' }}>
-                Transmettre une consigne ou une alerte vers une Responsable de Secteur
+                Transmettre une consigne ou alerte vers une Responsable de Secteur
               </h3>
               <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>
-                Le message apparaîtra en temps réel dans le Hub de l'animatrice sélectionnée
+                Le message est enregistré sur Monday et s'affiche instantanément dans le Hub de l'animatrice
               </p>
             </div>
           </div>
@@ -274,21 +360,22 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
               setIsRefreshing(true);
               await onRefresh();
               setIsRefreshing(false);
-              showFeedback('Échanges actualisés depuis Monday');
+              showFeedback('Échanges actualisés');
             }}
             disabled={isRefreshing}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              border: '1px solid #E2E8F0',
+              padding: '6px 14px',
+              borderRadius: '9px',
+              border: '1px solid #CBD5E1',
               backgroundColor: '#F8FAFC',
               fontSize: '12px',
               fontWeight: 700,
-              color: '#1B4565',
+              color: '#334155',
               cursor: 'pointer',
+              transition: 'all 0.15s',
             }}
           >
             <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
@@ -296,22 +383,22 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
           </button>
         </div>
 
-        {/* Sélection destinataire et contexte */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+        {/* Grille : Destinataire & Contexte */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '14px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#1B4565', marginBottom: '5px', textTransform: 'uppercase' }}>
-              Responsable de Secteur Destinataire <span style={{ color: '#E2445C' }}>*</span>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Responsable de Secteur Destinataire <span style={{ color: '#EF4444' }}>*</span>
             </label>
             <ResponsableSelect
               value={recipient}
               onChange={setRecipient}
-              accentColor="#F7AC37"
+              accentColor="#0073EA"
               fullWidth={true}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#1B4565', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
               Machine ou Chantier concerné (optionnel)
             </label>
             <AlertContextSelect
@@ -320,15 +407,54 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
               onChange={setMachineContext}
               getCol={getCol}
               placeholder="Sélectionner une machine ou un chantier..."
-              accentColor="#F7AC37"
+              accentColor="#0073EA"
             />
           </div>
         </div>
 
-        {/* Saisie message */}
+        {/* Suggestions rapides en 1 clic */}
+        <div style={{ marginBottom: '12px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
+            <Sparkles size={12} color="#F59E0B" /> Exemples rapides (cliquer pour insérer) :
+          </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {QUICK_SUGGESTIONS.map((sug, idx) => (
+              <button
+                type="button"
+                key={idx}
+                onClick={() => setMessageText(sug)}
+                style={{
+                  fontSize: '11.5px',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#EFF6FF';
+                  e.currentTarget.style.borderColor = '#BFDBFE';
+                  e.currentTarget.style.color = '#1D4ED8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F8FAFC';
+                  e.currentTarget.style.borderColor = '#E2E8F0';
+                  e.currentTarget.style.color = '#475569';
+                }}
+              >
+                {sug}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Champ de saisie et bouton d'envoi */}
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#1B4565', marginBottom: '5px', textTransform: 'uppercase' }}>
-            Message / Consigne technique <span style={{ color: '#E2445C' }}>*</span>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            Message / Consigne <span style={{ color: '#EF4444' }}>*</span>
           </label>
           <div style={{ display: 'flex', gap: '10px' }}>
             <input
@@ -342,16 +468,20 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                   handleSend();
                 }
               }}
-              placeholder="Ex : Autolaveuse révisée disponible à l'atelier, prévoir récupération... / Bavette commandée..."
+              placeholder="Rédigez votre message ou consigne technique..."
               style={{
                 flex: 1,
-                padding: '10px 14px',
+                padding: '11px 16px',
                 borderRadius: '10px',
-                border: '1.5px solid #F7AC37',
+                border: '1.5px solid #CBD5E1',
                 fontSize: '13px',
-                color: '#1B4565',
+                color: '#1E293B',
                 outline: 'none',
+                backgroundColor: '#FFFFFF',
+                transition: 'border-color 0.15s',
               }}
+              onFocus={(e) => (e.target.style.borderColor = '#0073EA')}
+              onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
             />
 
             <button
@@ -362,56 +492,68 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '0 20px',
+                padding: '0 24px',
                 borderRadius: '10px',
                 border: 'none',
-                backgroundColor: '#D66927',
+                backgroundColor: '#0073EA',
                 color: '#FFFFFF',
                 fontSize: '13px',
-                fontWeight: 800,
+                fontWeight: 700,
                 cursor: isSending || !messageText.trim() ? 'not-allowed' : 'pointer',
                 opacity: isSending || !messageText.trim() ? 0.6 : 1,
-                boxShadow: '0 3px 10px rgba(214, 105, 39, 0.3)',
+                boxShadow: '0 4px 12px rgba(0, 115, 234, 0.25)',
                 whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
               }}
             >
               <Send size={15} />
-              <span>{isSending ? 'Transmission...' : 'Envoyer'}</span>
+              <span>{isSending ? 'Transmission...' : 'Envoyer l’alerte'}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Liste et historique des alertes */}
+      {/* ============================================================== */}
+      {/* 3. LISTE ET HISTORIQUE DES MESSAGES (DESIGN CARTE ÉLÉGANT)     */}
+      {/* ============================================================== */}
       <div
         style={{
           backgroundColor: '#FFFFFF',
-          borderRadius: '16px',
-          border: '1px solid #E2EEF5',
-          padding: '20px 24px',
-          boxShadow: '0 4px 14px rgba(27, 69, 101, 0.04)',
+          borderRadius: '18px',
+          border: '1.5px solid #E2EEF5',
+          padding: '22px 26px',
+          boxShadow: '0 4px 18px rgba(27, 69, 101, 0.03)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
+          gap: '18px',
         }}
       >
-        {/* Barre de filtres et recherche */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          {/* Onglets de filtres */}
-          <div style={{ display: 'flex', gap: '6px', backgroundColor: '#F1F5F9', padding: '4px', borderRadius: '10px' }}>
+        {/* Barre d'onglets de filtre et recherche */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          {/* Segmented Control moderne */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '4px',
+              backgroundColor: '#F1F5F9',
+              padding: '4px',
+              borderRadius: '12px',
+            }}
+          >
             <button
               type="button"
               onClick={() => setFilterMode('all')}
               style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
+                padding: '7px 16px',
+                borderRadius: '9px',
                 border: 'none',
                 backgroundColor: filterMode === 'all' ? '#FFFFFF' : 'transparent',
-                color: filterMode === 'all' ? '#1B4565' : '#64748B',
+                color: filterMode === 'all' ? '#0F172A' : '#64748B',
                 fontWeight: filterMode === 'all' ? 800 : 600,
-                fontSize: '12px',
+                fontSize: '12.5px',
                 cursor: 'pointer',
-                boxShadow: filterMode === 'all' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                boxShadow: filterMode === 'all' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s',
               }}
             >
               Toutes ({alerts.length})
@@ -421,29 +563,30 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
               type="button"
               onClick={() => setFilterMode('unread')}
               style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
+                padding: '7px 16px',
+                borderRadius: '9px',
                 border: 'none',
                 backgroundColor: filterMode === 'unread' ? '#FFFFFF' : 'transparent',
-                color: filterMode === 'unread' ? '#D66927' : '#64748B',
+                color: filterMode === 'unread' ? '#E11D48' : '#64748B',
                 fontWeight: filterMode === 'unread' ? 800 : 600,
-                fontSize: '12px',
+                fontSize: '12.5px',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
-                boxShadow: filterMode === 'unread' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                gap: '6px',
+                boxShadow: filterMode === 'unread' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s',
               }}
             >
               <span>À traiter</span>
               {unreadIncomingCount > 0 && (
                 <span
                   style={{
-                    backgroundColor: '#E2445C',
+                    backgroundColor: '#E11D48',
                     color: '#FFFFFF',
                     borderRadius: '10px',
-                    padding: '1px 6px',
-                    fontSize: '10px',
+                    padding: '1px 7px',
+                    fontSize: '10.5px',
                     fontWeight: 900,
                   }}
                 >
@@ -456,76 +599,95 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
               type="button"
               onClick={() => setFilterMode('incoming')}
               style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
+                padding: '7px 16px',
+                borderRadius: '9px',
                 border: 'none',
                 backgroundColor: filterMode === 'incoming' ? '#FFFFFF' : 'transparent',
-                color: filterMode === 'incoming' ? '#1B4565' : '#64748B',
+                color: filterMode === 'incoming' ? '#0F172A' : '#64748B',
                 fontWeight: filterMode === 'incoming' ? 800 : 600,
-                fontSize: '12px',
+                fontSize: '12.5px',
                 cursor: 'pointer',
-                boxShadow: filterMode === 'incoming' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                boxShadow: filterMode === 'incoming' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s',
               }}
             >
-              Reçues (Secteur ➔ Atelier)
+              Reçues du Secteur
             </button>
 
             <button
               type="button"
               onClick={() => setFilterMode('outgoing')}
               style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
+                padding: '7px 16px',
+                borderRadius: '9px',
                 border: 'none',
                 backgroundColor: filterMode === 'outgoing' ? '#FFFFFF' : 'transparent',
-                color: filterMode === 'outgoing' ? '#1B4565' : '#64748B',
+                color: filterMode === 'outgoing' ? '#0F172A' : '#64748B',
                 fontWeight: filterMode === 'outgoing' ? 800 : 600,
-                fontSize: '12px',
+                fontSize: '12.5px',
                 cursor: 'pointer',
-                boxShadow: filterMode === 'outgoing' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                boxShadow: filterMode === 'outgoing' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s',
               }}
             >
-              Envoyées vers Secteur
+              Envoyées par l’Atelier
             </button>
           </div>
 
           {/* Recherche */}
-          <div style={{ position: 'relative', width: '240px' }}>
-            <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '10px' }} />
+          <div style={{ position: 'relative', width: '260px' }}>
+            <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '10px' }} />
             <input
               type="text"
-              placeholder="Rechercher un message..."
+              placeholder="Rechercher par animatrice, mot..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                padding: '7px 10px 7px 30px',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                fontSize: '12px',
+                padding: '8px 12px 8px 34px',
+                borderRadius: '10px',
+                border: '1.5px solid #CBD5E1',
+                fontSize: '12.5px',
                 outline: 'none',
+                backgroundColor: '#F8FAFC',
               }}
             />
           </div>
         </div>
 
-        {/* Liste des alertes */}
+        {/* Liste des cartes d'échanges */}
         {filteredAlerts.length === 0 ? (
           <div
             style={{
-              padding: '40px 20px',
+              padding: '48px 24px',
               textAlign: 'center',
               backgroundColor: '#F8FAFC',
-              borderRadius: '12px',
-              border: '1px dashed #CBD5E1',
+              borderRadius: '14px',
+              border: '1.5px dashed #CBD5E1',
             }}
           >
-            <MessageSquare size={32} color="#94A3B8" style={{ margin: '0 auto 10px auto' }} />
-            <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#475569' }}>
-              Aucune alerte trouvée
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                backgroundColor: '#EFF6FF',
+                color: '#0073EA',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 12px auto',
+              }}
+            >
+              <CheckCheck size={24} />
+            </div>
+            <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1E293B' }}>
+              {searchQuery ? 'Aucun message correspondant' : 'Tous les échanges sont à jour !'}
             </h4>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94A3B8' }}>
-              {searchQuery ? 'Modifiez votre terme de recherche.' : 'Tous les échanges sont à jour.'}
+            <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748B' }}>
+              {searchQuery
+                ? 'Essayez avec un autre mot-clé ou réinitialisez la recherche.'
+                : 'Aucune alerte non lue ni signalement en attente de traitement.'}
             </p>
           </div>
         ) : (
@@ -533,101 +695,135 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
             {filteredAlerts.map((al) => {
               const isIncoming = al.direction === 'to_atelier';
               const isUnread = !al.seen && isIncoming;
+              const avatar = getPersonAvatar(al.person || (isIncoming ? 'Animatrice' : 'Christophe'));
 
               return (
                 <div
                   key={al.id}
                   style={{
                     padding: '14px 18px',
-                    borderRadius: '12px',
-                    border: isUnread ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
+                    borderRadius: '14px',
+                    border: isUnread ? '1.5px solid #FECDD3' : '1px solid #E2E8F0',
                     borderLeft: isUnread
-                      ? '5px solid #E2445C'
+                      ? '5px solid #E11D48'
                       : isIncoming
-                      ? '5px solid #39A9DC'
+                      ? '5px solid #0073EA'
                       : '5px solid #00C875',
                     backgroundColor: isUnread ? '#FFFDF8' : '#FFFFFF',
-                    boxShadow: isUnread ? '0 4px 12px rgba(247, 172, 55, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
+                    boxShadow: isUnread
+                      ? '0 4px 14px rgba(225, 29, 72, 0.08)'
+                      : '0 2px 6px rgba(0, 0, 0, 0.02)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '14px',
+                    gap: '16px',
                     flexWrap: 'wrap',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: '280px' }}>
-                    {/* Badges d'information */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: 800,
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          backgroundColor: isIncoming ? '#EBF6FC' : '#E6F9F1',
-                          color: isIncoming ? '#0284C7' : '#059669',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        {isIncoming ? (
-                          <>⬅️ Signalement de {al.person || 'Responsable de Secteur'}</>
-                        ) : (
-                          <>➡️ Envoyé à {al.person || 'Secteur'}</>
-                        )}
-                      </span>
-
-                      {al.date && (
-                        <span style={{ fontSize: '11px', color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Clock size={11} /> {al.date}
-                        </span>
-                      )}
-
-                      {isUnread ? (
-                        <span
-                          style={{
-                            fontSize: '10.5px',
-                            fontWeight: 900,
-                            padding: '2px 7px',
-                            borderRadius: '10px',
-                            backgroundColor: '#FEE2E2',
-                            color: '#DC2626',
-                          }}
-                        >
-                          ● Non lu
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: '10.5px',
-                            fontWeight: 700,
-                            color: '#059669',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                          }}
-                        >
-                          <Check size={12} strokeWidth={3} /> Vu
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Titre / Message */}
+                  {/* Partie gauche : Avatar + Contenu */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '300px' }}>
+                    {/* Avatar Initiale */}
                     <div
                       style={{
-                        fontSize: '13.5px',
-                        fontWeight: isUnread ? 800 : 600,
-                        color: '#1B4565',
-                        lineHeight: 1.45,
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        backgroundColor: avatar.bg,
+                        color: avatar.text,
+                        border: `1.5px solid ${avatar.border}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 900,
+                        fontSize: '13px',
+                        flexShrink: 0,
                       }}
+                      title={al.person || 'Utilisateur'}
                     >
-                      {al.title}
+                      {avatar.initials}
+                    </div>
+
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      {/* Meta badges */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: isIncoming ? '#EFF6FF' : '#ECFDF5',
+                            color: isIncoming ? '#1D4ED8' : '#047857',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          {isIncoming ? (
+                            <>
+                              <ArrowDownLeft size={12} /> Reçue de {al.person || 'Responsable de Secteur'}
+                            </>
+                          ) : (
+                            <>
+                              <ArrowUpRight size={12} /> Envoyée à {al.person || 'Secteur'}
+                            </>
+                          )}
+                        </span>
+
+                        {al.date && (
+                          <span style={{ fontSize: '11px', color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={11} /> {al.date}
+                          </span>
+                        )}
+
+                        {isUnread ? (
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 900,
+                              padding: '2px 7px',
+                              borderRadius: '12px',
+                              backgroundColor: '#FFE4E6',
+                              color: '#E11D48',
+                              letterSpacing: '0.3px',
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            ● Nouveau
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: '#10B981',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <Check size={12} strokeWidth={3} /> Vu
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Corps du message */}
+                      <div
+                        style={{
+                          fontSize: '13.5px',
+                          fontWeight: isUnread ? 800 : 600,
+                          color: '#0F172A',
+                          lineHeight: 1.45,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {al.title}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Actions rapides */}
+                  {/* Partie droite : Boutons d'action rapides */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     {isIncoming && (
                       <button
@@ -636,19 +832,22 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
-                          padding: '6px 12px',
+                          gap: '5px',
+                          padding: '7px 12px',
                           borderRadius: '8px',
                           border: '1px solid #CBD5E1',
                           backgroundColor: '#FFFFFF',
-                          color: '#1B4565',
+                          color: '#1E293B',
                           fontSize: '12px',
                           fontWeight: 700,
                           cursor: 'pointer',
+                          transition: 'all 0.15s',
                         }}
                         title="Répondre directement à ce message"
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
                       >
-                        <Reply size={13} />
+                        <Reply size={13} color="#0073EA" />
                         <span>Répondre</span>
                       </button>
                     )}
@@ -665,7 +864,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '5px',
-                          padding: '6px 12px',
+                          padding: '7px 14px',
                           borderRadius: '8px',
                           border: '1px solid #10B981',
                           backgroundColor: '#ECFDF5',
@@ -673,6 +872,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                           fontSize: '12px',
                           fontWeight: 800,
                           cursor: 'pointer',
+                          transition: 'all 0.15s',
                         }}
                       >
                         <Check size={13} strokeWidth={3} />
@@ -683,14 +883,14 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                     <button
                       type="button"
                       onClick={async () => {
-                        const res = await onArchive(al.id);
+                        await onArchive(al.id);
                         showFeedback('Message archivé');
                       }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px',
-                        padding: '6px 10px',
+                        padding: '7px 10px',
                         borderRadius: '8px',
                         border: '1px solid #FECACA',
                         backgroundColor: '#FEF2F2',
@@ -698,6 +898,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                         fontSize: '12px',
                         fontWeight: 700,
                         cursor: 'pointer',
+                        transition: 'all 0.15s',
                       }}
                       title="Archiver ce message sur Monday"
                     >
