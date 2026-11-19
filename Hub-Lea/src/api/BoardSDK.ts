@@ -7,6 +7,7 @@ export const BOARD_IDS = {
 const CHANTIER_COLS: Record<string, { id: string; type: string }> = {
   interlocuteur: { id: 'dropdown_mkrb9ma', type: 'dropdown' },
   adresseMail: { id: 'dropdown_mkrbwbya', type: 'dropdown' },
+  telephone: { id: 'dropdown_mkrbfhrg', type: 'dropdown' },
 };
 
 class ItemsQueryBuilder {
@@ -42,6 +43,10 @@ class ItemsQueryBuilder {
             items {
               id
               name
+              group {
+                id
+                title
+              }
               column_values(ids: ${JSON.stringify(colIds)}) {
                 id
                 text
@@ -57,6 +62,10 @@ class ItemsQueryBuilder {
               items {
                 id
                 name
+                group {
+                  id
+                  title
+                }
                 column_values(ids: ${JSON.stringify(colIds)}) {
                   id
                   text
@@ -77,6 +86,7 @@ class ItemsQueryBuilder {
       const obj: Record<string, any> = {
         id: item.id,
         name: item.name,
+        group: item.group ? { id: item.group.id, title: item.group.title } : undefined,
       };
 
       for (const colKey of this.cols) {
