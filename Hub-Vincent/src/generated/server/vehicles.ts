@@ -38,13 +38,12 @@ const baseQuery = (k: 'open' | 'done') => {
 export const countPlans = createServerFn({ method: 'GET' })
   .validator(z.object({ kind }))
   .handler(async ({ data }) => {
-    const board = new PlanDactionVehiculeBoard();
     let total = 0;
     let cursor: string | null | undefined = undefined;
     do {
-      const res: { items: unknown[]; cursor?: string | null } = cursor
-        ? await board.items().withPagination({ cursor }).execute()
-        : await baseQuery(data.kind).withPagination({ limit: 2000 }).execute();
+      const res: { items: unknown[]; cursor?: string | null } = await baseQuery(data.kind)
+        .withPagination({ limit: 500, cursor })
+        .execute();
       total += res.items?.length ?? 0;
       cursor = res.cursor;
     } while (cursor);
@@ -54,9 +53,9 @@ export const countPlans = createServerFn({ method: 'GET' })
 export const getPlans = createServerFn({ method: 'GET' })
   .validator(z.object({ kind, cursor: z.string().optional() }))
   .handler(async ({ data }) => {
-    const res = data.cursor
-      ? await baseQuery(data.kind).withPagination({ cursor: data.cursor }).execute()
-      : await baseQuery(data.kind).withPagination({ limit: 25 }).execute();
+    const res = await baseQuery(data.kind)
+      .withPagination({ limit: 25, cursor: data.cursor })
+      .execute();
     return {
       items: (res.items ?? []).map((i) => {
         const dt = data.kind === 'done' ? i.dateRalisation : i.dateContrle;

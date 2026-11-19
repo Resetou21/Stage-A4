@@ -69,7 +69,7 @@ class GenericItemsQueryBuilder {
   }
 
   withPagination(opts: { limit?: number; cursor?: string | null }) {
-    if (opts.limit) this.limitCount = opts.limit;
+    if (opts.limit) this.limitCount = Math.min(Math.max(1, opts.limit), 500);
     if (opts.cursor) this.cursorStr = opts.cursor;
     return this;
   }
