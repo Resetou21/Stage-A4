@@ -8,6 +8,7 @@ import ChargemapCost, { loadCost } from '@generated/components/ChargemapCost';
 import TopVehicles, { loadTop } from '@generated/components/TopVehicles';
 import FleetCharts from '@generated/components/FleetCharts';
 import EnergyComparisonChart from '@generated/components/EnergyComparisonChart';
+import SyncFixedChargesModal from '@generated/components/SyncFixedChargesModal';
 
 const DASHBOARD_URL = 'https://groupefacility.monday.com/overviews/11196786';
 type Kind = 'open' | 'done';
@@ -122,11 +123,14 @@ export default function VehiclesCard() {
             Consultez le tableau de bord de suivi de la flotte : kilométrage, entretiens et affectations des véhicules.
           </p>
         </div>
-        <a href={DASHBOARD_URL} target="_blank" rel="noopener noreferrer"
-          className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-5 text-sm font-bold text-primary-foreground transition hover:brightness-95 sm:w-auto">
-          Ouvrir le tableau de bord
-          <ExternalLink className="h-4 w-4" />
-        </a>
+        <div className="flex flex-wrap items-center gap-2.5 sm:shrink-0">
+          <SyncFixedChargesModal />
+          <a href={DASHBOARD_URL} target="_blank" rel="noopener noreferrer"
+            className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-5 text-sm font-bold text-primary-foreground transition hover:brightness-95 sm:w-auto">
+            Ouvrir le tableau de bord
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:max-w-2xl">
