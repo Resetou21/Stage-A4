@@ -17,8 +17,16 @@ export type MissingChargeItem = {
   monthlyCost: number;
 };
 
+export type ActiveVehicle = {
+  plate: string;
+  num: string;
+  model: string;
+  monthlyCost: number;
+};
+
 export type FixedChargesStatus = {
   activeCount: number;
+  activeVehicles: ActiveVehicle[];
   totalMissing: number;
   missingByMonth: { key: string; label: string; count: number }[];
   missingItems: MissingChargeItem[];
@@ -193,6 +201,12 @@ export const getFixedChargesStatus = createServerFn({ method: 'GET' })
 
     return {
       activeCount: vehicles.length,
+      activeVehicles: vehicles.map((v) => ({
+        plate: v.plate,
+        num: v.num,
+        model: v.model,
+        monthlyCost: v.monthlyCost,
+      })),
       totalMissing: missingItems.length,
       missingByMonth,
       missingItems,

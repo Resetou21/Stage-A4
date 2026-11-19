@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, CheckCircle2, AlertTriangle, Layers, X, Play, Loader2, ShieldCheck } from 'lucide-react';
+import { RefreshCw, CheckCircle2, AlertTriangle, Layers, X, Play, Loader2, ShieldCheck, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { getFixedChargesStatus, createSingleFixedCharge, type FixedChargesStatus, type MissingChargeItem } from '@generated/server/syncFixedCharges';
 import { clearBoardCache } from '@api/mondayApi';
@@ -9,6 +9,7 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<FixedChargesStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [showVehicles, setShowVehicles] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; currentItem?: MissingChargeItem } | null>(null);
 
   const fetchStatus = async () => {
@@ -173,7 +174,12 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
 
                   {/* Détail par mois */}
                   <div className="rounded-lg border border-border p-3">
-                    <p className="text-xs font-bold text-foreground mb-2">Détail des mois détectés :</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-foreground">Détail des mois détectés :</p>
+                      <span className="text-[11px] text-muted-foreground font-normal">
+                        1 véhicule actif = 1 charge mensuelle
+                      </span>
+                    </div>
                     {status.missingByMonth.length === 0 ? (
                       <div className="flex items-center gap-2 py-3 text-sm text-emerald-600 font-semibold">
                         <CheckCircle2 className="h-4 w-4" />
@@ -189,6 +195,69 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  {/* Accordéon : Liste des 41 véhicules & montants */}
+                  {status.activeVehicles && status.activeVehicles.length > 0 && (
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowVehicles(!showVehicles)}
+                        className="w-full flex items-center justify-between p-2.5 bg-muted/30 text-xs font-bold text-foreground hover:bg-muted/50 transition cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span>📋 Voir les {status.activeCount} véhicules et leurs montants mensuels</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-primary">
+                          <span className="text-[11px] font-normal text-muted-foreground">{showVehicles ? 'Masquer' : 'Afficher'}</span>
+                          {showVehicles ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </span>
+                      </button>
+                      {showVehicles && (
+                        <div className="max-h-56 overflow-y-auto p-2 divide-y divide-border/60 text-xs bg-card">
+                          {status.activeVehicles.map((v) => (
+                            <div key={v.plate} className="py-1.5 px-2 flex items-center justify-between gap-2 hover:bg-muted/20">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {v.num && (
+                                  <span className="font-mono font-bold text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                    {v.num.replace(/^#/, '')}
+                                  </span>
+                                )}
+                                <span className="font-mono font-bold text-foreground shrink-0">{v.plate}</span>
+                                <span className="text-muted-foreground truncate">{v.model}</span>
+                              </div>
+                              <span className="font-mono font-bold text-primary shrink-0">
+                                {v.monthlyCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}/mois
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Liens de vérification directe vers Monday.com */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground pt-1">
+                    <span>Vérifier directement sur Monday :</span>
+                    <div className="flex items-center gap-3">
+                      <a
+                        href="https://groupefacility.monday.com/boards/5092005027"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline font-semibold"
+                      >
+                        Suivi du parc (41 actifs) <ExternalLink className="h-3 w-3" />
+                      </a>
+                      <span>•</span>
+                      <a
+                        href="https://groupefacility.monday.com/boards/5092124669"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline font-semibold"
+                      >
+                        Data sur véhicule (Fixe) <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
                   </div>
 
                   {/* Barre de progression pendant la synchronisation */}
