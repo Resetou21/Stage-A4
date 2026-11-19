@@ -978,6 +978,9 @@ export type MaintenanceExchange = {
   recipient: string;
   context?: string;
   message: string;
+  fileUrl?: string;
+  fileName?: string;
+  isImage?: boolean;
 };
 
 export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
@@ -994,10 +997,21 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
               id
               name
               created_at
-              column_values(ids: ["color_mkzat86a", "board_relation_mkwrnhwg", "date_mkwrkqy5", "boolean_mkwrnzkb"]) {
+              column_values(ids: ["color_mkzat86a", "board_relation_mkwrnhwg", "date_mkwrkqy5", "boolean_mkwrnzkb", "file_mm98hfng"]) {
                 id
                 text
                 value
+                ... on FileValue {
+                  files {
+                    ... on FileAssetValue {
+                      name
+                      asset {
+                        url
+                        public_url
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -1028,6 +1042,35 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
         const rawTitle = String(it.name || '');
         const titleLower = rawTitle.toLowerCase();
         const personLower = person.toLowerCase();
+
+        // Récupération de la pièce jointe / photo éventuelle (colonne file_mm98hfng)
+        let fileUrl = '';
+        let fileName = '';
+        let isImage = false;
+        const fileCol = it.column_values?.find((c: any) => c.id === 'file_mm98hfng');
+        if (fileCol) {
+          if (fileCol.files && fileCol.files.length > 0) {
+            const first = fileCol.files[0];
+            fileName = first.name || '';
+            fileUrl = first.asset?.public_url || first.asset?.url || fileCol.text || '';
+          } else if (fileCol.value) {
+            try {
+              const parsed = JSON.parse(fileCol.value);
+              if (parsed?.files && parsed.files.length > 0) {
+                fileName = parsed.files[0]?.name || '';
+              }
+            } catch {}
+            fileUrl = fileCol.text || '';
+          } else if (fileCol.text) {
+            fileUrl = fileCol.text;
+            const parts = fileCol.text.split('/');
+            fileName = decodeURIComponent(parts[parts.length - 1] || 'Fichier joint');
+          }
+          if (fileName || fileUrl) {
+            const lowerF = (fileName || fileUrl).toLowerCase();
+            isImage = lowerF.endsWith('.png') || lowerF.endsWith('.jpg') || lowerF.endsWith('.jpeg') || lowerF.endsWith('.webp') || lowerF.endsWith('.gif');
+          }
+        }
 
         // Est-ce que cette alerte concerne cette animatrice ?
         const isRelatedToAnimatrice =
@@ -1073,6 +1116,9 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
           recipient: direction === 'to_atelier' ? 'Christophe (Atelier)' : data.firstName,
           context: ctx,
           message: cleanMsg,
+          fileUrl,
+          fileName,
+          isImage,
         });
       }
 
