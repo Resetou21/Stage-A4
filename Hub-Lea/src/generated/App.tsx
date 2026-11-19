@@ -1,8 +1,21 @@
+import { useEffect } from 'react';
+import mondaySdk from 'monday-sdk-js';
 import ContactsCard from '@generated/components/ContactsCard';
 
+const monday = mondaySdk();
 const LOGO = 'https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg';
 
 export default function App() {
+  useEffect(() => {
+    // Initialisation et écoute du contexte Monday pour les widgets de tableau de bord
+    try {
+      monday.listen('context', (_res: any) => {});
+      monday.execute('valueCreatedForUser');
+    } catch {
+      // Ignorer si exécuté hors du contexte Monday iframe
+    }
+  }, []);
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rotate-12 rounded-[40%] bg-primary/80" />
