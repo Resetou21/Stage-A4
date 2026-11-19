@@ -6,6 +6,8 @@ import { cn } from '@lib/utils';
 import EnergyTile, { ENERGY_MENUS, type EnergyMenu } from '@generated/components/EnergyTile';
 import ChargemapCost, { loadCost } from '@generated/components/ChargemapCost';
 import TopVehicles, { loadTop } from '@generated/components/TopVehicles';
+import FleetCharts from '@generated/components/FleetCharts';
+import EnergyComparisonChart from '@generated/components/EnergyComparisonChart';
 
 const DASHBOARD_URL = 'https://groupefacility.monday.com/overviews/11196786';
 type Kind = 'open' | 'done';
@@ -144,11 +146,14 @@ export default function VehiclesCard() {
           <p className="mb-3 text-sm font-bold">
             {energy.src === 'chargemap' ? 'Électrique' : 'Total'} · {ENERGY_MENUS.find((m) => m.id === energy.menu)?.label}
           </p>
-          {energy.menu === 'cout' ? <ChargemapCost key={energy.src} source={energy.src === 'chargemap' ? 'chargemap' : 'carburant'} />
-            : energy.menu === 'top' ? <TopVehicles key={energy.src} source={energy.src === 'chargemap' ? 'chargemap' : 'carburant'} /> : (
-            <div className="flex min-h-32 items-center justify-center rounded-[var(--radius-md)] border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Données à venir.
-            </div>
+          {energy.menu === 'cout' ? (
+            <ChargemapCost key={energy.src} source={energy.src === 'chargemap' ? 'chargemap' : 'carburant'} />
+          ) : energy.menu === 'top' ? (
+            <TopVehicles key={energy.src} source={energy.src === 'chargemap' ? 'chargemap' : 'carburant'} />
+          ) : energy.src === 'chargemap' ? (
+            <FleetCharts key="fleet-charts" />
+          ) : (
+            <EnergyComparisonChart key="energy-comparison" />
           )}
         </div>
       )}
