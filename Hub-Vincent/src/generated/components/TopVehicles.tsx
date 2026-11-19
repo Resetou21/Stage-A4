@@ -55,7 +55,7 @@ export default function TopVehicles({ source }: { source: 'chargemap' | 'carbura
               </th>
               <td className="px-3 py-2 text-center">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-bold bg-primary/10 text-primary border border-primary/20">
-                  {v.num || '—'}
+                  {v.num ? v.num.replace(/^#/, '') : '—'}
                 </span>
               </td>
               <td className="px-3 py-2 text-left text-xs text-muted-foreground font-medium whitespace-nowrap">

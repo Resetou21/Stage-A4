@@ -110,7 +110,7 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
       const marque = it.column_values?.find((c: any) => c.id === 'color_mm0p87t0')?.text?.trim() || '';
       const modele = it.column_values?.find((c: any) => c.id === 'text_mm0p386j')?.text?.trim() || '';
       const fullModel = [marque, modele].filter(Boolean).join(' ');
-      const entry = { num: numVal ? `#${numVal}` : (it.name.match(/#\d+/)?.[0] || '—'), model: fullModel };
+      const entry = { num: numVal || (it.name.match(/#(\d+)/)?.[1] || '—'), model: fullModel };
       
       if (plate) {
         parcMap.set(plate, entry);
@@ -139,7 +139,7 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
         return {
           name,
           total,
-          num: pInfo?.num || (name.match(/#\d+/)?.[0] || '—'),
+          num: pInfo?.num || (name.match(/#(\d+)/)?.[1] || '—'),
           model: pInfo?.model || info.get(name)?.model || '',
           holder: info.get(name)?.holder || '',
         };
