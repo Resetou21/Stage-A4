@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, BellRing, ChevronDown, ChevronRight, Loader2, RefreshCw, Send, Wrench } from 'lucide-react';
+import { Bell, BellRing, ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@components/ui/dialog';
-import AlertContextSelect, { type AlertMachineOption } from '@generated/components/AlertContextSelect';
 import AlertsList, { buildCategories } from '@generated/components/AlertsList';
 import { totalAlerts, useAlerts } from '@generated/hooks/useAlerts';
-import { getAlertContexts, sendAlertToMaintenance } from '@generated/server/visits';
 import { cn } from '@lib/utils';
 
 const NAV = [
@@ -19,30 +17,8 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
   const { data, markSeen, archiveMessage, refreshMessages } = useAlerts(firstName);
   const [open, setOpen] = useState(false);
   const [zoneOpen, setZoneOpen] = useState(false);
-  const [atelierOpen, setAtelierOpen] = useState(false);
-  const [atelierContext, setAtelierContext] = useState('');
-  const [atelierMsg, setAtelierMsg] = useState('');
-  const [atelierSending, setAtelierSending] = useState(false);
-  const [atelierSentOk, setAtelierSentOk] = useState(false);
   const [refreshingMsgs, setRefreshingMsgs] = useState(false);
-  const [ctxLoaded, setCtxLoaded] = useState(false);
-  const [ctxLoading, setCtxLoading] = useState(false);
-  const [ctxChantiers, setCtxChantiers] = useState<string[]>([]);
-  const [ctxMachines, setCtxMachines] = useState<AlertMachineOption[]>([]);
   const total = totalAlerts(data);
-
-  useEffect(() => {
-    if (!atelierOpen || ctxLoaded || ctxLoading) return;
-    setCtxLoading(true);
-    getAlertContexts({ data: { firstName } })
-      .then((res) => {
-        setCtxChantiers(res?.chantiers ?? []);
-        setCtxMachines(res?.machines ?? []);
-        setCtxLoaded(true);
-      })
-      .catch((err) => console.warn('Erreur chargement contextes alertes:', err))
-      .finally(() => setCtxLoading(false));
-  }, [atelierOpen, ctxLoaded, ctxLoading, firstName]);
 
   // Animation d'ouverture fluide dès la première visite de chaque journée
   useEffect(() => {
@@ -223,77 +199,6 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">Aucune alerte en cours.</p>
             )}
-
-            {/* Alerte bidirectionnelle vers Christophe / Atelier Parc Machines */}
-            <div className="rounded-xl border border-[#D2E9F6] bg-[#EBF6FC]/70 p-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setAtelierOpen((v) => !v);
-                  setAtelierSentOk(false);
-                }}
-                className="flex w-full items-center justify-between text-left text-xs font-bold text-[#1B4565]"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Wrench className="h-3.5 w-3.5 text-[#39A9DC]" />
-                  Alerter l&apos;Atelier / Christophe (Parc Machines)
-                </span>
-                <span className="text-[#3989B7]">{atelierOpen ? 'Masquer' : 'Envoyer une alerte'}</span>
-              </button>
-
-              {atelierOpen && (
-                <div className="mt-2.5 space-y-2">
-                  <AlertContextSelect
-                    chantiers={ctxChantiers}
-                    machines={ctxMachines}
-                    loading={ctxLoading}
-                    value={atelierContext}
-                    onChange={setAtelierContext}
-                    placeholder="Machine ou chantier concerné (optionnel)"
-                  />
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={atelierMsg}
-                      onChange={(e) => setAtelierMsg(e.target.value)}
-                      placeholder="Ex: Panne câble, besoin intervention sur site..."
-                      className="flex-1 rounded-lg border border-[#D2E9F6] bg-white px-2.5 py-1.5 text-xs text-[#1B4565] outline-none focus:border-[#39A9DC]"
-                    />
-                    <button
-                      type="button"
-                      disabled={atelierSending || !atelierMsg.trim()}
-                      onClick={async () => {
-                        if (!atelierMsg.trim()) return;
-                        setAtelierSending(true);
-                        try {
-                          await sendAlertToMaintenance({
-                            data: {
-                              senderName: firstName,
-                              context: atelierContext.trim() || undefined,
-                              message: atelierMsg.trim(),
-                            },
-                          });
-                          setAtelierMsg('');
-                          setAtelierContext('');
-                          setAtelierSentOk(true);
-                        } finally {
-                          setAtelierSending(false);
-                        }
-                      }}
-                      className="inline-flex items-center gap-1 rounded-lg bg-[#39A9DC] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#3989B7] disabled:opacity-50"
-                    >
-                      <Send className="h-3 w-3" />
-                      {atelierSending ? 'Envoi...' : 'Envoyer'}
-                    </button>
-                  </div>
-                  {atelierSentOk && (
-                    <p className="text-[11px] font-semibold text-[#0E7042]">
-                      ✓ Alerte envoyée directement au Hub Maintenance / Christophe !
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="pt-2">
