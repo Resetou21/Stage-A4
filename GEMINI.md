@@ -171,13 +171,14 @@ Si l'utilisateur indique vouloir créer un **nouveau hub complètement différen
    * Supprimer les fichiers métiers obsolètes de l'ancien domaine (ex : `visits.ts`, `inventory.ts`, jauges étoiles...).
    * Conserver la plomberie Monday (`mondayApi.ts`) et les primitives UI utiles.
    * Remettre `App.tsx` sous forme d'une interface d'accueil propre et moderne, prête pour les nouveaux écrans.
-3. **Socle Partagé & Composants Mutualisés pour les Nouveaux Hubs** :
-   * Pour tout nouveau Hub, réutiliser le socle de composants prêts à l'emploi :
-     - `SearchableSelect` (sélection déroulante avec recherche, création et suppression de tags)
-     - `Dialog` (modales fluides accélérées GPU)
-     - `UsersBadge` (détection des profils connectés)
-     - `xlsx-export` (moteur ExcelJS avec charte Facility, filtres automatiques et alternance de couleurs)
-     - `mondayApi.ts` (moteur GraphQL avec pagination par curseur, file d'attente anti-saturation et cache mémoire)
+3. **Socle Partagé & Composants Mutualisés pour les Nouveaux Hubs (`Stage-A4/shared/`)** :
+   * Pour tout nouveau Hub, importer directement les briques centralisées depuis le dossier `shared/` du monorepo GitHub :
+     - `shared/components/SearchableSelect.tsx` (sélection déroulante avec recherche, création et suppression de tags)
+     - `shared/components/Dialog.tsx` (modales fluides accélérées GPU)
+     - `shared/components/UsersBadge.tsx` (détection des profils connectés)
+     - `shared/skills/xlsx-export.ts` (moteur ExcelJS avec charte Facility, filtres automatiques et alternance de couleurs)
+     - `shared/api/mondayApi.ts` (moteur GraphQL avec pagination par curseur, file d'attente anti-saturation et cache mémoire)
+     - `shared/styles/theme-tokens.css` (variables CSS officielles Groupe Facility)
 4. **Mise à jour de la mémoire du projet (`AGENTS.md` / `GEMINI.md`)** :
    * Conserver la Section 1 (Sécurité) et la Section 6.
    * Remplacer les Sections 2, 3 et 4 par la cartographie des nouveaux tableaux, nouveaux champs et nouvelles règles métiers demandées par l'utilisateur.
