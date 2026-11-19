@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export interface SpreadsheetTheme {
   primary?: string;
@@ -26,29 +26,89 @@ export function createSpreadsheet(config: SpreadsheetConfig): SpreadsheetConfig 
 
 export function useXlsxExport() {
   const exportToXlsx = async (config: SpreadsheetConfig, filename: string) => {
-    const { sheetName, columns, rows, columnWidths } = config;
+    const { sheetName, columns, rows, columnWidths, theme } = config;
 
-    // Create array of arrays data: [headers, ...rows]
-    const data = [columns, ...rows];
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Groupe Facility — Hub Communication';
+    wb.created = new Date();
 
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(data);
+    const ws = wb.addWorksheet(sheetName || 'Contacts clients', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    });
 
-    // Set column widths if provided
-    if (columnWidths) {
-      ws['!cols'] = Object.entries(columnWidths).map(([colIdx, width]) => ({
-        wch: Number(width) || 20,
-      }));
-    } else {
-      ws['!cols'] = columns.map(() => ({ wch: 30 }));
-    }
+    // Configuration des colonnes et largeurs
+    ws.columns = columns.map((colName, idx) => ({
+      header: colName,
+      key: `col_${idx}`,
+      width: columnWidths?.[idx] || 35,
+    }));
 
-    // Create workbook
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Feuille 1');
+    const primaryColor = (theme?.primary || 'FF39A9DC').replace('#', '');
+    const neutralColor = (theme?.neutral || 'FFE1F2FA').replace('#', '');
+    const fontName = theme?.font || 'Calibri';
 
-    // Write workbook to binary buffer and trigger download
-    XLSX.writeFile(wb, filename);
+    // Formatage de la ligne d'en-tête (Bleu Facility, texte blanc gras, filtres)
+    const headerRow = ws.getRow(1);
+    headerRow.height = 28;
+    headerRow.eachCell((cell) => {
+      cell.font = { name: fontName, size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: primaryColor },
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      cell.border = {
+        top: { style: 'thin', color: { argb: primaryColor } },
+        bottom: { style: 'thin', color: { argb: 'FF3989B7' } },
+        left: { style: 'thin', color: { argb: primaryColor } },
+        right: { style: 'thin', color: { argb: primaryColor } },
+      };
+    });
+
+    // Lignes de données alternées (Zebra striping)
+    rows.forEach((row, rowIdx) => {
+      const r = ws.addRow(row);
+      r.height = 20;
+      const isAltRow = rowIdx % 2 === 1; // Ligne alternée
+      const bgColor = isAltRow ? neutralColor : 'FFFFFFFF';
+
+      r.eachCell((cell) => {
+        cell.font = { name: fontName, size: 11 };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: bgColor },
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE6EEF3' } },
+          bottom: { style: 'thin', color: { argb: 'FFE6EEF3' } },
+          left: { style: 'thin', color: { argb: 'FFE6EEF3' } },
+          right: { style: 'thin', color: { argb: 'FFE6EEF3' } },
+        };
+      });
+    });
+
+    // Activation automatique des filtres Excel (flèches déroulantes sur les en-têtes)
+    ws.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: rows.length + 1, column: columns.length },
+    };
+
+    // Génération du fichier binaire et déclenchement du téléchargement navigateur
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return { exportToXlsx };
