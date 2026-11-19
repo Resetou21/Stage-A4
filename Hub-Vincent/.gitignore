@@ -1,0 +1,6 @@
+node_modules
+dist
+dist.zip
+.mappsrc
+*.tsbuildinfo
+.DS_Store
