@@ -968,6 +968,12 @@ export const getAlertContexts = createServerFn({ method: 'GET' })
     return payload;
   });
 
+export type MaintenanceFile = {
+  url: string;
+  name: string;
+  isImage: boolean;
+};
+
 export type MaintenanceExchange = {
   id: string;
   title: string;
@@ -978,6 +984,7 @@ export type MaintenanceExchange = {
   recipient: string;
   context?: string;
   message: string;
+  files?: MaintenanceFile[];
   fileUrl?: string;
   fileName?: string;
   isImage?: boolean;
@@ -1043,34 +1050,66 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
         const titleLower = rawTitle.toLowerCase();
         const personLower = person.toLowerCase();
 
-        // Récupération de la pièce jointe / photo éventuelle (colonne file_mm98hfng)
-        let fileUrl = '';
-        let fileName = '';
-        let isImage = false;
+        // Récupération de l'ensemble des pièces jointes / photos (colonne file_mm98hfng)
+        const attachedFiles: MaintenanceFile[] = [];
         const fileCol = it.column_values?.find((c: any) => c.id === 'file_mm98hfng');
         if (fileCol) {
-          if (fileCol.files && fileCol.files.length > 0) {
-            const first = fileCol.files[0];
-            fileName = first.name || '';
-            fileUrl = first.asset?.public_url || first.asset?.url || fileCol.text || '';
-          } else if (fileCol.value) {
+          if (fileCol.files && Array.isArray(fileCol.files)) {
+            for (const f of fileCol.files) {
+              const fName = f.name || '';
+              const fUrl = f.asset?.public_url || f.asset?.url || '';
+              if (fUrl) {
+                const lowerF = (fName || fUrl).toLowerCase();
+                const isImg =
+                  lowerF.endsWith('.png') ||
+                  lowerF.endsWith('.jpg') ||
+                  lowerF.endsWith('.jpeg') ||
+                  lowerF.endsWith('.webp') ||
+                  lowerF.endsWith('.gif');
+                attachedFiles.push({ url: fUrl, name: fName || 'Photo jointe', isImage: isImg });
+              }
+            }
+          }
+          if (attachedFiles.length === 0 && fileCol.value) {
             try {
               const parsed = JSON.parse(fileCol.value);
-              if (parsed?.files && parsed.files.length > 0) {
-                fileName = parsed.files[0]?.name || '';
+              if (parsed?.files && Array.isArray(parsed.files)) {
+                for (const f of parsed.files) {
+                  const fName = f.name || '';
+                  const fUrl = f.url || (fileCol.text || '');
+                  if (fUrl) {
+                    const lowerF = (fName || fUrl).toLowerCase();
+                    const isImg =
+                      lowerF.endsWith('.png') ||
+                      lowerF.endsWith('.jpg') ||
+                      lowerF.endsWith('.jpeg') ||
+                      lowerF.endsWith('.webp') ||
+                      lowerF.endsWith('.gif');
+                    attachedFiles.push({ url: fUrl, name: fName || 'Photo jointe', isImage: isImg });
+                  }
+                }
               }
             } catch {}
-            fileUrl = fileCol.text || '';
-          } else if (fileCol.text) {
-            fileUrl = fileCol.text;
-            const parts = fileCol.text.split('/');
-            fileName = decodeURIComponent(parts[parts.length - 1] || 'Fichier joint');
           }
-          if (fileName || fileUrl) {
-            const lowerF = (fileName || fileUrl).toLowerCase();
-            isImage = lowerF.endsWith('.png') || lowerF.endsWith('.jpg') || lowerF.endsWith('.jpeg') || lowerF.endsWith('.webp') || lowerF.endsWith('.gif');
+          if (attachedFiles.length === 0 && fileCol.text) {
+            const fUrl = fileCol.text;
+            const parts = fUrl.split('/');
+            const fName = decodeURIComponent(parts[parts.length - 1] || 'Fichier joint');
+            const lowerF = (fName || fUrl).toLowerCase();
+            const isImg =
+              lowerF.endsWith('.png') ||
+              lowerF.endsWith('.jpg') ||
+              lowerF.endsWith('.jpeg') ||
+              lowerF.endsWith('.webp') ||
+              lowerF.endsWith('.gif');
+            attachedFiles.push({ url: fUrl, name: fName, isImage: isImg });
           }
         }
+
+        const firstFile = attachedFiles[0];
+        const fileUrl = firstFile?.url || undefined;
+        const fileName = firstFile?.name || undefined;
+        const isImage = Boolean(firstFile?.isImage);
 
         // Est-ce que cette alerte concerne cette animatrice ?
         const isRelatedToAnimatrice =
@@ -1116,6 +1155,7 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
           recipient: direction === 'to_atelier' ? 'Christophe (Atelier)' : data.firstName,
           context: ctx,
           message: cleanMsg,
+          files: attachedFiles.length > 0 ? attachedFiles : undefined,
           fileUrl,
           fileName,
           isImage,

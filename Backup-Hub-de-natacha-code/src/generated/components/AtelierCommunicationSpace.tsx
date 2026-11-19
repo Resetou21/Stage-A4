@@ -20,12 +20,21 @@ import {
   FileText,
   X,
   ExternalLink,
+  Maximize2,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { monday } from '@api/BoardSDK';
 import AlertContextSelect, { type AlertMachineOption } from '@generated/components/AlertContextSelect';
-import { getAlertContexts, getMaintenanceExchanges, sendAlertToMaintenance, markCommunicationSeen, archiveCommunication, type MaintenanceExchange } from '@generated/server/visits';
+import { getAlertContexts, getMaintenanceExchanges, sendAlertToMaintenance, markCommunicationSeen, archiveCommunication, type MaintenanceExchange, type MaintenanceFile } from '@generated/server/visits';
 import { cn } from '@lib/utils';
+
+interface SelectedFile {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  isImage: boolean;
+}
 
 // Helper pour uploader la photo / le fichier sur la colonne file_mm98hfng du tableau Communication
 async function uploadAlertFile(itemId: string | number, file: File): Promise<boolean> {
@@ -75,9 +84,11 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
   const [contextVal, setContextVal] = useState('');
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<SelectedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Visionneuse plein écran instantanée (Lightbox sans téléchargement)
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
 
   // Données contextuelles (Chantiers & Machines)
   const [ctxLoading, setCtxLoading] = useState(false);
@@ -88,6 +99,30 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
   const [exchanges, setExchanges] = useState<MaintenanceExchange[]>([]);
   const [loadingExchanges, setLoadingExchanges] = useState(true);
   const [filterDirection, setFilterDirection] = useState<'all' | 'from_atelier' | 'to_atelier'>('all');
+
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const newSelected: SelectedFile[] = Array.from(fileList).map((f) => {
+      const isImg = f.type.startsWith('image/');
+      return {
+        id: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`,
+        file: f,
+        previewUrl: isImg ? URL.createObjectURL(f) : null,
+        isImage: isImg,
+      };
+    });
+    setAttachedFiles((prev) => [...prev, ...newSelected]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveFile = (id: string) => {
+    setAttachedFiles((prev) => {
+      const toRemove = prev.find((f) => f.id === id);
+      if (toRemove?.previewUrl) URL.revokeObjectURL(toRemove.previewUrl);
+      return prev.filter((f) => f.id !== id);
+    });
+  };
 
   const loadContexts = async () => {
     setCtxLoading(true);
@@ -137,25 +172,29 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
         },
       });
 
-      // Si une photo ou un fichier a été joint, l'uploader sur la colonne file_mm98hfng
-      if (res?.id && attachedFile) {
-        try {
-          await uploadAlertFile(res.id, attachedFile);
-        } catch (fErr) {
-          console.warn("Erreur d'upload du fichier pour l'alerte:", fErr);
+      // Si des photos ou fichiers ont été joints, les uploader sur la colonne file_mm98hfng
+      if (res?.id && attachedFiles.length > 0) {
+        for (const item of attachedFiles) {
+          try {
+            await uploadAlertFile(res.id, item.file);
+          } catch (fErr) {
+            console.warn("Erreur d'upload du fichier pour l'alerte:", fErr);
+          }
         }
       }
 
       toast.success('Alerte transmise à Christophe !', {
-        description: attachedFile
-          ? 'Votre message et son document/photo ont été envoyés avec succès.'
+        description: attachedFiles.length > 0
+          ? `${attachedFiles.length} photo(s)/document(s) joint(s) avec succès.`
           : 'Votre message a été envoyé vers le tableau de maintenance et le Hub de Christophe.',
       });
 
       setMessageText('');
       setContextVal('');
-      setAttachedFile(null);
-      setPreviewUrl(null);
+      attachedFiles.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      });
+      setAttachedFiles([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
       await loadExchanges();
     } catch (err) {
@@ -281,66 +320,68 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
                 />
               </div>
 
-              {/* Pièce jointe / Photo du problème */}
+              {/* Pièces jointes / Photos du problème (multiples) */}
               <div>
                 <input
                   ref={fileInputRef}
                   type="file"
+                  multiple
                   accept="image/*,.pdf,.doc,.docx"
                   className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setAttachedFile(f);
-                      if (f.type.startsWith('image/')) {
-                        setPreviewUrl(URL.createObjectURL(f));
-                      } else {
-                        setPreviewUrl(null);
-                      }
-                    }
-                  }}
+                  onChange={handleFilesSelected}
                 />
 
-                {!attachedFile ? (
+                <div className="flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-xl border border-dashed border-[#CBD5E1] bg-card/60 px-3 py-2 text-xs font-semibold text-[#1B4565] hover:bg-card hover:border-[#39A9DC] transition cursor-pointer w-full justify-center shadow-2xs"
+                    className="inline-flex items-center gap-2 rounded-xl border border-dashed border-[#CBD5E1] bg-card/60 px-3 py-2.5 text-xs font-semibold text-[#1B4565] hover:bg-card hover:border-[#39A9DC] transition cursor-pointer w-full justify-center shadow-2xs"
                   >
                     <Camera className="h-4 w-4 text-[#39A9DC]" />
-                    <span>📷 Prendre une photo / joindre un fichier</span>
+                    <span>
+                      {attachedFiles.length > 0
+                        ? `📷 Ajouter d'autres photos/fichiers (${attachedFiles.length} sélectionné${attachedFiles.length > 1 ? 's' : ''})`
+                        : '📷 Prendre une photo / joindre des fichiers'}
+                    </span>
                   </button>
-                ) : (
-                  <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 p-2 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {previewUrl ? (
-                        <img
-                          src={previewUrl}
-                          alt="Aperçu"
-                          className="h-10 w-10 rounded-lg object-cover border border-blue-300 shadow-2xs"
-                        />
-                      ) : (
-                        <FileText className="h-6 w-6 text-blue-600 shrink-0" />
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-semibold text-blue-900 truncate text-[11.5px]">{attachedFile.name}</p>
-                        <p className="text-[10px] text-blue-600">{(attachedFile.size / 1024).toFixed(1)} Ko • Prêt à envoyer</p>
-                      </div>
+
+                  {attachedFiles.length > 0 && (
+                    <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+                      {attachedFiles.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 p-2 text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {item.isImage && item.previewUrl ? (
+                              <img
+                                src={item.previewUrl}
+                                alt="Aperçu"
+                                className="h-9 w-9 rounded-lg object-cover border border-blue-300 shadow-2xs shrink-0"
+                              />
+                            ) : (
+                              <FileText className="h-6 w-6 text-blue-600 shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-blue-900 truncate text-[11.5px]">{item.file.name}</p>
+                              <p className="text-[10px] text-blue-600">
+                                {(item.file.size / 1024).toFixed(1)} Ko • Prêt
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(item.id)}
+                            className="rounded-lg p-1 text-red-500 hover:bg-red-100 transition cursor-pointer shrink-0 ml-2"
+                            title="Retirer ce fichier"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAttachedFile(null);
-                        setPreviewUrl(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="rounded-lg p-1 text-red-500 hover:bg-red-100 transition cursor-pointer"
-                      title="Retirer cette photo"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               <button
@@ -482,41 +523,66 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
                       {item.message}
                     </p>
 
-                    {/* Photo ou pièce jointe attachée */}
-                    {item.fileUrl && (
-                      <div className="mt-2.5">
-                        {item.isImage ? (
-                          <a
-                            href={item.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group relative inline-block overflow-hidden rounded-xl border border-border shadow-2xs hover:border-primary transition"
-                            title="Cliquer pour afficher la photo en grand format"
-                          >
-                            <img
-                              src={item.fileUrl}
-                              alt={item.fileName || 'Photo du matériel'}
-                              className="max-h-40 max-w-full rounded-xl object-contain group-hover:scale-105 transition-transform duration-200"
-                            />
-                            <div className="absolute bottom-1.5 right-1.5 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur flex items-center gap-1">
-                              <ExternalLink className="h-2.5 w-2.5" /> Agrandir
-                            </div>
-                          </a>
-                        ) : (
-                          <a
-                            href={item.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-muted transition"
-                            title="Télécharger / ouvrir le document"
-                          >
-                            <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="truncate max-w-[200px]">{item.fileName || 'Document joint'}</span>
-                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                          </a>
-                        )}
-                      </div>
-                    )}
+                    {/* Photos ou pièces jointes attachées (multiples) */}
+                    {(() => {
+                      const allFiles: MaintenanceFile[] =
+                        item.files && item.files.length > 0
+                          ? item.files
+                          : item.fileUrl
+                          ? [
+                              {
+                                url: item.fileUrl,
+                                name: item.fileName || 'Photo jointe',
+                                isImage: Boolean(item.isImage),
+                              },
+                            ]
+                          : [];
+
+                      if (allFiles.length === 0) return null;
+
+                      return (
+                        <div className="mt-3 flex flex-wrap gap-2.5">
+                          {allFiles.map((file, fIdx) =>
+                            file.isImage ? (
+                              <button
+                                key={fIdx}
+                                type="button"
+                                onClick={() => setLightboxImage({ url: file.url, name: file.name })}
+                                className="group relative flex items-center gap-2.5 rounded-xl border border-border bg-card/80 p-1.5 pr-3 text-left shadow-2xs hover:border-primary hover:bg-card transition cursor-pointer max-w-full"
+                                title="Cliquer pour afficher la photo en grand sans télécharger"
+                              >
+                                <img
+                                  src={file.url}
+                                  alt={file.name}
+                                  className="h-12 w-12 rounded-lg object-cover border border-border group-hover:scale-105 transition-transform shrink-0"
+                                />
+                                <div className="min-w-0 pr-1">
+                                  <p className="text-[11.5px] font-bold text-foreground truncate max-w-[140px] sm:max-w-[200px]">
+                                    {file.name}
+                                  </p>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                                    <Maximize2 className="h-2.5 w-2.5" /> Agrandir
+                                  </span>
+                                </div>
+                              </button>
+                            ) : (
+                              <a
+                                key={fIdx}
+                                href={file.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-muted transition"
+                                title="Télécharger / ouvrir le document"
+                              >
+                                <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="truncate max-w-[200px]">{file.name}</span>
+                                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                              </a>
+                            )
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2 text-[11px]">
                       <span className="text-muted-foreground">
@@ -564,6 +630,63 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
           </div>
         </div>
       </div>
+      {/* Modal Visionneuse Photo Plein Écran (Lightbox in-app sans téléchargement) */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[999999] flex flex-col items-center justify-center bg-black/90 p-3 sm:p-6 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setLightboxImage(null)}
+        >
+          {/* Barre supérieure : Titre & Actions */}
+          <div
+            className="w-full max-w-4xl flex items-center justify-between pb-3 text-white px-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 truncate pr-4">
+              <ImageIcon className="h-5 w-5 text-primary shrink-0" />
+              <span className="text-sm font-bold truncate">{lightboxImage.name}</span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={lightboxImage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={lightboxImage.name}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-white transition cursor-pointer"
+                title="Télécharger l'image"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Télécharger</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-white/10 hover:bg-white/25 text-white transition cursor-pointer"
+                title="Fermer (ou cliquer n'importe où)"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Image plein écran responsive */}
+          <div
+            className="relative max-h-[85vh] max-w-[95vw] flex items-center justify-center overflow-hidden rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.name}
+              className="max-h-[82vh] max-w-[92vw] object-contain rounded-xl select-none"
+            />
+          </div>
+
+          <p className="mt-3 text-[11px] text-white/60">
+            Tapez n'importe où pour fermer et revenir au Hub
+          </p>
+        </div>
+      )}
     </div>
   );
 }

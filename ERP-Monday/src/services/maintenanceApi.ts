@@ -3277,6 +3277,12 @@ export async function clearMachinePreventiveMonths(
 // 15. ALERTES BIDIRECTIONNELLES (ATELIER CHRISTOPHE <-> RESPONSABLES SECTEUR)
 // ============================================================================
 
+export interface MaintenanceAlertFile {
+  url: string;
+  name: string;
+  isImage: boolean;
+}
+
 export interface MaintenanceAlertMessage {
   id: string;
   title: string;
@@ -3286,6 +3292,7 @@ export interface MaintenanceAlertMessage {
   machineName?: string;
   direction: 'to_atelier' | 'to_secteur' | 'other';
   senderLabel?: string;
+  files?: MaintenanceAlertFile[];
   fileUrl?: string;
   fileName?: string;
   isImage?: boolean;
@@ -3349,37 +3356,66 @@ export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[
       const titleLower = title.toLowerCase();
       const personLower = person.toLowerCase();
 
-      // Récupération pièce jointe / photo éventuelle (colonne file_mm98hfng)
-      let fileUrl = '';
-      let fileName = '';
-      let isImage = false;
+      // Récupération de l'ensemble des pièces jointes / photos (colonne file_mm98hfng)
+      const attachedFiles: MaintenanceAlertFile[] = [];
       const fileCol = it.column_values?.find((c: any) => c.id === 'file_mm98hfng');
       if (fileCol) {
-        if (fileCol.files && fileCol.files.length > 0) {
-          const first = fileCol.files[0];
-          fileName = first.name || '';
-          fileUrl = first.asset?.public_url || first.asset?.url || fileCol.text || '';
-        } else if (fileCol.value) {
+        if (fileCol.files && Array.isArray(fileCol.files)) {
+          for (const f of fileCol.files) {
+            const fName = f.name || '';
+            const fUrl = f.asset?.public_url || f.asset?.url || '';
+            if (fUrl) {
+              const lowerF = (fName || fUrl).toLowerCase();
+              const isImg =
+                lowerF.endsWith('.png') ||
+                lowerF.endsWith('.jpg') ||
+                lowerF.endsWith('.jpeg') ||
+                lowerF.endsWith('.webp') ||
+                lowerF.endsWith('.gif');
+              attachedFiles.push({ url: fUrl, name: fName || 'Photo jointe', isImage: isImg });
+            }
+          }
+        }
+        if (attachedFiles.length === 0 && fileCol.value) {
           try {
             const parsed = JSON.parse(fileCol.value);
-            if (parsed?.files && parsed.files.length > 0) {
-              fileName = parsed.files[0]?.name || '';
+            if (parsed?.files && Array.isArray(parsed.files)) {
+              for (const f of parsed.files) {
+                const fName = f.name || '';
+                const fUrl = f.url || (fileCol.text || '');
+                if (fUrl) {
+                  const lowerF = (fName || fUrl).toLowerCase();
+                  const isImg =
+                    lowerF.endsWith('.png') ||
+                    lowerF.endsWith('.jpg') ||
+                    lowerF.endsWith('.jpeg') ||
+                    lowerF.endsWith('.webp') ||
+                    lowerF.endsWith('.gif');
+                  attachedFiles.push({ url: fUrl, name: fName || 'Photo jointe', isImage: isImg });
+                }
+              }
             }
           } catch {}
-          fileUrl = fileCol.text || '';
-        } else if (fileCol.text) {
-          fileUrl = fileCol.text;
+        }
+        if (attachedFiles.length === 0 && fileCol.text) {
+          const fUrl = fileCol.text;
+          const parts = fUrl.split('/');
+          const fName = decodeURIComponent(parts[parts.length - 1] || 'Fichier joint');
+          const lowerF = (fName || fUrl).toLowerCase();
+          const isImg =
+            lowerF.endsWith('.png') ||
+            lowerF.endsWith('.jpg') ||
+            lowerF.endsWith('.jpeg') ||
+            lowerF.endsWith('.webp') ||
+            lowerF.endsWith('.gif');
+          attachedFiles.push({ url: fUrl, name: fName, isImage: isImg });
         }
       }
-      if (fileUrl) {
-        const cleanName = (fileName || fileUrl).toLowerCase();
-        isImage =
-          cleanName.endsWith('.png') ||
-          cleanName.endsWith('.jpg') ||
-          cleanName.endsWith('.jpeg') ||
-          cleanName.endsWith('.webp') ||
-          cleanName.endsWith('.gif');
-      }
+
+      const firstFile = attachedFiles[0];
+      const fileUrl = firstFile?.url || undefined;
+      const fileName = firstFile?.name || undefined;
+      const isImage = Boolean(firstFile?.isImage);
 
       let direction: MaintenanceAlertMessage['direction'] = 'other';
       if (titleLower.startsWith('[parc machines') || titleLower.startsWith('[maintenance')) {
@@ -3401,8 +3437,9 @@ export async function fetchMaintenanceAlerts(): Promise<MaintenanceAlertMessage[
         person,
         machineName: clientOrMachine || undefined,
         direction,
-        fileUrl: fileUrl || undefined,
-        fileName: fileName || undefined,
+        files: attachedFiles.length > 0 ? attachedFiles : undefined,
+        fileUrl,
+        fileName,
         isImage,
       };
     });
@@ -3422,6 +3459,7 @@ export async function sendMaintenanceAlert(params: {
   siteName?: string;
   message: string;
   senderName?: string;
+  files?: File[];
   file?: File;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
   const todayIso = new Date().toISOString().split('T')[0];
@@ -3452,9 +3490,10 @@ export async function sendMaintenanceAlert(params: {
     );
     if (res?.data?.create_item?.id) {
       const newItemId = String(res.data.create_item.id);
-      if (params.file) {
+      const filesToUpload = params.files || (params.file ? [params.file] : []);
+      for (const f of filesToUpload) {
         try {
-          await uploadFileToMonday(newItemId, 'file_mm98hfng', params.file);
+          await uploadFileToMonday(newItemId, 'file_mm98hfng', f);
         } catch (fErr) {
           console.warn('Erreur téléversement pièce jointe alerte:', fErr);
         }

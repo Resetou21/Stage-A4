@@ -21,11 +21,20 @@ import {
   Image as ImageIcon,
   ExternalLink,
   X,
+  Maximize2,
+  Download,
 } from 'lucide-react';
 import type { Machine } from '../types';
-import type { MaintenanceAlertMessage } from '../services/maintenanceApi';
+import type { MaintenanceAlertMessage, MaintenanceAlertFile } from '../services/maintenanceApi';
 import { AlertContextSelect } from './MachineSelect';
 import { ResponsableSelect } from './ResponsableSelect';
+
+interface SelectedFile {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  isImage: boolean;
+}
 
 interface AtelierAlertsSectionProps {
   alerts: MaintenanceAlertMessage[];
@@ -38,6 +47,7 @@ interface AtelierAlertsSectionProps {
     machineName?: string;
     message: string;
     senderName?: string;
+    files?: File[];
     file?: File;
   }) => Promise<{ success: boolean; error?: string }>;
   getCol: (item: any, colId: string) => string;
@@ -86,8 +96,8 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   // Gestion des pièces jointes / photos (colonne file_mm98hfng)
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
-  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<SelectedFile[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const showFeedback = (msg: string) => {
@@ -95,27 +105,28 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
     setTimeout(() => setActionFeedback(null), 3500);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setAttachedFile(file);
-      if (file.type.startsWith('image/')) {
-        setFilePreview(URL.createObjectURL(file));
-      } else {
-        setFilePreview(null);
-      }
-    }
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const newSelected: SelectedFile[] = Array.from(fileList).map((f) => {
+      const isImg = f.type.startsWith('image/');
+      return {
+        id: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`,
+        file: f,
+        previewUrl: isImg ? URL.createObjectURL(f) : null,
+        isImage: isImg,
+      };
+    });
+    setAttachedFiles((prev) => [...prev, ...newSelected]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const removeAttachedFile = () => {
-    setAttachedFile(null);
-    if (filePreview) {
-      URL.revokeObjectURL(filePreview);
-      setFilePreview(null);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const handleRemoveFile = (id: string) => {
+    setAttachedFiles((prev) => {
+      const toRemove = prev.find((f) => f.id === id);
+      if (toRemove?.previewUrl) URL.revokeObjectURL(toRemove.previewUrl);
+      return prev.filter((f) => f.id !== id);
+    });
   };
 
   const handleSend = async () => {
@@ -126,14 +137,18 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
       machineName: machineContext.trim() || undefined,
       message: messageText.trim(),
       senderName: 'Christophe (Atelier)',
-      file: attachedFile || undefined,
+      files: attachedFiles.map((f) => f.file),
     });
     setIsSending(false);
 
     if (res.success) {
       setMessageText('');
       setMachineContext('');
-      removeAttachedFile();
+      attachedFiles.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      });
+      setAttachedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       showFeedback(`✓ Message transmis en direct au Hub de ${recipient} !`);
       await onRefresh();
     } else {
@@ -547,92 +562,104 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
             </button>
           </div>
 
-          {/* Bouton Pièce jointe / Photo & Aperçu */}
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px dashed #CBD5E1',
-                backgroundColor: '#F8FAFC',
-                color: '#475569',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#EFF6FF';
-                e.currentTarget.style.borderColor = '#93C5FD';
-                e.currentTarget.style.color = '#1D4ED8';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#F8FAFC';
-                e.currentTarget.style.borderColor = '#CBD5E1';
-                e.currentTarget.style.color = '#475569';
-              }}
-            >
-              <Camera size={14} />
-              <span>{attachedFile ? 'Changer de photo / fichier' : '📷 Ajouter une photo ou un fichier (optionnel)'}</span>
-            </button>
-
-            {attachedFile && (
-              <div
+          {/* Bouton Pièce jointe / Photos (multiples) & Aperçu */}
+          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                style={{ display: 'none' }}
+                onChange={handleFilesSelected}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  padding: '4px 10px',
+                  gap: '6px',
+                  padding: '6px 12px',
                   borderRadius: '8px',
-                  backgroundColor: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
+                  border: '1px dashed #CBD5E1',
+                  backgroundColor: '#F8FAFC',
+                  color: '#475569',
                   fontSize: '12px',
-                  color: '#1E40AF',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#EFF6FF';
+                  e.currentTarget.style.borderColor = '#93C5FD';
+                  e.currentTarget.style.color = '#1D4ED8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F8FAFC';
+                  e.currentTarget.style.borderColor = '#CBD5E1';
+                  e.currentTarget.style.color = '#475569';
                 }}
               >
-                {filePreview ? (
-                  <img
-                    src={filePreview}
-                    alt="Aperçu"
-                    style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <Paperclip size={14} />
-                )}
-                <span style={{ fontWeight: 600, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {attachedFile.name}
+                <Camera size={14} />
+                <span>
+                  {attachedFiles.length > 0
+                    ? `📷 Ajouter d'autres photos/fichiers (${attachedFiles.length} sélectionné${attachedFiles.length > 1 ? 's' : ''})`
+                    : '📷 Ajouter des photos ou des fichiers (1 ou plusieurs)'}
                 </span>
-                <span style={{ fontSize: '10px', color: '#6B7280' }}>
-                  ({Math.round(attachedFile.size / 1024)} ko)
-                </span>
-                <button
-                  type="button"
-                  onClick={removeAttachedFile}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    color: '#EF4444',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                  title="Retirer le fichier"
-                >
-                  <X size={14} />
-                </button>
+              </button>
+            </div>
+
+            {attachedFiles.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {attachedFiles.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      backgroundColor: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      fontSize: '12px',
+                      color: '#1E40AF',
+                    }}
+                  >
+                    {item.isImage && item.previewUrl ? (
+                      <img
+                        src={item.previewUrl}
+                        alt="Aperçu"
+                        style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <Paperclip size={14} />
+                    )}
+                    <span style={{ fontWeight: 600, maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.file.name}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#6B7280' }}>
+                      ({Math.round(item.file.size / 1024)} ko)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(item.id)}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        color: '#EF4444',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="Retirer ce fichier"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -947,73 +974,103 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                         {al.title}
                       </div>
 
-                      {/* Pièce jointe / Photo éventuelle */}
-                      {al.fileUrl && (
-                        <div style={{ marginTop: '8px' }}>
-                          {al.isImage ? (
-                            <a
-                              href={al.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '5px 10px',
-                                borderRadius: '8px',
-                                backgroundColor: '#F8FAFC',
-                                border: '1px solid #E2E8F0',
-                                textDecoration: 'none',
-                                transition: 'all 0.15s ease',
-                              }}
-                              title="Cliquer pour afficher la photo en grand"
-                            >
-                              <img
-                                src={al.fileUrl}
-                                alt={al.fileName || 'Photo alerte'}
-                                style={{
-                                  width: '38px',
-                                  height: '38px',
-                                  borderRadius: '6px',
-                                  objectFit: 'cover',
-                                  border: '1px solid #CBD5E1',
-                                }}
-                              />
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <ImageIcon size={12} color="#0073EA" /> {al.fileName || 'Photo jointe'}
-                                </span>
-                                <span style={{ fontSize: '10.5px', color: '#0073EA', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                  <ExternalLink size={10} /> Agrandir
-                                </span>
-                              </div>
-                            </a>
-                          ) : (
-                            <a
-                              href={al.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '5px 10px',
-                                borderRadius: '8px',
-                                backgroundColor: '#F1F5F9',
-                                border: '1px solid #CBD5E1',
-                                color: '#1E293B',
-                                fontSize: '11.5px',
-                                fontWeight: 700,
-                                textDecoration: 'none',
-                              }}
-                            >
-                              <Paperclip size={13} color="#0073EA" />
-                              <span>{al.fileName || 'Document joint'}</span>
-                              <ExternalLink size={11} color="#64748B" />
-                            </a>
-                          )}
-                        </div>
-                      )}
+                      {/* Photos et pièces jointes (multiples) */}
+                      {(() => {
+                        const allFiles: MaintenanceAlertFile[] =
+                          al.files && al.files.length > 0
+                            ? al.files
+                            : al.fileUrl
+                            ? [
+                                {
+                                  url: al.fileUrl,
+                                  name: al.fileName || 'Photo jointe',
+                                  isImage: Boolean(al.isImage),
+                                },
+                              ]
+                            : [];
+
+                        if (allFiles.length === 0) return null;
+
+                        return (
+                          <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            {allFiles.map((file, fIdx) =>
+                              file.isImage ? (
+                                <button
+                                  key={fIdx}
+                                  type="button"
+                                  onClick={() => setLightboxImage({ url: file.url, name: file.name })}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '5px 10px',
+                                    borderRadius: '8px',
+                                    backgroundColor: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  title="Cliquer pour afficher la photo en grand sans télécharger"
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#EFF6FF';
+                                    e.currentTarget.style.borderColor = '#BFDBFE';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#F8FAFC';
+                                    e.currentTarget.style.borderColor = '#E2E8F0';
+                                  }}
+                                >
+                                  <img
+                                    src={file.url}
+                                    alt={file.name}
+                                    style={{
+                                      width: '38px',
+                                      height: '38px',
+                                      borderRadius: '6px',
+                                      objectFit: 'cover',
+                                      border: '1px solid #CBD5E1',
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <ImageIcon size={12} color="#0073EA" /> {file.name}
+                                    </span>
+                                    <span style={{ fontSize: '10.5px', color: '#0073EA', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                      <Maximize2 size={10} /> Agrandir
+                                    </span>
+                                  </div>
+                                </button>
+                              ) : (
+                                <a
+                                  key={fIdx}
+                                  href={file.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '5px 10px',
+                                    borderRadius: '8px',
+                                    backgroundColor: '#F1F5F9',
+                                    border: '1px solid #CBD5E1',
+                                    color: '#1E293B',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    textDecoration: 'none',
+                                  }}
+                                >
+                                  <Paperclip size={13} color="#0073EA" />
+                                  <span>{file.name}</span>
+                                  <ExternalLink size={11} color="#64748B" />
+                                </a>
+                              )
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1106,6 +1163,120 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
           </div>
         )}
       </div>
+
+      {/* Modal Visionneuse Photo Plein Écran (Lightbox in-app sans téléchargement) */}
+      {lightboxImage && (
+        <div
+          onClick={() => setLightboxImage(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 999999,
+            backgroundColor: 'rgba(0, 0, 0, 0.90)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+        >
+          {/* Barre d'action supérieure */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '900px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingBottom: '12px',
+              color: '#FFFFFF',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <ImageIcon size={18} color="#38BDF8" />
+              <span style={{ fontSize: '14px', fontWeight: 700 }}>{lightboxImage.name}</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <a
+                href={lightboxImage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={lightboxImage.name}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  color: '#FFFFFF',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <Download size={14} />
+                <span>Télécharger</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Fermer (ou cliquer n'importe où)"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Image grand format */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxHeight: '85vh',
+              maxWidth: '95vw',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.name}
+              style={{
+                maxHeight: '82vh',
+                maxWidth: '92vw',
+                objectFit: 'contain',
+                borderRadius: '12px',
+              }}
+            />
+          </div>
+
+          <p style={{ marginTop: '12px', fontSize: '11px', color: 'rgba(255, 255, 255, 0.6)' }}>
+            Cliquez n'importe où pour fermer
+          </p>
+        </div>
+      )}
     </div>
   );
 };
