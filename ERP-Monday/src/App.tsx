@@ -7,6 +7,7 @@ import type { Machine, PlanningItem, PlanningEventDetail } from './types';
 import { InspectionForm } from './components/InspectionForm';
 import { MaintenanceMatrix } from './components/MaintenanceMatrix';
 import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
+import { AtelierAlertsSection } from './components/AtelierAlertsSection';
 import { CreateMachineModal } from './components/CreateMachineModal';
 import { isRealCleaningMachine, AlertContextSelect } from './components/MachineSelect';
 import { ResponsableSelect } from './components/ResponsableSelect';
@@ -139,7 +140,7 @@ export const App = () => {
   const [planningItems, setPlanningItems] = useState<PlanningItem[]>([]);
 
   // Navigation par onglets du Hub : Fiche de Contrôle par défaut
-  const [activeTab, setActiveTab] = useState<'inspection' | 'matrix' | 'agenda' | 'indicators'>('inspection');
+  const [activeTab, setActiveTab] = useState<'inspection' | 'matrix' | 'agenda' | 'indicators' | 'alerts'>('inspection');
   const [machineColsMeta, setMachineColsMeta] = useState<Record<string, string>>({});
   const [affectationSearch, setAffectationSearch] = useState<string>('');
   const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlertMessage[]>([]);
@@ -1068,6 +1069,42 @@ export const App = () => {
           )}
         </button>
 
+        {/* Onglet 5 : Échanges & Alertes Secteur (Animatrices) */}
+        {(() => {
+          const unreadCount = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
+          return (
+            <button
+              type="button"
+              className="facility-tab-btn"
+              onClick={() => setActiveTab('alerts')}
+              style={{
+                border: activeTab === 'alerts' ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
+                backgroundColor: activeTab === 'alerts' ? '#F7AC37' : '#FFFFFF',
+                color: activeTab === 'alerts' ? '#FFFFFF' : '#1B4565',
+                boxShadow: activeTab === 'alerts' ? '0 4px 14px rgba(247, 172, 55, 0.3)' : 'none',
+              }}
+            >
+              <Bell size={19} />
+              Alertes Secteur
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    backgroundColor: activeTab === 'alerts' ? '#FFFFFF' : '#E2445C',
+                    color: activeTab === 'alerts' ? '#E2445C' : '#FFFFFF',
+                    borderRadius: '10px',
+                    padding: '2px 7px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    marginLeft: '4px',
+                  }}
+                >
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          );
+        })()}
+
         {/* Bouton d'action directe : Ajouter une machine au parc */}
         <button
           type="button"
@@ -1095,6 +1132,81 @@ export const App = () => {
           <span>➕ Ajouter une machine</span>
         </button>
       </div>
+
+      {/* Bannière d'alerte très visible lorsque des messages reçus des animatrices sont en attente */}
+      {(() => {
+        const unreadCount = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
+        if (unreadCount === 0 || activeTab === 'alerts') return null;
+        return (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 20px',
+              borderRadius: '14px',
+              backgroundColor: '#FFF8EC',
+              border: '2px solid #F7AC37',
+              margin: '14px 0 6px 0',
+              boxShadow: '0 6px 18px rgba(247, 172, 55, 0.18)',
+              gap: '16px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  backgroundColor: '#E2445C',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  fontSize: '14px',
+                  boxShadow: '0 3px 8px rgba(226, 68, 92, 0.3)',
+                  flexShrink: 0,
+                }}
+              >
+                {unreadCount}
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 900, color: '#B86114', fontFamily: "'Ruda', sans-serif" }}>
+                  🔔 {unreadCount} nouveau{unreadCount > 1 ? 'x' : ''} signalement{unreadCount > 1 ? 's' : ''} / message{unreadCount > 1 ? 's' : ''} reçu{unreadCount > 1 ? 's' : ''} des Responsables de Secteur !
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#854D0E', marginTop: '2px' }}>
+                  Natacha, Ketty ou Émilie vous ont envoyé une consigne ou un problème matériel à traiter.
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('alerts')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 18px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: '#D66927',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 3px 10px rgba(214, 105, 39, 0.3)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>Consulter l'espace Alertes</span>
+              <span>&rarr;</span>
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Toast Notification Flottant (Pop-up moderne en bas à droite) */}
       {successMessage && (
@@ -1902,6 +2014,29 @@ export const App = () => {
             setInspectionModalMachineId(mId);
             setInspectionTargetTicketId(ticketId || null);
           }}
+        />
+      )}
+
+      {/* ================= ONGLET 5 : ALERTES & ÉCHANGES SECTEUR ================= */}
+      {activeTab === 'alerts' && (
+        <AtelierAlertsSection
+          alerts={maintenanceAlerts}
+          machines={activeParcMachines}
+          onRefresh={loadMaintenanceData}
+          onMarkSeen={async (id) => {
+            await markMaintenanceAlertSeen(id);
+            await loadMaintenanceData();
+          }}
+          onArchive={async (id) => {
+            const res = await archiveMaintenanceAlert(id);
+            if (res.success) {
+              setMaintenanceAlerts((prev) => prev.filter((item) => item.id !== id));
+            } else {
+              alert(`Erreur archivage alerte : ${res.error}`);
+            }
+          }}
+          onSendAlert={sendMaintenanceAlert}
+          getCol={getColText}
         />
       )}
 
