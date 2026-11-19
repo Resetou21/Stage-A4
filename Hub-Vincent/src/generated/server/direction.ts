@@ -39,7 +39,7 @@ export const getLossesSummary = createServerFn({ method: 'GET' })
     const where = { date: yearRange(), group: GROUPS[data?.kind ?? 'loss'] };
     let total = 0; let count = 0;
     const cats = new Map<string, number>();
-    let res = await board.items().withColumns(['montantHt', 'catgorie']).where(where).withPagination({ limit: 500 }).execute();
+    let res = await board.items().withColumns(['date', 'montantHt', 'catgorie']).where(where).withPagination({ limit: 500 }).execute();
     for (;;) {
       for (const i of res.items ?? []) {
         const m = i.montantHt ?? 0;
@@ -48,7 +48,7 @@ export const getLossesSummary = createServerFn({ method: 'GET' })
         cats.set(k, (cats.get(k) ?? 0) + m);
       }
       if (!res.cursor) break;
-      res = await board.items().withColumns(['montantHt', 'catgorie']).where(where).withPagination({ cursor: res.cursor, limit: 500 }).execute();
+      res = await board.items().withColumns(['date', 'montantHt', 'catgorie']).where(where).withPagination({ cursor: res.cursor, limit: 500 }).execute();
     }
     return {
       year: new Date().getFullYear(), total, count,
