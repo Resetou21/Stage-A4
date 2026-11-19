@@ -19,9 +19,9 @@ export default function NewTopic() {
       await addMeetingTopic({ data: { topic } });
       setText('');
       setOpen(false);
-      setMsg({ ok: true, text: '✓ Sujet ajouté avec succès !' });
+      setMsg({ ok: true, text: '✓ Sujet ajouté dans « A faire » !' });
       toast.success('Sujet ajouté avec succès !', {
-        description: `« ${topic} » a été ajouté pour la réunion d'associés.`,
+        description: `« ${topic} » est prêt dans « A faire » pour la réunion d'associés.`,
       });
       setTimeout(() => {
         setMsg(null);
@@ -43,9 +43,8 @@ export default function NewTopic() {
       </button>
       <span className="text-xs text-muted-foreground font-medium">Nouveau sujet</span>
       {msg && (
-        <output className={`text-center text-xs font-bold px-2 py-1 rounded-md transition-all ${
-          msg.ok ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-destructive border border-red-200'
-        }`}>
+        <output className={`text-center text-xs font-bold px-2 py-1 rounded-md transition-all ${msg.ok ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-destructive border border-red-200'
+          }`}>
           {msg.text}
         </output>
       )}
