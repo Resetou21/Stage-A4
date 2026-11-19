@@ -31,6 +31,7 @@ Il est chargé automatiquement à chaque session et pour chaque agent intervenan
 | **ERP Parc Matériel** (Atelier / Parc Machines) | `ERP-Monday` | `12514584` | `20004306` | `https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app` |
 | **Hub Facturation & Flotte (Christine)** | `Hub-Christine` | `12742359` | `20267872` | `https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app` |
 | **Hub Communication & Contacts (Léa)** | `Hub-Lea` | `12768686` | `20377620` | `https://v35f08750a3aaae38eb0904b41deaf718.cdn2.monday.app` |
+| **Hub Direction & Flotte (Vincent)** | `Hub-Vincent` | `12780613` | `20428306` | `https://veb2db5fe34ecc3e1c1519f91c8d97c5a.cdn2.monday.app` |
 
 *Règle d'or Nouveaux Hubs : À CHAQUE CRÉATION OU ÉVOLUTION D'UN HUB :*
 1. Créer son dossier local dédié et propre sur le Bureau (`Hub-[Nom]`).

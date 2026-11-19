@@ -32,6 +32,7 @@ import {
   AlertCircle,
   Users,
   Lightbulb,
+  Landmark,
 } from 'lucide-react';
 import RoadmapModal from './components/RoadmapModal';
 
@@ -52,6 +53,7 @@ export type ViewId =
   | 'comm_lea'
   | 'comm_terrain'
   | 'comm_alertes'
+  | 'direction_vincent'
   | 'commercial_contrats'
   | 'commercial_rentabilite';
 
@@ -184,6 +186,24 @@ const POLES: PoleMenu[] = [
     ],
   },
   {
+    id: 'pole_direction',
+    label: 'Direction & Exploitation',
+    poleIcon: Landmark,
+    accentColor: '#10B981',
+    bgLight: '#ECFDF5',
+    description: 'Pilotage financier, réunion d\'associés et flotte de véhicules',
+    items: [
+      {
+        id: 'direction_vincent',
+        title: 'Hub de Vincent (Direction & Flotte)',
+        badge: 'Hub Déployé',
+        badgeColor: '#10B981',
+        description: 'Suivi de la flotte, coûts de non-qualité, indicateurs financiers et réunion d’associés',
+        icon: Landmark,
+      },
+    ],
+  },
+  {
     id: 'pole_commercial',
     label: 'Commercial & Contrats',
     poleIcon: FileSpreadsheet,
@@ -208,6 +228,7 @@ const URL_SECTEUR_HUB = 'https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.a
 const URL_ATELIER_ERP = 'https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app';
 const URL_CHRISTINE_HUB = 'https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app';
 const URL_LEA_HUB = 'https://v35f08750a3aaae38eb0904b41deaf718.cdn2.monday.app';
+const URL_VINCENT_HUB = 'https://veb2db5fe34ecc3e1c1519f91c8d97c5a.cdn2.monday.app';
 
 // ==========================================
 // COMPOSANT PRINCIPAL DU PORTAIL GLOBAL
@@ -223,6 +244,7 @@ const VALID_VIEWS: ViewId[] = [
   'atelier_fournisseurs',
   'comm_lea',
   'comm_alertes',
+  'direction_vincent',
   'commercial_contrats',
 ];
 
@@ -1328,6 +1350,29 @@ export default function App() {
                 );
               }
 
+              if (currentView === 'direction_vincent') {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Landmark size={15} color="#10B981" />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                      Hub de Vincent — Direction & Flotte
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#10B981',
+                        backgroundColor: '#ECFDF5',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ● Suivi flotte, non-qualité, indicateurs financiers & réunion d’associés
+                    </span>
+                  </div>
+                );
+              }
+
               // Autres vues
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1371,7 +1416,8 @@ export default function App() {
               currentView === 'secteur_emilie' ||
               currentView === 'atelier_erp' ||
               currentView === 'atelier_vehicules' ||
-              currentView === 'comm_lea') && (
+              currentView === 'comm_lea' ||
+              currentView === 'direction_vincent') && (
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -2479,6 +2525,22 @@ export default function App() {
               key={`comm_lea_${refreshKey}`}
               src={`${URL_LEA_HUB}?v=20377620&ts=${refreshKey}`}
               title="Hub de Léa — Communication & Contacts Clients"
+              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              allow="clipboard-write; fullscreen; camera; microphone"
+            />
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* VUE : HUB DE VINCENT — DIRECTION & FLOTTE                    */}
+        {/* ------------------------------------------------------------ */}
+        {currentView === 'direction_vincent' && (
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+            <iframe
+              ref={activeIframeRef}
+              key={`direction_vincent_${refreshKey}`}
+              src={`${URL_VINCENT_HUB}?v=20428306&ts=${refreshKey}`}
+              title="Hub de Vincent — Direction & Flotte"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
