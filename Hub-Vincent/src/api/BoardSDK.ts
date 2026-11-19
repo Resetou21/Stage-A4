@@ -41,10 +41,97 @@ const COLS_CONFIG: Record<number, Record<string, { id: string; type: string }>> 
 
 // ==================== ITEMS QUERY BUILDER ====================
 
+const boardCache = new Map<number, { items: any[]; expires: number }>();
+const boardInFlight = new Map<number, Promise<any[]>>();
+
+export function invalidateBoardCache(boardId?: number) {
+  if (!boardId) {
+    boardCache.clear();
+    boardInFlight.clear();
+  } else {
+    boardCache.delete(boardId);
+    boardInFlight.delete(boardId);
+  }
+}
+
+async function getRawBoardItems(boardId: number): Promise<any[]> {
+  const cached = boardCache.get(boardId);
+  if (cached && Date.now() < cached.expires) {
+    return cached.items;
+  }
+  const inFlight = boardInFlight.get(boardId);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const p = (async () => {
+    const colMap = COLS_CONFIG[boardId] || {};
+    const colIds = Object.values(colMap).map((c) => c.id);
+
+    let allItems: any[] = [];
+    let cursor: string | null = null;
+
+    do {
+      const q = cursor
+        ? `query ($c: String!) {
+            next_items_page(limit: 500, cursor: $c) {
+              cursor
+              items {
+                id
+                name
+                group { id title }
+                column_values(ids: ${JSON.stringify(colIds)}) {
+                  id
+                  text
+                  value
+                }
+              }
+            }
+          }`
+        : `query {
+            boards(ids: [${boardId}]) {
+              items_page(limit: 500) {
+                cursor
+                items {
+                  id
+                  name
+                  group { id title }
+                  column_values(ids: ${JSON.stringify(colIds)}) {
+                    id
+                    text
+                    value
+                  }
+                }
+              }
+            }
+          }`;
+
+      const res: any = await callMondayApi(q, cursor ? { variables: { c: cursor } } : undefined);
+      const page = cursor
+        ? res?.next_items_page || res?.data?.next_items_page
+        : res?.boards?.[0]?.items_page || res?.data?.boards?.[0]?.items_page;
+
+      const pageItems = page?.items || [];
+      allItems = allItems.concat(pageItems);
+      cursor = page?.cursor || null;
+    } while (cursor && allItems.length < 5000);
+
+    boardCache.set(boardId, { items: allItems, expires: Date.now() + 60_000 });
+    return allItems;
+  })();
+
+  boardInFlight.set(boardId, p);
+  try {
+    return await p;
+  } finally {
+    boardInFlight.delete(boardId);
+  }
+}
+
 class GenericItemsQueryBuilder {
   private boardId: number;
   private cols: string[] = [];
-  private limitCount = 500;
+  private limitCount?: number;
   private cursorStr?: string;
   private whereFilters: Record<string, any> = {};
   private orderConfig?: { column: string; direction: 'asc' | 'desc' };
@@ -78,47 +165,33 @@ class GenericItemsQueryBuilder {
     const colMap = COLS_CONFIG[this.boardId] || {};
     const colIds = this.cols.map((c) => colMap[c]?.id || c).filter(Boolean);
 
-    // Construction de la requête GraphQL
-    const q = this.cursorStr
-      ? `query ($c: String!) {
-          next_items_page(limit: ${this.limitCount}, cursor: $c) {
-            cursor
-            items {
+    let rawItems: any[] = [];
+    let pageCursor: string | null = null;
+
+    if (this.cursorStr) {
+      const q = `query ($c: String!) {
+        next_items_page(limit: ${this.limitCount || 500}, cursor: $c) {
+          cursor
+          items {
+            id
+            name
+            group { id title }
+            column_values(ids: ${JSON.stringify(colIds)}) {
               id
-              name
-              group { id title }
-              column_values(ids: ${JSON.stringify(colIds)}) {
-                id
-                text
-                value
-              }
+              text
+              value
             }
           }
-        }`
-      : `query {
-          boards(ids: [${this.boardId}]) {
-            items_page(limit: ${this.limitCount}) {
-              cursor
-              items {
-                id
-                name
-                group { id title }
-                column_values(ids: ${JSON.stringify(colIds)}) {
-                  id
-                  text
-                  value
-                }
-              }
-            }
-          }
-        }`;
+        }
+      }`;
+      const res: any = await callMondayApi(q, { variables: { c: this.cursorStr } });
+      const page = res?.next_items_page || res?.data?.next_items_page;
+      rawItems = page?.items || [];
+      pageCursor = page?.cursor || null;
+    } else {
+      rawItems = await getRawBoardItems(this.boardId);
+    }
 
-    const res: any = await callMondayApi(q, this.cursorStr ? { variables: { c: this.cursorStr } } : undefined);
-    const page = this.cursorStr
-      ? res?.next_items_page || res?.data?.next_items_page
-      : res?.boards?.[0]?.items_page || res?.data?.boards?.[0]?.items_page;
-
-    const rawItems = page?.items || [];
     let parsedItems = rawItems.map((item: any) => {
       const obj: Record<string, any> = {
         id: item.id,
@@ -187,9 +260,13 @@ class GenericItemsQueryBuilder {
       });
     }
 
+    const finalItems = (this.limitCount && !this.cursorStr)
+      ? parsedItems.slice(0, this.limitCount)
+      : parsedItems;
+
     return {
-      items: parsedItems,
-      cursor: page?.cursor || null,
+      items: finalItems,
+      cursor: pageCursor,
     };
   }
 }
@@ -212,35 +289,18 @@ class GenericAggregateBuilder {
   countItems(_alias = 'total') {
     return {
       execute: async (): Promise<Array<{ total: number }>> => {
-        // Query items for this board with date column
+        const rawItems = await getRawBoardItems(this.boardId);
         const colMap = COLS_CONFIG[this.boardId] || {};
         const dateColDef = Object.values(colMap).find((c) => c.type === 'date');
         const dateColId = dateColDef?.id;
-
-        const q = `query {
-          boards(ids: [${this.boardId}]) {
-            items_page(limit: 500) {
-              items {
-                id
-                column_values(ids: [${dateColId ? `"${dateColId}"` : ''}]) {
-                  id
-                  text
-                }
-              }
-            }
-          }
-        }`;
-
-        const res: any = await callMondayApi(q);
-        const items = res?.boards?.[0]?.items_page?.items || res?.data?.boards?.[0]?.items_page?.items || [];
 
         let count = 0;
         const [fromKey, range] = Object.entries(this.whereFilters)[0] || [];
         const [start, end] = Array.isArray(range) ? range : [];
 
-        for (const it of items) {
+        for (const it of rawItems) {
           if (start && end) {
-            const cv = it.column_values?.[0];
+            const cv = it.column_values?.find((c: any) => c.id === dateColId);
             const dateStr = cv?.text?.trim();
             if (dateStr && dateStr >= start && dateStr <= end) {
               count++;

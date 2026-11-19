@@ -17,12 +17,23 @@ export const countRecentControls = createServerFn({ method: 'GET' })
       const start = new Date(now.getFullYear(), now.getMonth() - n, 1);
       const end = new Date(now.getFullYear(), now.getMonth() - n + 1, 0);
       const ymd = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-      return { start, from: ymd(start), to: ymd(end) };
+      return { label: start.toLocaleDateString('fr-FR', { month: 'short' }), from: ymd(start), to: ymd(end) };
     });
-    const months = await Promise.all(ranges.map(async (r) => {
-      const rows = await board.aggregate().where({ dateDuContrle: [r.from, r.to] }).countItems('total').execute();
-      return { label: r.start.toLocaleDateString('fr-FR', { month: 'short' }), count: rows?.[0]?.total ?? 0 };
-    }));
+
+    const res = await board.items().withColumns(['dateDuContrle']).execute();
+    const items = res.items ?? [];
+
+    const months = ranges.map((r) => {
+      let count = 0;
+      for (const it of items) {
+        const d = it.dateDuContrle;
+        if (d && d >= r.from && d <= r.to) {
+          count++;
+        }
+      }
+      return { label: r.label, count };
+    });
+
     return { total: months.reduce((s, m) => s + m.count, 0), months };
   });
 
