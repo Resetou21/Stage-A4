@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, type ChangeEvent } from 'react';
-import { Check, Upload, Info, Loader2, X, Download, ShieldCheck, FileSpreadsheet, AlertTriangle, Eye, Fuel, Zap, Search, ArrowLeft } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
+import { Check, Upload, Info, Loader2, X, Download, ShieldCheck, FileSpreadsheet, AlertTriangle, Eye, Fuel, Zap, Search, ArrowLeft, Sparkles } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@components/ui/dialog';
 import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
 import { cn } from '@lib/utils';
@@ -585,7 +585,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
 
         {/* MODALE DE PRÉVISUALISATION DÉTAILLÉE D'UNE PÉRIODE AU CLIC (15 / 30 / MOIS) */}
         <Dialog open={!!selectedPeriodDetail} onOpenChange={(o) => !o && setSelectedPeriodDetail(null)}>
-          <DialogContent className="max-w-3xl overflow-hidden flex flex-col p-0">
+          <DialogContent hideDefaultClose className="max-w-3xl overflow-hidden flex flex-col p-0">
             {/* EN-TÊTE FIXE STICKY AVEC RETOUR */}
             <div className="p-3.5 sm:p-4 border-b border-border bg-card/95 flex items-center justify-between gap-2 shrink-0">
               <button
@@ -604,18 +604,20 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                     : `Chargemap — ${selectedPeriodDetail?.label} ${year}`}
                 </span>
               </DialogTitle>
-              <button
-                type="button"
-                onClick={() => setSelectedPeriodDetail(null)}
-                className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted hover:bg-muted/80 text-foreground transition cursor-pointer shrink-0"
-                title="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPeriodDetail(null)}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted hover:bg-muted/80 text-foreground transition cursor-pointer shrink-0"
+                  title="Fermer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </DialogClose>
             </div>
 
             {selectedPeriodDetail && (
-              <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs">
+              <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs pb-32 sm:pb-8">
                 {/* 1. Résumé en Cartes KPI */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="p-3 rounded-xl border border-border bg-muted/30 flex items-center gap-3">
@@ -661,6 +663,37 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* 1.bis Actions Principales : Télécharger et Importer / Mettre à jour (Toujours visibles en haut !) */}
+                <div className="p-3 bg-muted/30 rounded-xl border border-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    <span>Actions rapides :</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <button
+                      type="button"
+                      onClick={handleDownloadPeriodXls}
+                      disabled={periodLoading || cleanTransactions.length === 0}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                      title="Télécharger les lignes de cette période au format Excel / CSV"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Télécharger XLS ({cleanTransactions.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPeriodDetail(null);
+                        inputRef.current?.click();
+                      }}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{cleanTransactions.length > 0 ? 'Mettre à jour (.xlsx)' : 'Importer (.xlsx)'}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -788,14 +821,16 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
             {/* 3. FOOTER FIXE STICKY AVEC FERMER ET ACTIONS EXPORT / IMPORT */}
             {selectedPeriodDetail && (
               <div className="p-3 sm:p-4 border-t border-border bg-card/95 flex flex-wrap items-center justify-between gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPeriodDetail(null)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted text-foreground px-4 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  <span>Fermer / Retour</span>
-                </button>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPeriodDetail(null)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted text-foreground px-4 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    <span>Fermer</span>
+                  </button>
+                </DialogClose>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
@@ -806,7 +841,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                     title="Télécharger les lignes de cette période au format Excel / CSV"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    <span>Télécharger ({cleanTransactions.length})</span>
+                    <span>Télécharger XLS ({cleanTransactions.length})</span>
                   </button>
 
                   <button

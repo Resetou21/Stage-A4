@@ -23,28 +23,35 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+interface DialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  hideDefaultClose?: boolean;
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DialogContentProps
+>(({ className, children, hideDefaultClose = false, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
         'dialog-modal-content fixed z-50 rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 box-border flex flex-col',
-        // Mobile : ancre sécurisée en haut à 10px et s'arrête à 78px du bas pour ne jamais être masqué par la barre Monday
-        'top-2.5 bottom-20 left-2 right-2 max-h-[calc(100vh-88px)] p-3.5 sm:p-6',
+        // Mobile : ancre sécurisée en haut à 8px et s'arrête à 112px du bas (toujours au-dessus de la barre flottante Monday)
+        'top-2 bottom-28 left-2 right-2 max-h-[calc(100dvh-120px)] p-3.5 sm:p-6',
         // Desktop : centrage parfait avec w-full
         'sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:max-h-[90vh]',
         className
       )}
       {...props}
     >
-      <DialogPrimitive.Close className="absolute right-2.5 top-2.5 sm:right-4 sm:top-4 z-40 inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted/90 hover:bg-muted text-foreground border border-border/60 shadow-xs transition-all focus:outline-none cursor-pointer">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Fermer</span>
-      </DialogPrimitive.Close>
+      {!hideDefaultClose && (
+        <DialogPrimitive.Close className="absolute right-2.5 top-2.5 sm:right-4 sm:top-4 z-40 inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted/90 hover:bg-muted text-foreground border border-border/60 shadow-xs transition-all focus:outline-none cursor-pointer">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Fermer</span>
+        </DialogPrimitive.Close>
+      )}
       {children}
     </DialogPrimitive.Content>
   </DialogPortal>
