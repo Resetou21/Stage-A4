@@ -1110,19 +1110,58 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bouton Menu Burger Mobile (affiché uniquement sur smartphone < 860px) */}
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen((prev) => !prev)}
-          className="mobile-menu-btn"
-          aria-label="Menu principal"
-        >
-          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+        {/* Boutons d'actions Mobile (affichés uniquement sur smartphone < 860px) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setShowSearchModal(true)}
+            className="mobile-search-btn"
+            aria-label="Rechercher dans le Hub"
+            title="Rechercher dans tout le Hub"
+          >
+            <Search size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            className="mobile-menu-btn"
+            aria-label="Menu principal"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
 
         {/* Panneau Déroulant Mobile Tactile */}
         {mobileMenuOpen && (
           <div className="mobile-dropdown-menu">
+            {/* Barre de recherche tactile rapide tout en haut du menu */}
+            <div style={{ paddingBottom: '8px', borderBottom: '1px solid #E2E8F0', marginBottom: '4px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setShowSearchModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #CBD5E1',
+                  backgroundColor: '#F8FAFC',
+                  color: '#64748B',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <Search size={16} color="#0073EA" />
+                <span>Rechercher un module, un pôle...</span>
+              </button>
+            </div>
             <button
               type="button"
               className="mobile-menu-item"
@@ -1717,19 +1756,39 @@ export default function App() {
                 color: '#0F172A',
               }}
             />
-            <kbd
+            <span className="desktop-only">
+              <kbd
+                style={{
+                  backgroundColor: '#F1F5F9',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '4px',
+                  padding: '2px 6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#64748B',
+                }}
+              >
+                ESC
+              </kbd>
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowSearchModal(false)}
               style={{
-                backgroundColor: '#F1F5F9',
-                border: '1px solid #CBD5E1',
-                borderRadius: '4px',
-                padding: '2px 6px',
-                fontSize: '11px',
-                fontWeight: 700,
+                background: 'none',
+                border: 'none',
+                padding: '4px',
+                cursor: 'pointer',
                 color: '#64748B',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '6px',
               }}
+              title="Fermer la recherche"
             >
-              ESC
-            </kbd>
+              <X size={18} />
+            </button>
           </div>
 
           <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '10px' }}>
