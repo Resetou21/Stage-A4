@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "deploy": "vite build && npx @mondaycom/apps-cli code:push -d dist -i 20198685 -c -z eu -f",
+    "deploy": "vite build && npx @mondaycom/apps-cli code:push -d dist -i 20500380 -c -z eu -f",
     "preview": "vite preview"
   },
   "dependencies": {

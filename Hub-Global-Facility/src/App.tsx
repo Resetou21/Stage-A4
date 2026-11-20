@@ -33,6 +33,8 @@ import {
   Users,
   Lightbulb,
   Landmark,
+  Menu,
+  X,
 } from 'lucide-react';
 import RoadmapModal from './components/RoadmapModal';
 
@@ -274,6 +276,7 @@ export default function App() {
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const [showRoadmapModal, setShowRoadmapModal] = useState<boolean>(false);
   const [roadmapInitialTab, setRoadmapInitialTab] = useState<'form' | 'list'>('list');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   // DONNÉES TEMPS RÉEL CONSOLIDÉES DEPUIS MONDAY.COM
   const [stats, setStats] = useState({
@@ -729,10 +732,11 @@ export default function App() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        minHeight: '100vh',
         width: '100%',
+        maxWidth: '100vw',
         backgroundColor: '#F8FAFC',
-        overflow: 'hidden',
+        overflowX: 'hidden',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}
     >
@@ -748,7 +752,7 @@ export default function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 20px',
+          padding: '0 16px',
           flexShrink: 0,
           boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
           zIndex: 50,
@@ -756,13 +760,16 @@ export default function App() {
         }}
       >
         {/* Logo & Identité Groupe Facility (Charte Graphique Officielle 2026) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div
-            onClick={() => handleNavigate('home')}
+            onClick={() => {
+              handleNavigate('home');
+              setMobileMenuOpen(false);
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '8px',
               cursor: 'pointer',
               userSelect: 'none',
             }}
@@ -771,16 +778,16 @@ export default function App() {
               src="https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg"
               alt="Groupe Facility"
               style={{
-                height: '34px',
+                height: '32px',
                 width: 'auto',
                 objectFit: 'contain',
               }}
             />
-            <div style={{ borderLeft: '1.5px solid #E2E8F0', paddingLeft: '10px' }}>
+            <div style={{ borderLeft: '1.5px solid #E2E8F0', paddingLeft: '8px' }}>
               <div
                 style={{
                   fontFamily: "'Ruda', sans-serif",
-                  fontSize: '13px',
+                  fontSize: '12px',
                   fontWeight: 900,
                   color: '#0F172A',
                   letterSpacing: '0.3px',
@@ -793,10 +800,10 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ height: '22px', width: '1px', backgroundColor: '#E2E8F0' }} />
+          <div className="desktop-nav" style={{ height: '22px', width: '1px', backgroundColor: '#E2E8F0', marginLeft: '6px', marginRight: '6px' }} />
 
-          {/* Menus Déroulants pour chaque Pôle */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* Menus Déroulants pour chaque Pôle (Desktop uniquement) */}
+          <nav className="desktop-nav">
             <button
               type="button"
               onClick={() => handleNavigate('home')}
@@ -994,8 +1001,8 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Côté Droit : Recherche, Actualisation, Plein Écran, Profil */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Côté Droit Desktop : Recherche, Actualisation, Plein Écran, Profil */}
+        <div className="desktop-actions">
           <button
             type="button"
             onClick={() => setShowSearchModal(true)}
@@ -1103,6 +1110,185 @@ export default function App() {
             <span>{userName ? userName.split(' ')[0] : 'Profil'}</span>
           </div>
         </div>
+
+        {/* Bouton Menu Burger Mobile (affiché uniquement sur smartphone < 860px) */}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+          className="mobile-menu-btn"
+          aria-label="Menu principal"
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
+        {/* Panneau Déroulant Mobile Tactile */}
+        {mobileMenuOpen && (
+          <div className="mobile-dropdown-menu">
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('home');
+                setMobileMenuOpen(false);
+              }}
+              style={{ backgroundColor: currentView === 'home' ? '#EBF6FC' : undefined, color: currentView === 'home' ? '#0073EA' : undefined }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Home size={18} color="#0073EA" />
+                <span>Accueil du Portail</span>
+              </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+
+            {/* Pôle Responsables de Secteur */}
+            <div style={{ padding: '6px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#0073EA', textTransform: 'uppercase' }}>
+              Responsables de Secteur
+            </div>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('secteur_global');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Building2 size={16} color="#0073EA" />
+                <span>Supervision Globale (371 chantiers)</span>
+              </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('secteur_natacha');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <span>Secteur Natacha THOMAS (161 chantiers)</span>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('secteur_ketty');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <span>Secteur Ketty PAULIN (151 chantiers)</span>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('secteur_emilie');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <span>Secteur Émilie TOBIE (57 chantiers)</span>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+
+            {/* Pôle Atelier & Matériel */}
+            <div style={{ padding: '8px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#00C875', textTransform: 'uppercase' }}>
+              Atelier &amp; Matériel
+            </div>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('atelier_erp');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Wrench size={16} color="#00C875" />
+                <span>ERP Parc Machines (Christophe)</span>
+              </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('atelier_vehicules');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Truck size={16} color="#0284C7" />
+                <span>Facturation Véhicules (Christine)</span>
+              </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+
+            {/* Pôle Communication & Direction */}
+            <div style={{ padding: '8px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#8B5CF6', textTransform: 'uppercase' }}>
+              Communication &amp; Direction
+            </div>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('comm_lea');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Users size={16} color="#8B5CF6" />
+                <span>Hub de Léa — Contacts Clients</span>
+              </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+            <button
+              type="button"
+              className="mobile-menu-item"
+              onClick={() => {
+                handleNavigate('direction_vincent');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Landmark size={16} color="#10B981" />
+                <span>Hub de Vincent — Direction</span>
+              </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
+
+            {/* Actions Rapides Tactiles */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setRefreshKey(Date.now());
+                  loadLiveStats(true);
+                }}
+                className="mobile-menu-item"
+                style={{ flex: 1, justifyContent: 'center', gap: '6px', color: '#0073EA' }}
+              >
+                <RefreshCw size={14} className={loadingStats ? 'animate-spin' : ''} />
+                <span>Actualiser</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setRoadmapInitialTab('list');
+                  setShowRoadmapModal(true);
+                }}
+                className="mobile-menu-item"
+                style={{ flex: 1, justifyContent: 'center', gap: '6px', color: '#D97706', backgroundColor: '#FEF3C7' }}
+              >
+                <Lightbulb size={14} />
+                <span>Idées &amp; Roadmap</span>
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ============================================================== */}
@@ -1110,6 +1296,7 @@ export default function App() {
       {/* ============================================================== */}
       {currentView !== 'home' && (
         <div
+          className="hub-subbar"
           style={{
             height: '46px',
             backgroundColor: '#FFFFFF',
@@ -1387,6 +1574,7 @@ export default function App() {
           {/* CÔTÉ DROIT : Synchro Monday + Plein Écran */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
+              className="mobile-hide"
               style={{
                 fontSize: '11px',
                 fontWeight: 700,
@@ -1588,13 +1776,14 @@ export default function App() {
       {/* ============================================================== */}
       {/* 4. CONTENU PRINCIPAL PAR VUE                                  */}
       {/* ============================================================== */}
-      <main style={{ flex: 1, position: 'relative', overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <main className="hub-main-content" style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {/* ------------------------------------------------------------ */}
         {/* VUE 1 : ACCUEIL DU PORTAIL GLOBAL                           */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'home' && (
-          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
             <div
+              className="hub-banner-box"
               style={{
                 backgroundColor: '#0F172A',
                 borderRadius: '18px',
@@ -1628,7 +1817,7 @@ export default function App() {
                   <Sparkles size={14} />
                   <span>Portail Centralisé d’Entreprise • Données Certifiées Monday</span>
                 </div>
-                <h1 style={{ fontSize: '26px', fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>
+                <h1 className="hub-banner-title" style={{ fontSize: '26px', fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>
                   Intranet Groupe Facility
                 </h1>
                 <p style={{ margin: 0, fontSize: '14px', color: '#94A3B8', maxWidth: '620px', lineHeight: 1.5 }}>
@@ -1636,7 +1825,7 @@ export default function App() {
                 </p>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div className="hub-banner-buttons" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => handleNavigate('secteur_global')}
@@ -1684,6 +1873,7 @@ export default function App() {
 
             {/* 4 Grands KPIs Réels du Groupe */}
             <div
+              className="hub-kpis-grid"
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
@@ -1797,7 +1987,7 @@ export default function App() {
               Accès aux Pôles Métiers
             </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+            <div className="hub-poles-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
               {POLES.map((pole) => {
                 const PoleIcon = pole.poleIcon;
                 return (
