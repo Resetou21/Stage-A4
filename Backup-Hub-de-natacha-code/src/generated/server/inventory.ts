@@ -345,7 +345,7 @@ export const getInventoryActions = createServerFn({ method: 'GET' })
           const recupMonday = num(raw);
           const recupFinal = recupMonday > 0 ? recupMonday : (stockMini > 0 && inv > stockMini ? Math.round(inv - stockMini) : 0);
           const mois = contrat > 0 && recupFinal > 0 ? Math.round((recupFinal * 12 / contrat) * 10) / 10 : null;
-          const value = mois !== null ? `${recupFinal} (${mois.toLocaleString("fr-FR")} mois)` : String(recupFinal);
+          const value = mois !== null ? `${recupFinal} (${mois} mois)` : String(recupFinal);
           return { name: `${name} - À récupérer`, value, recup: recupFinal };
         }).filter((v) => v.recup > 0).map(({ name, value }) => ({ name, value }));
         // Avenant calculé : min(À récupérer, 25 % du contrat arrondi à l'entier)
