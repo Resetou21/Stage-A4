@@ -415,23 +415,17 @@ export default function InventoryActions({
           {selectedAction && (
             <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4 text-xs pb-24 sm:pb-8">
               {/* Note explicative selon le type d'action */}
-              <div
-                className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
-                  selectedAction.type === 'À récupérer'
-                    ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-800/40 dark:text-emerald-300'
-                    : 'bg-blue-50/60 border-blue-200 text-blue-900 dark:bg-blue-950/20 dark:border-blue-800/40 dark:text-blue-300'
-                }`}
-              >
-                <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
+              <div className="p-3 rounded-xl border border-border/80 bg-card flex items-start gap-2.5 text-xs text-foreground shadow-2xs">
+                <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                <div className="leading-relaxed">
                   {selectedAction.type === 'À récupérer' ? (
                     <span>
-                      <strong>Stock en surplus à récupérer sur site :</strong> Le chiffre entre parenthèses
+                      <strong className="text-foreground font-black">Stock en surplus à récupérer sur site :</strong> Le chiffre entre parenthèses
                       indique à combien de mois de consommation correspond ce stock.
                     </span>
                   ) : (
                     <span>
-                      <strong>Avenant de diminution à établir :</strong> Le nombre indiqué correspond à la diminution
+                      <strong className="text-foreground font-black">Avenant de diminution à établir :</strong> Le nombre indiqué correspond à la diminution
                       annuelle recommandée pour réviser le contrat avec le client.
                     </span>
                   )}
