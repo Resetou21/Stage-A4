@@ -191,8 +191,8 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
   };
 
   const [validating, setValidating] = useState<string | null>(null);
-  const toggleValid = async (siteId: string, v: boolean) => {
-    if (!v || validating) return;
+  const toggleValid = async (siteId: string, v: boolean): Promise<boolean> => {
+    if (!v || validating) return false;
     // Si un champ de saisie a encore le focus, forcer son enregistrement avant de lire les valeurs
     if (document.activeElement instanceof HTMLInputElement) {
       document.activeElement.blur();
@@ -212,7 +212,7 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
     }
     if (missing.length > 0) {
       toast.error('Inventaire incomplet', { description: `Référence(s) non complétée(s) : ${missing.join(', ')}` });
-      return;
+      return false;
     }
     const prev = due;
     setValidating(siteId);
@@ -228,10 +228,12 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
       delete draftsRef.current[siteId];
       toast.success('Inventaire validé', { id: `val-${siteId}` });
       onChanged?.();
+      return true;
     } catch (e) {
       console.error(e);
       setDue(prev);
       toast.error('Échec de la validation', { id: `val-${siteId}` });
+      return false;
     } finally {
       setValidating(null);
     }
@@ -561,8 +563,8 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                 disabled={validating !== null}
                 onClick={async () => {
                   const id = selectedSite.id;
-                  await toggleValid(id, true);
-                  setSelectedSiteId(null);
+                  const ok = await toggleValid(id, true);
+                  if (ok) setSelectedSiteId(null);
                 }}
                 className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition cursor-pointer disabled:opacity-60 ${
                   selectedSiteIsAllFilled
