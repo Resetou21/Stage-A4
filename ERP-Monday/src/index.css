@@ -298,6 +298,43 @@ h1, h2, h3, h4, h5, h6, .font-title {
   gap: 10px;
 }
 
+/* Tab Labels Responsive */
+.desktop-tab-label {
+  display: inline;
+}
+.mobile-tab-label {
+  display: none;
+}
+
+/* Machine Select Dropdown Desktop Defaults */
+.machine-select-overlay {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 9999;
+}
+.machine-select-dropdown {
+  background-color: #FFFFFF;
+  border-radius: 14px;
+  border: 1.5px solid #39A9DC;
+  box-shadow: 0 12px 36px rgba(27, 69, 101, 0.18);
+  padding: 10px;
+  animation: fadeIn 0.12s ease-out;
+  box-sizing: border-box;
+}
+.machine-select-mobile-header {
+  display: none !important;
+}
+.machine-select-dropdown-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* Bouton principal de soumission */
 .inspection-submit-container {
   text-align: right;
@@ -321,24 +358,38 @@ h1, h2, h3, h4, h5, h6, .font-title {
 
 /* ================= MEDIA QUERY MOBILE (< 640px) ================= */
 @media (max-width: 640px) {
+  .desktop-tab-label {
+    display: none !important;
+  }
+  .mobile-tab-label {
+    display: inline !important;
+  }
+
   .facility-app-container {
-    padding: 12px 10px !important;
+    padding: 12px 10px 110px !important; /* Dégagement de sécurité pour la barre flottante Monday */
   }
 
   .facility-header-card {
-    padding: 14px 14px !important;
-    gap: 12px !important;
-    margin-bottom: 16px !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+    border-radius: 12px !important;
   }
   .facility-header-divider {
     display: none !important;
   }
   .facility-header-logo {
-    height: 34px !important;
-    max-width: 120px !important;
+    height: 30px !important;
+    max-width: 100px !important;
   }
   .facility-header-title {
-    font-size: 18px !important;
+    font-size: 17px !important;
+  }
+  .facility-header-subtitle {
+    display: none !important;
+  }
+  .facility-header-date {
+    display: none !important;
   }
 
   /* Barre d'onglets défilable horizontalement au doigt */
@@ -346,9 +397,9 @@ h1, h2, h3, h4, h5, h6, .font-title {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
-    gap: 8px !important;
-    padding-bottom: 8px !important;
-    margin-bottom: 16px !important;
+    gap: 6px !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 0 !important;
     scrollbar-width: none; /* Firefox */
   }
   .facility-tabs-nav::-webkit-scrollbar {
@@ -356,10 +407,48 @@ h1, h2, h3, h4, h5, h6, .font-title {
   }
   .facility-tab-btn {
     white-space: nowrap !important;
-    padding: 9px 14px !important;
-    font-size: 13px !important;
+    padding: 8px 12px !important;
+    font-size: 12.5px !important;
     flex-shrink: 0 !important;
-    border-radius: 10px !important;
+    border-radius: 9px !important;
+    gap: 6px !important;
+  }
+
+  /* Sélecteur de machine : Modal Sheet pleine vue sur Mobile */
+  .machine-select-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 99999 !important;
+    background-color: rgba(15, 23, 42, 0.7) !important;
+    backdrop-filter: blur(4px) !important;
+    padding: 10px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+  }
+  .machine-select-dropdown {
+    background-color: #FFFFFF !important;
+    border-radius: 16px !important;
+    padding: 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    max-height: 88vh !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
+    border: 1.5px solid #39A9DC !important;
+    overflow: hidden !important;
+  }
+  .machine-select-mobile-header {
+    display: flex !important;
+  }
+  .machine-select-dropdown-list {
+    flex: 1 1 auto !important;
+    max-height: calc(88vh - 140px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 24px !important;
   }
 
   /* Cartes d'étapes */

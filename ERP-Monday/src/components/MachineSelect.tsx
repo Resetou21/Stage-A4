@@ -335,98 +335,143 @@ export const MachineSelect: React.FC<MachineSelectProps> = React.memo(({
         </div>
       </div>
 
-      {/* ================= MENU DÉROULANT FLOTTANT (S'OUVRE TOUJOURS VERS LE BAS) ================= */}
+      {/* ================= MENU DÉROULANT FLOTTANT (S'OUVRE VERS LE BAS EN DESKTOP, EN SHEET MODALE SUR MOBILE) ================= */}
       {isOpen && (
         <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-            backgroundColor: '#FFFFFF',
-            borderRadius: '14px',
-            border: '1.5px solid #39A9DC',
-            boxShadow: '0 12px 36px rgba(27, 69, 101, 0.18)',
-            padding: '10px',
-            animation: 'fadeIn 0.12s ease-out',
-            boxSizing: 'border-box',
+          className="machine-select-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsOpen(false);
+            }
           }}
         >
-          {/* Barre de recherche intégrée dans le menu */}
-          <div style={{ position: 'relative', marginBottom: '10px' }}>
-            <Search
-              size={16}
-              color="#39A9DC"
-              style={{ position: 'absolute', left: '12px', top: '12px' }}
-            />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder={`Rechercher parmi les ${machines.length} machines (nom, n°, type, site)...`}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+          <div
+            className="machine-select-dropdown"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              border: '1.5px solid #39A9DC',
+              boxShadow: '0 12px 36px rgba(27, 69, 101, 0.18)',
+              padding: '10px',
+              animation: 'fadeIn 0.12s ease-out',
+              boxSizing: 'border-box',
+            }}
+          >
+            {/* En-tête mobile dédié avec bouton fermer direct */}
+            <div
+              className="machine-select-mobile-header"
               style={{
-                width: '100%',
-                padding: '10px 12px 10px 38px',
-                borderRadius: '10px',
-                border: '1px solid #C8DCE8',
-                fontSize: '13.5px',
-                fontFamily: 'inherit',
-                color: '#1B4565',
-                outline: 'none',
-                boxSizing: 'border-box',
-                backgroundColor: '#F8FCFE',
+                display: 'none',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingBottom: '10px',
+                marginBottom: '8px',
+                borderBottom: '1.5px solid #E2EEF5',
               }}
-            />
-            {search && (
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Wrench size={18} color="#39A9DC" />
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#1B4565', fontFamily: "'Ruda', sans-serif" }}>
+                  Sélectionner une machine
+                </span>
+              </div>
               <button
                 type="button"
-                onClick={() => setSearch('')}
+                onClick={() => setIsOpen(false)}
                 style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '10px',
-                  background: 'none',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
                   border: 'none',
-                  color: '#6C8CA3',
+                  backgroundColor: '#F0F5F8',
+                  color: '#1B4565',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: 'pointer',
-                  padding: '2px',
                 }}
+                title="Fermer"
               >
-                <X size={15} />
+                <X size={18} />
               </button>
-            )}
-          </div>
+            </div>
 
-          <div
-            style={{
-              padding: '2px 8px 8px 8px',
-              fontSize: '11px',
-              fontWeight: 800,
-              fontFamily: "'Ruda', sans-serif",
-              color: '#3989B7',
-              textTransform: 'uppercase',
-              letterSpacing: '0.4px',
-              display: 'flex',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span>Liste complète du parc</span>
-            <span>{filteredMachines.length} résultat(s)</span>
-          </div>
+            {/* Barre de recherche intégrée dans le menu */}
+            <div style={{ position: 'relative', marginBottom: '10px' }}>
+              <Search
+                size={16}
+                color="#39A9DC"
+                style={{ position: 'absolute', left: '12px', top: '12px' }}
+              />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder={`Rechercher parmi les ${machines.length} machines (nom, n°, type, site)...`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px 10px 38px',
+                  borderRadius: '10px',
+                  border: '1px solid #C8DCE8',
+                  fontSize: '13.5px',
+                  fontFamily: 'inherit',
+                  color: '#1B4565',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#F8FCFE',
+                }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '10px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#6C8CA3',
+                    cursor: 'pointer',
+                    padding: '2px',
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
 
-          {/* Liste déroulante complète et scrollable */}
-          <div
-            style={{
-              maxHeight: '340px',
-              overflowY: 'auto',
-              paddingRight: '4px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-            }}
-          >
+            <div
+              style={{
+                padding: '2px 8px 8px 8px',
+                fontSize: '11px',
+                fontWeight: 800,
+                fontFamily: "'Ruda', sans-serif",
+                color: '#3989B7',
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span>Liste complète du parc</span>
+              <span>{filteredMachines.length} résultat(s)</span>
+            </div>
+
+            {/* Liste déroulante complète et scrollable */}
+            <div
+              className="machine-select-dropdown-list"
+              style={{
+                maxHeight: '340px',
+                overflowY: 'auto',
+                paddingRight: '4px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+              }}
+            >
             {filteredMachines.length === 0 ? (
               <div
                 style={{
@@ -625,6 +670,7 @@ export const MachineSelect: React.FC<MachineSelectProps> = React.memo(({
             )}
           </div>
         </div>
+      </div>
       )}
     </div>
   );

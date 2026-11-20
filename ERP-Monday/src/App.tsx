@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import frLocale from '@fullcalendar/core/locales/fr';
@@ -54,6 +54,8 @@ import {
   MapPin,
   Trash2,
   Plus,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 type KpiFilter = 'all' | 'service' | 'reparation' | 'verifier_sortie';
@@ -144,6 +146,35 @@ export const App = () => {
   const [machineColsMeta, setMachineColsMeta] = useState<Record<string, string>>({});
   const [affectationSearch, setAffectationSearch] = useState<string>('');
   const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlertMessage[]>([]);
+
+  // Défilement horizontal fluide des onglets sur smartphone
+  const tabsNavRef = useRef<HTMLDivElement>(null);
+  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false);
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false);
+
+  const checkTabsScroll = useCallback(() => {
+    if (tabsNavRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsNavRef.current;
+      setCanScrollTabsLeft(scrollLeft > 6);
+      setCanScrollTabsRight(scrollWidth - scrollLeft - clientWidth > 12);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkTabsScroll();
+    const timer = setTimeout(checkTabsScroll, 300);
+    window.addEventListener('resize', checkTabsScroll);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', checkTabsScroll);
+    };
+  }, [checkTabsScroll]);
+
+  const scrollTabs = (offset: number) => {
+    if (tabsNavRef.current) {
+      tabsNavRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
 
   // Filtre tuile KPI
   const [activeTile, setActiveTile] = useState<KpiFilter | null>(null);
@@ -899,6 +930,7 @@ export const App = () => {
               </span>
             </div>
             <p
+              className="facility-header-subtitle"
               style={{
                 margin: '4px 0 0 0',
                 fontSize: '13px',
@@ -962,6 +994,7 @@ export const App = () => {
           })()}
 
           <div
+            className="facility-header-date"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -989,148 +1022,237 @@ export const App = () => {
       </div>
 
       {/* ================= BARRE DE NAVIGATION PAR ONGLETS DU HUB ================= */}
-      <div className="facility-tabs-nav">
-        {/* Onglet 1 : Fiche de Contrôle (Terrain) - Prioritaire */}
-        <button
-          type="button"
-          className="facility-tab-btn"
-          onClick={() => setActiveTab('inspection')}
-          style={{
-            border: activeTab === 'inspection' ? '1.5px solid #39A9DC' : '1px solid #E2EEF5',
-            backgroundColor: activeTab === 'inspection' ? '#39A9DC' : '#FFFFFF',
-            color: activeTab === 'inspection' ? '#FFFFFF' : '#1B4565',
-            boxShadow: activeTab === 'inspection' ? '0 4px 14px rgba(57, 169, 220, 0.3)' : 'none',
-          }}
-        >
-          <ClipboardCheck size={19} />
-          Fiche de Contrôle (Terrain)
-        </button>
-
-        {/* Onglet 2 : Maintenance Préventive (12 Mois) */}
-        <button
-          type="button"
-          className="facility-tab-btn"
-          onClick={() => setActiveTab('matrix')}
-          style={{
-            border: activeTab === 'matrix' ? '1.5px solid #1B4565' : '1px solid #E2EEF5',
-            backgroundColor: activeTab === 'matrix' ? '#1B4565' : '#FFFFFF',
-            color: activeTab === 'matrix' ? '#FFFFFF' : '#1B4565',
-            boxShadow: activeTab === 'matrix' ? '0 4px 14px rgba(27, 69, 101, 0.25)' : 'none',
-          }}
-        >
-          <LayoutGrid size={19} />
-          Maintenance Préventive (12 Mois)
-        </button>
-
-        {/* Onglet 3 : Historique des Passages (Agenda) */}
-        <button
-          type="button"
-          className="facility-tab-btn"
-          onClick={() => setActiveTab('agenda')}
-          style={{
-            border: activeTab === 'agenda' ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
-            backgroundColor: activeTab === 'agenda' ? '#F7AC37' : '#FFFFFF',
-            color: activeTab === 'agenda' ? '#FFFFFF' : '#1B4565',
-            boxShadow: activeTab === 'agenda' ? '0 4px 14px rgba(247, 172, 55, 0.3)' : 'none',
-          }}
-        >
-          <CalendarIcon size={19} />
-          Historique &amp; Agenda (Passages)
-        </button>
-
-        {/* Onglet 4 : Indicateurs & Plan d'action */}
-        <button
-          type="button"
-          className="facility-tab-btn"
-          onClick={() => setActiveTab('indicators')}
-          style={{
-            border: activeTab === 'indicators' ? '1.5px solid #00A389' : '1px solid #E2EEF5',
-            backgroundColor: activeTab === 'indicators' ? '#00A389' : '#FFFFFF',
-            color: activeTab === 'indicators' ? '#FFFFFF' : '#1B4565',
-            boxShadow: activeTab === 'indicators' ? '0 4px 14px rgba(0, 163, 137, 0.3)' : 'none',
-          }}
-        >
-          <BarChart3 size={19} />
-          Indicateurs &amp; Plan d'action
-          {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length > 0 && (
-            <span
-              style={{
-                backgroundColor: activeTab === 'indicators' ? '#FFFFFF' : '#E2445C',
-                color: activeTab === 'indicators' ? '#E2445C' : '#FFFFFF',
-                borderRadius: '10px',
-                padding: '2px 7px',
-                fontSize: '11px',
-                fontWeight: 800,
-                marginLeft: '4px',
-              }}
-            >
-              {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length}
-            </span>
-          )}
-        </button>
-
-        {/* Onglet 5 : Échanges & Alertes Secteur (Animatrices) */}
-        {(() => {
-          const unreadCount = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
-          return (
+      <div className="facility-tabs-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: '22px' }}>
+        {canScrollTabsLeft && (
+          <div
+            className="tabs-scroll-arrow left"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              paddingRight: '12px',
+              background: 'linear-gradient(to right, #F8FAFC 65%, transparent)',
+            }}
+          >
             <button
               type="button"
-              className="facility-tab-btn"
-              onClick={() => setActiveTab('alerts')}
+              onClick={() => scrollTabs(-140)}
+              aria-label="Défiler vers la gauche"
               style={{
-                border: activeTab === 'alerts' ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
-                backgroundColor: activeTab === 'alerts' ? '#F7AC37' : '#FFFFFF',
-                color: activeTab === 'alerts' ? '#FFFFFF' : '#1B4565',
-                boxShadow: activeTab === 'alerts' ? '0 4px 14px rgba(247, 172, 55, 0.3)' : 'none',
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                border: '1.5px solid #C8DCE8',
+                backgroundColor: '#FFFFFF',
+                color: '#1B4565',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
               }}
             >
-              <Bell size={19} />
-              Alertes Secteur
-              {unreadCount > 0 && (
-                <span
-                  style={{
-                    backgroundColor: activeTab === 'alerts' ? '#FFFFFF' : '#E2445C',
-                    color: activeTab === 'alerts' ? '#E2445C' : '#FFFFFF',
-                    borderRadius: '10px',
-                    padding: '2px 7px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    marginLeft: '4px',
-                  }}
-                >
-                  {unreadCount}
-                </span>
-              )}
+              <ChevronLeft size={16} strokeWidth={2.5} />
             </button>
-          );
-        })()}
+          </div>
+        )}
 
-        {/* Bouton d'action directe : Ajouter une machine au parc */}
-        <button
-          type="button"
-          onClick={() => setIsCreateMachineModalOpen(true)}
-          style={{
-            marginLeft: 'auto',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '9px 18px',
-            borderRadius: '12px',
-            border: 'none',
-            backgroundColor: '#00C875',
-            color: '#FFFFFF',
-            fontSize: '13px',
-            fontWeight: 800,
-            cursor: 'pointer',
-            boxShadow: '0 3px 12px rgba(0, 200, 117, 0.35)',
-            whiteSpace: 'nowrap',
-            transition: 'all 0.15s ease',
-          }}
-          title="Ajouter une nouvelle machine directement sur le tableau Monday Liste des machines"
+        <div
+          ref={tabsNavRef}
+          onScroll={checkTabsScroll}
+          className="facility-tabs-nav"
+          style={{ flex: 1, margin: 0 }}
         >
-          <Plus size={16} strokeWidth={3} />
-          <span>➕ Ajouter une machine</span>
-        </button>
+          {/* Onglet 1 : Fiche de Contrôle (Terrain) - Prioritaire */}
+          <button
+            type="button"
+            className="facility-tab-btn"
+            onClick={() => setActiveTab('inspection')}
+            style={{
+              border: activeTab === 'inspection' ? '1.5px solid #39A9DC' : '1px solid #E2EEF5',
+              backgroundColor: activeTab === 'inspection' ? '#39A9DC' : '#FFFFFF',
+              color: activeTab === 'inspection' ? '#FFFFFF' : '#1B4565',
+              boxShadow: activeTab === 'inspection' ? '0 4px 14px rgba(57, 169, 220, 0.3)' : 'none',
+            }}
+          >
+            <ClipboardCheck size={19} />
+            <span className="desktop-tab-label">Fiche de Contrôle (Terrain)</span>
+            <span className="mobile-tab-label">Fiche Contrôle</span>
+          </button>
+
+          {/* Onglet 2 : Maintenance Préventive (12 Mois) */}
+          <button
+            type="button"
+            className="facility-tab-btn"
+            onClick={() => setActiveTab('matrix')}
+            style={{
+              border: activeTab === 'matrix' ? '1.5px solid #1B4565' : '1px solid #E2EEF5',
+              backgroundColor: activeTab === 'matrix' ? '#1B4565' : '#FFFFFF',
+              color: activeTab === 'matrix' ? '#FFFFFF' : '#1B4565',
+              boxShadow: activeTab === 'matrix' ? '0 4px 14px rgba(27, 69, 101, 0.25)' : 'none',
+            }}
+          >
+            <LayoutGrid size={19} />
+            <span className="desktop-tab-label">Maintenance Préventive (12 Mois)</span>
+            <span className="mobile-tab-label">Préventive (12M)</span>
+          </button>
+
+          {/* Onglet 3 : Historique des Passages (Agenda) */}
+          <button
+            type="button"
+            className="facility-tab-btn"
+            onClick={() => setActiveTab('agenda')}
+            style={{
+              border: activeTab === 'agenda' ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
+              backgroundColor: activeTab === 'agenda' ? '#F7AC37' : '#FFFFFF',
+              color: activeTab === 'agenda' ? '#FFFFFF' : '#1B4565',
+              boxShadow: activeTab === 'agenda' ? '0 4px 14px rgba(247, 172, 55, 0.3)' : 'none',
+            }}
+          >
+            <CalendarIcon size={19} />
+            <span className="desktop-tab-label">Historique &amp; Agenda (Passages)</span>
+            <span className="mobile-tab-label">Agenda Passages</span>
+          </button>
+
+          {/* Onglet 4 : Indicateurs & Plan d'action */}
+          <button
+            type="button"
+            className="facility-tab-btn"
+            onClick={() => setActiveTab('indicators')}
+            style={{
+              border: activeTab === 'indicators' ? '1.5px solid #00A389' : '1px solid #E2EEF5',
+              backgroundColor: activeTab === 'indicators' ? '#00A389' : '#FFFFFF',
+              color: activeTab === 'indicators' ? '#FFFFFF' : '#1B4565',
+              boxShadow: activeTab === 'indicators' ? '0 4px 14px rgba(0, 163, 137, 0.3)' : 'none',
+            }}
+          >
+            <BarChart3 size={19} />
+            <span className="desktop-tab-label">Indicateurs &amp; Plan d'action</span>
+            <span className="mobile-tab-label">Indicateurs</span>
+            {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length > 0 && (
+              <span
+                style={{
+                  backgroundColor: activeTab === 'indicators' ? '#FFFFFF' : '#E2445C',
+                  color: activeTab === 'indicators' ? '#E2445C' : '#FFFFFF',
+                  borderRadius: '10px',
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  marginLeft: '4px',
+                }}
+              >
+                {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length}
+              </span>
+            )}
+          </button>
+
+          {/* Onglet 5 : Échanges & Alertes Secteur (Animatrices) */}
+          {(() => {
+            const unreadCount = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
+            return (
+              <button
+                type="button"
+                className="facility-tab-btn"
+                onClick={() => setActiveTab('alerts')}
+                style={{
+                  border: activeTab === 'alerts' ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
+                  backgroundColor: activeTab === 'alerts' ? '#F7AC37' : '#FFFFFF',
+                  color: activeTab === 'alerts' ? '#FFFFFF' : '#1B4565',
+                  boxShadow: activeTab === 'alerts' ? '0 4px 14px rgba(247, 172, 55, 0.3)' : 'none',
+                }}
+              >
+                <Bell size={19} />
+                <span className="desktop-tab-label">Alertes Secteur</span>
+                <span className="mobile-tab-label">Alertes</span>
+                {unreadCount > 0 && (
+                  <span
+                    style={{
+                      backgroundColor: activeTab === 'alerts' ? '#FFFFFF' : '#E2445C',
+                      color: activeTab === 'alerts' ? '#E2445C' : '#FFFFFF',
+                      borderRadius: '10px',
+                      padding: '2px 7px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      marginLeft: '4px',
+                    }}
+                  >
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
+
+          {/* Bouton d'action directe : Ajouter une machine au parc */}
+          <button
+            type="button"
+            onClick={() => setIsCreateMachineModalOpen(true)}
+            style={{
+              marginLeft: 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 18px',
+              borderRadius: '12px',
+              border: 'none',
+              backgroundColor: '#00C875',
+              color: '#FFFFFF',
+              fontSize: '13px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 3px 12px rgba(0, 200, 117, 0.35)',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+            title="Ajouter une nouvelle machine directement sur le tableau Monday Liste des machines"
+          >
+            <Plus size={16} strokeWidth={3} />
+            <span className="desktop-tab-label">➕ Ajouter une machine</span>
+            <span className="mobile-tab-label">➕ Machine</span>
+          </button>
+        </div>
+
+        {canScrollTabsRight && (
+          <div
+            className="tabs-scroll-arrow right"
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft: '12px',
+              background: 'linear-gradient(to left, #F8FAFC 65%, transparent)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => scrollTabs(140)}
+              aria-label="Défiler vers la droite"
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                border: '1.5px solid #C8DCE8',
+                backgroundColor: '#FFFFFF',
+                color: '#1B4565',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}
+            >
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bannière d'alerte très visible lorsque des messages reçus des animatrices sont en attente */}
