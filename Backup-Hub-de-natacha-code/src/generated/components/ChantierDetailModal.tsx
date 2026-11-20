@@ -424,7 +424,7 @@ export default function ChantierDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl border border-border bg-card shadow-2xl">
+      <DialogContent className="w-[96vw] sm:w-[95vw] max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 rounded-2xl border border-border bg-card shadow-2xl">
         <form onSubmit={handleSave}>
           {/* Header */}
           <div className="flex items-start justify-between gap-4 border-b border-border pb-4 pr-6">

@@ -120,6 +120,7 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
           >
             {total > 0 ? <BellRing className="h-4 w-4 shrink-0 animate-bounce" /> : <Bell className="h-4 w-4 shrink-0" />}
             <span className="hidden sm:inline">Alertes &amp; Rappels</span>
+            <span className="sm:hidden">Alertes</span>
             <span
               className={cn(
                 'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] sm:text-xs font-black',
@@ -152,7 +153,7 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] w-[92vw] max-w-xl flex flex-col p-6 sm:p-7 rounded-2xl border border-border bg-card shadow-2xl">
+        <DialogContent className="max-h-[88vh] w-[95vw] sm:w-[92vw] max-w-xl flex flex-col p-3.5 sm:p-7 rounded-2xl border border-border bg-card shadow-2xl">
           <DialogHeader className="space-y-1 text-left pb-1">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--brand-orange))]/15 text-[hsl(var(--brand-orange))]">
@@ -205,7 +206,7 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="h-12 w-full rounded-xl bg-[hsl(var(--brand-blue))] text-base font-bold text-white shadow-md hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer"
+              className="h-11 sm:h-12 w-full rounded-xl bg-[hsl(var(--brand-blue))] text-sm sm:text-base font-bold text-white shadow-md hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer"
             >
               Fermer / J'ai compris
             </button>

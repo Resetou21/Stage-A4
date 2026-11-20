@@ -60,7 +60,9 @@ export default function ChantiersSpace({ firstName }: { firstName: string }) {
   const [search, setSearch] = useState('');
   const [selectedStar, setSelectedStar] = useState<string | null>(null);
   const [onlyWithKey, setOnlyWithKey] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => 
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'cards' : 'table'
+  );
   const [activeChantier, setActiveChantier] = useState<ChantierItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [page, setPage] = useState(1);

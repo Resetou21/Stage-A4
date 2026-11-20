@@ -99,6 +99,33 @@ html, body, #root {
     display: none !important;
   }
 
+  .hub-subbar {
+    height: 42px !important;
+    padding: 0 10px !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  .subbar-left {
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+  }
+
+  .subbar-back-btn {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .subbar-title {
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
   /* Conteneur principal & vues */
   .hub-main-content {
     padding: 0 !important;

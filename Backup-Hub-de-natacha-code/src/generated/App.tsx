@@ -233,7 +233,7 @@ export default function App() {
       <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-72 w-72 rounded-full border-2 border-[hsl(var(--brand-orange))]/40" />
 
       <header className="relative border-b border-border bg-card/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:px-8 sm:py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground shadow-sm">
               {initials}
@@ -293,10 +293,10 @@ export default function App() {
       </header>
       <AlertsCenter firstName={hubName} />
 
-      <main className="relative mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
-        <h1 className="text-4xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub de {hubName}</h1>
-        <div className="mt-3 h-1 w-24 rounded-full bg-[hsl(var(--brand-blue))]" />
-        <p className="mt-4 max-w-xl text-base font-semibold italic text-primary">
+      <main className="relative mx-auto max-w-6xl px-3 py-6 sm:px-8 sm:py-12">
+        <h1 className="text-2xl sm:text-4xl font-extrabold uppercase tracking-tight">Hub de {hubName}</h1>
+        <div className="mt-2 h-1 w-20 rounded-full bg-[hsl(var(--brand-blue))]" />
+        <p className="mt-2 sm:mt-4 max-w-xl text-sm sm:text-base font-semibold italic text-primary">
           Vos informations chantiers, à portée de main.
         </p>
 

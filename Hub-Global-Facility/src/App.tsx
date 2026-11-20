@@ -1309,7 +1309,7 @@ export default function App() {
           }}
         >
           {/* CÔTÉ GAUCHE : Bouton retour direct + Séparateur + Titre & Badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="subbar-left" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
             {/* Bouton Retour contextuel */}
             {(() => {
               const isAnimatrice =
@@ -1323,6 +1323,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => handleNavigate(backTarget)}
+                className="subbar-back-btn"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1336,6 +1337,7 @@ export default function App() {
                   fontWeight: 700,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
+                  flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = '#F1F5F9';
@@ -1347,13 +1349,14 @@ export default function App() {
                 }}
               >
                 <ArrowLeft size={13} />
-                <span>{backLabel}</span>
+                <span className="hidden sm:inline">{backLabel}</span>
+                <span className="sm:hidden">{isAnimatrice ? 'Supervision' : 'Accueil'}</span>
               </button>
             );
           })()}
 
           {/* Séparateur vertical fin */}
-          <div style={{ width: '1px', height: '18px', backgroundColor: '#E2E8F0' }} />
+          <div style={{ width: '1px', height: '18px', backgroundColor: '#E2E8F0', flexShrink: 0 }} />
 
           {/* Titre et badges de la vue actuelle */}
           {(() => {
@@ -1384,7 +1387,7 @@ export default function App() {
               const satPct = stats.visitesParAnim[animKey]?.pct || 0;
 
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
                   <div
                     style={{
                       width: '24px',
@@ -1397,14 +1400,16 @@ export default function App() {
                       justifyContent: 'center',
                       fontSize: '10px',
                       fontWeight: 800,
+                      flexShrink: 0,
                     }}
                   >
                     {animInitials}
                   </div>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Secteur {animFullName}
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1412,11 +1417,13 @@ export default function App() {
                       backgroundColor: '#EBF6FC',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● {chantiersCount} chantiers en cours
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1424,6 +1431,7 @@ export default function App() {
                       backgroundColor: '#E6F9F1',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● {satPct}% satisfaction (2026)
@@ -1434,12 +1442,13 @@ export default function App() {
 
             if (currentView === 'secteur_global') {
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Building2 size={15} color="#0073EA" />
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                  <Building2 size={15} color="#0073EA" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Supervision Globale (Tous Secteurs)
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1447,11 +1456,13 @@ export default function App() {
                       backgroundColor: '#EBF6FC',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● {stats.chantiersActifs} chantiers en cours
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1459,6 +1470,7 @@ export default function App() {
                       backgroundColor: '#E6F9F1',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● {stats.tauxSatisfactionGlobal}% satisfaction 2026
@@ -1469,12 +1481,13 @@ export default function App() {
 
             if (currentView === 'atelier_erp') {
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Wrench size={15} color="#00C875" />
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                  <Wrench size={15} color="#00C875" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     ERP Parc Matériel & Atelier
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1482,6 +1495,7 @@ export default function App() {
                       backgroundColor: '#E6F9F1',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● {stats.machinesTotal} machines réelles
@@ -1492,12 +1506,13 @@ export default function App() {
 
             if (currentView === 'atelier_vehicules') {
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Truck size={15} color="#0284C7" />
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                  <Truck size={15} color="#0284C7" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Hub de Christine — Facturation Véhicules & Énergie
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1505,6 +1520,7 @@ export default function App() {
                       backgroundColor: '#E0F2FE',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● TotalEnergies, Chargemap, Wellborne & Réparations
@@ -1515,12 +1531,13 @@ export default function App() {
 
             if (currentView === 'comm_lea') {
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Users size={15} color="#8B5CF6" />
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                  <Users size={15} color="#8B5CF6" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Hub de Léa — Communication & Contacts Clients
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1528,6 +1545,7 @@ export default function App() {
                       backgroundColor: '#F3E8FF',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● Export Excel contacts chantiers
@@ -1538,12 +1556,13 @@ export default function App() {
 
             if (currentView === 'direction_vincent') {
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Landmark size={15} color="#10B981" />
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                  <Landmark size={15} color="#10B981" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Hub de Vincent — Direction & Flotte
                   </span>
                   <span
+                    className="mobile-hide"
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
@@ -1551,6 +1570,7 @@ export default function App() {
                       backgroundColor: '#ECFDF5',
                       padding: '2px 8px',
                       borderRadius: '10px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     ● Suivi flotte, non-qualité, indicateurs financiers & réunion d’associés
@@ -1571,8 +1591,9 @@ export default function App() {
         </div>
 
         {/* CÔTÉ DROIT : Synchro Monday + Plein Écran */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <span
+            className="mobile-hide"
             style={{
               fontSize: '11px',
               fontWeight: 700,

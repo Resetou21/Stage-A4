@@ -102,7 +102,7 @@ export default function AlertsList({
                     <p className="font-medium break-words text-foreground/90">{l.text}</p>
                     {l.sub && <p className="text-xs text-muted-foreground mt-0.5">{l.sub}</p>}
                   </div>
-                  {l.date !== undefined && <span className="shrink-0 text-xs font-medium text-muted-foreground">{fmtDate(l.date ?? null)}</span>}
+                  {l.date !== undefined && <span className="shrink-0 text-xs font-medium text-muted-foreground whitespace-nowrap">{fmtDate(l.date ?? null)}</span>}
                 </li>
               ))}
             </ul>
