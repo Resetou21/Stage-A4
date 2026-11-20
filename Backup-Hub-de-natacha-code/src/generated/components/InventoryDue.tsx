@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { normalize } from '@generated/lib/normalize';
 import { toast } from 'sonner';
 import { getInventoryDue, updateInventoryValue, validateInventory } from '@generated/server/inventory';
-import { Building2, Check, CheckCircle2, AlertCircle, Loader2, LayoutGrid, Table, Layers } from 'lucide-react';
+import { Building2, Check, CheckCircle2, AlertCircle, Loader2, LayoutGrid, Table, Layers, FileText, X, ExternalLink } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle, DialogClose } from '@components/ui/dialog';
 
 type Due = Awaited<ReturnType<typeof getInventoryDue>>;
 type Product = Due['sites'][number]['products'][number];
@@ -129,7 +130,8 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
   const [loading, setLoading] = useState(!preloaded);
   const [refetching, setRefetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'fiches' | 'table'>('fiches');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (preloaded) {
@@ -214,7 +216,7 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
     }
     const prev = due;
     setValidating(siteId);
-    // Mise à jour optimiste immédiate : disparition instantanée de la fiche / ligne
+    // Mise à jour optimiste immédiate : disparition instantanée du site
     setDue((d) => d && ({ ...d, count: Math.max(0, d.count - 1), sites: d.sites.filter((s) => s.id !== siteId) }));
     toast.loading('Validation en cours...', { id: `val-${siteId}` });
     try {
@@ -235,12 +237,31 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
     }
   };
 
+  const selectedSite = useMemo(
+    () => due?.sites.find((s) => s.id === selectedSiteId) ?? null,
+    [due, selectedSiteId]
+  );
+
+  const selectedSiteFilledCount = useMemo(() => {
+    if (!selectedSite) return 0;
+    return selectedSite.products.filter((p) => {
+      const draft = draftsRef.current[selectedSite.id]?.[p.key];
+      const val = draft !== undefined ? draft : p.inventaire;
+      return typeof val === 'number' && Number.isFinite(val);
+    }).length;
+  }, [selectedSite, due]);
+
+  const selectedSiteIsAllFilled =
+    selectedSite !== null &&
+    selectedSite.products.length > 0 &&
+    selectedSiteFilledCount === selectedSite.products.length;
+
   if (error) return <p className="text-sm text-destructive">{error}</p>;
   if (loading) {
     return (
       <div className="space-y-3" aria-label="Chargement">
         {['a', 'b', 'c'].map((k) => (
-          <div key={k} className="h-32 animate-pulse rounded-2xl bg-muted/60 border border-border" />
+          <div key={k} className="h-24 animate-pulse rounded-2xl bg-muted/60 border border-border" />
         ))}
       </div>
     );
@@ -254,7 +275,7 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
 
   return (
     <div className="space-y-4">
-      {/* Barre d'en-tête et Sélecteur de vue Fiches vs Tableau */}
+      {/* Barre d'en-tête et Sélecteur de vue Liste vs Tableau */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
         <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
           <span className="font-extrabold text-base text-foreground font-[family-name:var(--font-heading)]">
@@ -265,19 +286,19 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
           </span>
         </div>
 
-        {/* Bascule Fiches / Tableau */}
+        {/* Bascule Liste de chantiers / Tableau complet */}
         <div className="inline-flex items-center gap-1 bg-muted p-1 rounded-xl self-start sm:self-auto shrink-0 shadow-2xs">
           <button
             type="button"
-            onClick={() => setViewMode('fiches')}
+            onClick={() => setViewMode('cards')}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              viewMode === 'fiches'
+              viewMode === 'cards'
                 ? 'bg-card text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <LayoutGrid className="h-3.5 w-3.5 text-primary" />
-            <span>📋 Vue Fiches par site</span>
+            <span>📋 Liste des chantiers</span>
           </button>
           <button
             type="button"
@@ -294,9 +315,9 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
         </div>
       </div>
 
-      {/* 1. VUE FICHES PAR SITE (RECOMMANDÉE — ZÉRO SCROLL HORIZONTAL) */}
-      {viewMode === 'fiches' ? (
-        <div className="space-y-4">
+      {/* 1. VUE LISTE DE CHANTIERS (CLIQUEZ SUR UN CHANTIER -> OUVRE LA POP-UP) */}
+      {viewMode === 'cards' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredSites.map((s) => {
             const filledCount = s.products.filter((p) => {
               const draft = draftsRef.current[s.id]?.[p.key];
@@ -308,17 +329,17 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
             return (
               <div
                 key={s.id}
-                className={`rounded-2xl border-2 transition-all p-4 sm:p-5 shadow-xs ${
+                onClick={() => setSelectedSiteId(s.id)}
+                className={`group rounded-2xl border-2 transition-all p-4 bg-card hover:bg-muted/20 cursor-pointer shadow-xs flex flex-col justify-between gap-3.5 ${
                   isAllFilled
-                    ? 'border-emerald-500/50 bg-card hover:border-emerald-500'
-                    : 'border-border/80 bg-card hover:border-primary/40'
+                    ? 'border-emerald-500/50 hover:border-emerald-500'
+                    : 'border-border/80 hover:border-primary/50'
                 }`}
               >
-                {/* Ligne 1 : En-tête du site avec nom, statut et bouton valider */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-border">
-                  <div className="flex items-start sm:items-center gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl font-bold shrink-0 shadow-xs ${
+                      className={`flex h-11 w-11 items-center justify-center rounded-xl font-bold shrink-0 shadow-xs ${
                         isAllFilled
                           ? 'bg-emerald-500/15 text-emerald-600'
                           : 'bg-primary/10 text-primary'
@@ -327,115 +348,58 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="font-extrabold text-base sm:text-lg text-foreground tracking-tight leading-tight">
+                      <h4 className="font-extrabold text-base text-foreground tracking-tight truncate group-hover:text-primary transition-colors">
                         {s.chantier}
                       </h4>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-muted-foreground font-medium">
-                        <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md font-bold text-foreground text-[11px]">
-                          <Layers className="h-3 w-3 text-primary" />
-                          {s.products.length} référence{s.products.length > 1 ? 's' : ''} sous contrat
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md text-[11px] ${
-                            isAllFilled
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                          }`}
-                        >
-                          {isAllFilled ? (
-                            <>
-                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                              Prêt à valider
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle className="h-3 w-3 text-amber-600" />
-                              {filledCount} / {s.products.length} renseignée(s)
-                            </>
-                          )}
-                        </span>
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground font-medium">
+                        <Layers className="h-3 w-3 text-primary" />
+                        <span>{s.products.length} référence{s.products.length > 1 ? 's' : ''} sous contrat</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Bouton de validation rapide */}
-                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                    <button
-                      type="button"
-                      disabled={validating !== null}
-                      onClick={() => toggleValid(s.id, true)}
-                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer disabled:opacity-60 ${
-                        isAllFilled
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
-                          : 'bg-primary hover:bg-primary/95 text-primary-foreground'
-                      }`}
-                    >
-                      {validating === s.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Validation en cours...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-4 w-4 stroke-[3]" />
-                          <span>Valider l'inventaire</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <span
+                    className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md text-[11px] shrink-0 ${
+                      isAllFilled
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                    }`}
+                  >
+                    {isAllFilled ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                        Prêt
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-3 w-3 text-amber-600" />
+                        {filledCount} / {s.products.length}
+                      </>
+                    )}
+                  </span>
                 </div>
 
-                {/* Ligne 2 : Grille des produits sous contrat UNIQUEMENT */}
-                <div className="pt-2">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2.5 flex items-center justify-between flex-wrap gap-1">
-                    <span>Références sous contrat pour ce chantier :</span>
-                    <span className="text-muted-foreground/70 lowercase font-normal italic">
-                      Enregistrement automatique sur Monday dès la saisie
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                    {s.products.map((p) => (
-                      <div
-                        key={p.name}
-                        className="p-3 rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between gap-3 shadow-2xs"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="font-extrabold text-xs sm:text-sm text-foreground truncate" title={p.name}>
-                            {p.name}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">
-                            Sous contrat hygiène
-                          </div>
-                        </div>
-
-                        <Cell
-                          layout="fiche"
-                          itemId={s.id}
-                          product={p}
-                          onDraftChange={(v) => {
-                            setDraftValue(s.id, p.key, v);
-                            setValue(s.id, p.name, v);
-                          }}
-                          onRegisterSave={(prom) => registerSave(s.id, prom)}
-                          onSaved={(v) => setValue(s.id, p.name, v)}
-                        />
-                      </div>
-                    ))}
-                  </div>
+                <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+                  <span className="text-muted-foreground text-[11px]">
+                    Cliquer pour ouvrir la fiche
+                  </span>
+                  <span className="font-bold text-primary inline-flex items-center gap-1 text-xs group-hover:translate-x-0.5 transition-transform">
+                    <FileText className="h-3.5 w-3.5" />
+                    <span>Saisir l'inventaire →</span>
+                  </span>
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        /* 2. VUE TABLEAU BRUT HISTORIQUE */
+        /* 2. VUE TABLEAU BRUT HISTORIQUE AVEC LIENS VERS POP-UP */
         <div className={`overflow-x-auto rounded-[var(--radius-md)] border border-border shadow-sm transition-opacity ${refetching ? 'opacity-60' : ''}`} aria-busy={refetching}>
           <table className="w-full min-w-max text-left text-sm">
             <thead className="bg-muted/70 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-semibold">Validé</th>
-                <th className="bg-muted px-3 py-2 font-semibold sticky left-0 z-10 shadow-xs">Site</th>
+                <th className="bg-muted px-3 py-2 font-semibold sticky left-0 z-10 shadow-xs">Site (Cliquer = Fiche)</th>
                 {columns.map((c) => <th key={c} className="px-3 py-2 font-semibold">{c}</th>)}
               </tr>
             </thead>
@@ -452,7 +416,17 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                       className="h-5 w-5 cursor-pointer accent-[hsl(var(--primary))]"
                     />
                   </td>
-                  <td className="bg-card px-3 py-2 font-semibold sticky left-0 z-10 shadow-xs">{s.chantier}</td>
+                  <td className="bg-card px-3 py-2 font-semibold sticky left-0 z-10 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSiteId(s.id)}
+                      className="hover:text-primary hover:underline font-bold text-left inline-flex items-center gap-1.5 cursor-pointer text-foreground"
+                      title="Ouvrir la fiche d'inventaire en pop-up"
+                    >
+                      <span>{s.chantier}</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60 hover:opacity-100" />
+                    </button>
+                  </td>
                   {columns.map((c) => {
                     const p = s.products.find((x) => x.name === c);
                     return (
@@ -476,6 +450,142 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
           </table>
         </div>
       )}
+
+      {/* 3. MODALE POP-UP DÉDIÉE : FICHE D'INVENTAIRE DU SITE SÉLECTIONNÉ */}
+      <Dialog open={!!selectedSite} onOpenChange={(open) => !open && setSelectedSiteId(null)}>
+        <DialogContent className="max-w-2xl w-full p-0 overflow-hidden flex flex-col max-h-[88vh]">
+          {/* En-tête de la Pop-up */}
+          <div className="p-4 sm:p-5 border-b border-border bg-card/95 flex items-center justify-between gap-3 shrink-0 pr-12">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="font-extrabold text-base sm:text-lg text-foreground truncate">
+                  {selectedSite?.chantier}
+                </DialogTitle>
+                <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span>Fiche d'inventaire consommables</span>
+                  <span>•</span>
+                  <span className="text-primary font-bold">
+                    {selectedSite?.products.length} référence{selectedSite && selectedSite.products.length > 1 ? 's' : ''} sous contrat
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {selectedSite && (
+              <div className="shrink-0 hidden sm:block">
+                <span
+                  className={`inline-flex items-center gap-1 font-bold px-2.5 py-1 rounded-lg text-xs ${
+                    selectedSiteIsAllFilled
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                  }`}
+                >
+                  {selectedSiteIsAllFilled ? (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      Prêt à valider
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                      {selectedSiteFilledCount} / {selectedSite.products.length} saisie(s)
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Corps de la Pop-up : Liste verticale des produits sous contrat */}
+          {selectedSite && (
+            <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-3 pb-24 sm:pb-8">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>Références sous contrat hygiène :</span>
+                <span className="text-[10px] lowercase italic text-muted-foreground/70">
+                  Enregistrement automatique dès la saisie
+                </span>
+              </div>
+
+              <div className="divide-y divide-border/60 rounded-xl border border-border bg-card overflow-hidden shadow-2xs">
+                {selectedSite.products.map((p) => (
+                  <div
+                    key={p.name}
+                    className="p-3.5 flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-sm text-foreground truncate" title={p.name}>
+                        {p.name}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        Sous contrat hygiène
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      <Cell
+                        layout="fiche"
+                        itemId={selectedSite.id}
+                        product={p}
+                        onDraftChange={(v) => {
+                          setDraftValue(selectedSite.id, p.key, v);
+                          setValue(selectedSite.id, p.name, v);
+                        }}
+                        onRegisterSave={(prom) => registerSave(selectedSite.id, prom)}
+                        onSaved={(v) => setValue(selectedSite.id, p.name, v)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Footer fixe de la Pop-up */}
+          {selectedSite && (
+            <div className="p-3.5 sm:p-4 border-t border-border bg-card/95 flex items-center justify-between gap-3 shrink-0">
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted text-foreground px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                  <span>Fermer</span>
+                </button>
+              </DialogClose>
+
+              <button
+                type="button"
+                disabled={validating !== null}
+                onClick={async () => {
+                  const id = selectedSite.id;
+                  await toggleValid(id, true);
+                  setSelectedSiteId(null);
+                }}
+                className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition cursor-pointer disabled:opacity-60 ${
+                  selectedSiteIsAllFilled
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
+                    : 'bg-primary hover:bg-primary/95 text-primary-foreground'
+                }`}
+              >
+                {validating === selectedSite.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Validation en cours...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 stroke-[3]" />
+                    <span>Valider l'inventaire</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
