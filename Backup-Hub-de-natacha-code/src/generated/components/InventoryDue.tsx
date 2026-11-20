@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { normalize } from '@generated/lib/normalize';
 import { toast } from 'sonner';
 import { getInventoryDue, updateInventoryValue, validateInventory } from '@generated/server/inventory';
@@ -79,7 +79,7 @@ function Cell({
 
   if (layout === 'fiche') {
     return (
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         <div className="relative">
           <input
             type="text"
@@ -89,30 +89,21 @@ function Cell({
             onBlur={save}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
             aria-label={product.name}
-            placeholder="0"
-            className={`h-11 w-24 sm:w-28 rounded-xl border-2 text-center text-sm font-black tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-primary ${
+            placeholder="—"
+            className={`h-11 w-24 sm:w-28 rounded-xl border-2 text-center text-sm font-extrabold tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-primary ${
               isFilled
-                ? 'border-emerald-600 bg-card text-foreground dark:text-emerald-300'
-                : 'border-slate-400 hover:border-slate-600 dark:border-slate-500 bg-card text-foreground placeholder:text-muted-foreground/60'
+                ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 dark:bg-emerald-950/20 dark:text-emerald-300'
+                : 'border-destructive/80 bg-destructive/5 text-destructive placeholder:text-destructive/50'
             } ${saving ? 'opacity-60 animate-pulse' : ''}`}
           />
         </div>
-        <div className="min-w-[84px] flex items-center justify-start">
+        <div className="w-5 flex items-center justify-center">
           {saving ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
-              <span>...</span>
-            </span>
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
           ) : isFilled ? (
-            <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
-              <Check className="h-4 w-4 stroke-[3] text-emerald-600 shrink-0" />
-              <span>Saisi</span>
-            </span>
+            <span className="text-emerald-600 font-bold text-sm">✓</span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-black text-amber-800 dark:text-amber-300">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 stroke-[2.5]" />
-              <span>À saisir</span>
-            </span>
+            <span className="text-destructive/60 font-bold text-xs" title="Quantité à renseigner">•</span>
           )}
         </div>
       </div>
@@ -370,20 +361,20 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1.5 font-black text-xs shrink-0 ${
+                    className={`inline-flex items-center gap-1.5 font-bold text-xs shrink-0 ${
                       isAllFilled
-                        ? 'text-emerald-700 dark:text-emerald-400'
-                        : 'text-slate-900 dark:text-slate-100'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-600 dark:text-amber-400'
                     }`}
                   >
                     {isAllFilled ? (
                       <>
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                         <span>Prêt</span>
                       </>
                     ) : (
                       <>
-                        <AlertCircle className="h-3.5 w-3.5 text-amber-600 stroke-[2.5] shrink-0" />
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
                         <span>{filledCount} / {s.products.length}</span>
                       </>
                     )}
@@ -483,20 +474,20 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                   </span>
                   <span>•</span>
                   <span
-                    className={`inline-flex items-center gap-1.5 font-black text-xs ${
+                    className={`inline-flex items-center gap-1 font-bold ${
                       selectedSiteIsAllFilled
-                        ? 'text-emerald-700 dark:text-emerald-400'
-                        : 'text-slate-900 dark:text-slate-100'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-600 dark:text-amber-400'
                     }`}
                   >
                     {selectedSiteIsAllFilled ? (
                       <>
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>Prêt à valider ({selectedSite?.products.length}/{selectedSite?.products.length})</span>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Prêt à valider</span>
                       </>
                     ) : (
                       <>
-                        <AlertCircle className="h-4 w-4 text-amber-600 stroke-[2.5] shrink-0" />
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
                         <span>{selectedSiteFilledCount} / {selectedSite?.products.length} saisie(s)</span>
                       </>
                     )}
