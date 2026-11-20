@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, BellRing, ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { Bell, BellRing, ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@components/ui/dialog';
 import AlertsList, { buildCategories } from '@generated/components/AlertsList';
 import { totalAlerts, useAlerts } from '@generated/hooks/useAlerts';
@@ -47,20 +47,32 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
   const jump = (href: string) => document.querySelector(href)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const navRef = useRef<HTMLElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   const checkScroll = () => {
     if (navRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = navRef.current;
+      setCanScrollLeft(scrollLeft > 6);
       setCanScrollRight(scrollWidth - scrollLeft - clientWidth > 12);
     }
   };
 
   useEffect(() => {
     checkScroll();
+    const timer = setTimeout(checkScroll, 300);
     window.addEventListener('resize', checkScroll);
-    return () => window.removeEventListener('resize', checkScroll);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', checkScroll);
+    };
   }, []);
+
+  const scrollLeft = () => {
+    if (navRef.current) {
+      navRef.current.scrollBy({ left: -140, behavior: 'smooth' });
+    }
+  };
 
   const scrollRight = () => {
     if (navRef.current) {
@@ -73,6 +85,19 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
       <div className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur shadow-xs">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2 sm:px-8">
           <div className="relative flex min-w-0 flex-1 items-center">
+            {canScrollLeft && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center pr-3 bg-gradient-to-r from-card via-card/95 to-transparent z-10">
+                <button
+                  type="button"
+                  onClick={scrollLeft}
+                  aria-label="Voir les onglets précédents"
+                  title="Faire défiler vers la gauche"
+                  className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-primary/10 border border-primary/25 text-primary shadow-xs hover:bg-primary/20 active:scale-95 transition-all"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[2.2]" />
+                </button>
+              </div>
+            )}
             <nav
               ref={navRef}
               onScroll={checkScroll}
@@ -92,7 +117,7 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
               ))}
             </nav>
             {canScrollRight && (
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center pl-3 bg-gradient-to-l from-card via-card/95 to-transparent">
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center pl-3 bg-gradient-to-l from-card via-card/95 to-transparent z-10">
                 <button
                   type="button"
                   onClick={scrollRight}
