@@ -1574,7 +1574,6 @@ export default function App() {
           {/* CÔTÉ DROIT : Synchro Monday + Plein Écran */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
-              className="mobile-hide"
               style={{
                 fontSize: '11px',
                 fontWeight: 700,
@@ -1781,7 +1780,7 @@ export default function App() {
         {/* VUE 1 : ACCUEIL DU PORTAIL GLOBAL                           */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'home' && (
-          <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+          <div className="hub-home-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
             <div
               className="hub-banner-box"
               style={{
@@ -2081,6 +2080,7 @@ export default function App() {
 
             {/* Bannière Boîte à Idées & Roadmap Collaborative */}
             <div
+              className="hub-roadmap-banner"
               style={{
                 marginTop: '35px',
                 backgroundColor: '#FFFFFF',
@@ -2111,7 +2111,7 @@ export default function App() {
                 }}
               />
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: '280px' }}>
+              <div className="hub-roadmap-header" style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: 0 }}>
                 <div
                   style={{
                     width: '56px',
@@ -2129,7 +2129,7 @@ export default function App() {
                 >
                   <Lightbulb size={28} />
                 </div>
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       display: 'inline-flex',
@@ -2155,7 +2155,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', zIndex: 1 }}>
+              <div className="hub-roadmap-buttons" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', zIndex: 1 }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -2665,7 +2665,7 @@ export default function App() {
                   key={`${animKey}_${refreshKey}`}
                   src={iframeSrc}
                   title={`Hub Secteur ${animFullName}`}
-                  style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+                  style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', border: 'none' }}
                   allow="clipboard-write; fullscreen; camera; microphone"
                 />
               );
@@ -2677,13 +2677,13 @@ export default function App() {
         {/* VUE 4 : ERP ATELIER & PARC MACHINES                         */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_erp' && (
-          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
               key={`atelier_erp_${refreshKey}`}
               src={`${URL_ATELIER_ERP}?v=20004306&ts=${refreshKey}`}
               title="ERP Parc Matériel & Machines"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
           </div>
@@ -2693,13 +2693,13 @@ export default function App() {
         {/* VUE 5 : HUB DE CHRISTINE — FACTURATION VÉHICULES & ÉNERGIE   */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_vehicules' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
               key={`atelier_vehicules_${refreshKey}`}
               src={`${URL_CHRISTINE_HUB}?v=20267872&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
           </div>
@@ -2709,13 +2709,13 @@ export default function App() {
         {/* VUE : HUB DE LÉA — COMMUNICATION & CONTACTS CLIENTS           */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'comm_lea' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
               key={`comm_lea_${refreshKey}`}
               src={`${URL_LEA_HUB}?v=20377620&ts=${refreshKey}`}
               title="Hub de Léa — Communication & Contacts Clients"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
           </div>
@@ -2725,13 +2725,13 @@ export default function App() {
         {/* VUE : HUB DE VINCENT — DIRECTION & FLOTTE                    */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'direction_vincent' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', display: 'flex', flexDirection: 'column' }}>
             <iframe
               ref={activeIframeRef}
               key={`direction_vincent_${refreshKey}`}
               src={`${URL_VINCENT_HUB}?v=20428306&ts=${refreshKey}`}
               title="Hub de Vincent — Direction & Flotte"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 110px)', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone"
             />
           </div>
