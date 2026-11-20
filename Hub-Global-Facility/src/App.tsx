@@ -1628,6 +1628,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={toggleFullscreen}
+                className="desktop-only"
                 title="Basculer en plein écran natif dans Monday"
                 style={{
                   display: 'inline-flex',
