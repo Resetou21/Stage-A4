@@ -485,7 +485,7 @@ export default function BornesCard() {
 
         {/* MODALE DE PRÉVISUALISATION D'UN MOIS WELLBORNE AU CLIC AVEC LIGNES ET EXPORT */}
         <Dialog open={!!selectedBornesMonth} onOpenChange={(o) => !o && setSelectedBornesMonth(null)}>
-          <DialogContent hideDefaultClose className="max-w-3xl overflow-hidden flex flex-col p-0">
+          <DialogContent hideDefaultClose className="max-w-3xl sm:max-w-4xl overflow-hidden flex flex-col p-0">
             {/* EN-TÊTE FIXE STICKY AVEC RETOUR */}
             <div className="p-3.5 sm:p-4 border-b border-border bg-card/95 flex items-center justify-between gap-2 shrink-0">
               <button
@@ -513,7 +513,7 @@ export default function BornesCard() {
             </div>
 
             {selectedBornesMonth && (
-              <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs pb-32 sm:pb-8">
+              <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs pb-6 sm:pb-6">
                 {/* 1. Résumé en Cartes KPI (3 cartes harmonisées avec Chargemap/Total) */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="p-3 rounded-xl border border-border bg-muted/30 flex items-center gap-3">

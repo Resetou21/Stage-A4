@@ -37,17 +37,13 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'dialog-modal-content fixed z-50 rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 box-border flex flex-col',
-        // Mobile : ancre parfaitement équilibrée (descendue de 40px en haut pour ne jamais être coupée, et s'arrêtant à 74px du bas juste au-dessus de la barre Monday)
-        'top-10 bottom-[74px] left-2.5 right-2.5 max-h-[calc(100dvh-118px)] p-3.5 sm:p-6',
-        // Desktop : centrage parfait avec w-full
-        'sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:max-h-[90vh]',
+        'dialog-modal-content fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 box-border w-[95vw] sm:w-full max-w-lg max-h-[82vh] sm:max-h-[90vh] flex flex-col overflow-hidden',
         className
       )}
       {...props}
     >
       {!hideDefaultClose && (
-        <DialogPrimitive.Close className="absolute right-2.5 top-2.5 sm:right-4 sm:top-4 z-40 inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted/90 hover:bg-muted text-foreground border border-border/60 shadow-xs transition-all focus:outline-none cursor-pointer">
+        <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 z-40 inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted/80 hover:bg-muted text-foreground border border-border/60 shadow-xs transition-all focus:outline-none cursor-pointer">
           <X className="h-4 w-4" />
           <span className="sr-only">Fermer</span>
         </DialogPrimitive.Close>
