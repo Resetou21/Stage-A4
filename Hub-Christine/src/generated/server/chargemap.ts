@@ -258,8 +258,8 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
             montant: it.c_ttc?.[0]?.text
               ? `${it.c_ttc[0].text} € TTC`
               : it.c_ht?.[0]?.text
-              ? `${it.c_ht[0].text} € HT`
-              : '—',
+                ? `${it.c_ht[0].text} € HT`
+                : '—',
             station: it.c_stat?.[0]?.text || 'Station Total',
           });
         }
