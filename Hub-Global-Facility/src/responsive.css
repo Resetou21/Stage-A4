@@ -21,6 +21,14 @@ html, body, #root {
   display: none !important;
 }
 
+.desktop-table-container {
+  display: block;
+}
+
+.mobile-cards-container {
+  display: none !important;
+}
+
 /* 1. Header Desktop vs Mobile */
 .desktop-nav {
   display: flex !important;
@@ -54,6 +62,14 @@ html, body, #root {
 
   .mobile-only {
     display: inline !important;
+  }
+
+  .desktop-table-container {
+    display: none !important;
+  }
+
+  .mobile-cards-container {
+    display: flex !important;
   }
 
   .desktop-nav {

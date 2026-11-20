@@ -2423,7 +2423,8 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
+          {/* 1. TABLEAU FORMAT DESKTOP (>= 860px) */}
+          <div className="desktop-table-container" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #E2E8F0', backgroundColor: '#F8FAFC', color: '#3989B7', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -2646,6 +2647,189 @@ export default function App() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+
+          {/* 2. FORMAT CARTES RESPONSIVES MOBILE (< 860px) */}
+          <div className="mobile-cards-container" style={{ display: 'none', flexDirection: 'column', gap: '12px', width: '100%' }}>
+            {[
+              {
+                id: 'secteur_natacha' as const,
+                initials: 'NT',
+                name: 'Natacha THOMAS',
+                sector: 'Secteur Nord / Est',
+                avatarBg: '#E0F2FE',
+                avatarColor: '#0369A1',
+                btnBg: '#F0F9FF',
+                btnBorder: '#BAE6FD',
+                btnColor: '#0369A1',
+                count: stats.chantiersParAnim.Natacha,
+                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Natacha / stats.chantiersActifs) * 100).toFixed(1) : '43.4',
+                visites: stats.visitesParAnim.Natacha,
+                etoiles: stats.etoiles.Natacha,
+              },
+              {
+                id: 'secteur_ketty' as const,
+                initials: 'KP',
+                name: 'Ketty PAULIN',
+                sector: 'Secteur Ouest / Littoral',
+                avatarBg: '#E0F2FE',
+                avatarColor: '#0284C7',
+                btnBg: '#ECFEFF',
+                btnBorder: '#A5F3FC',
+                btnColor: '#0891B2',
+                count: stats.chantiersParAnim.Ketty,
+                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Ketty / stats.chantiersActifs) * 100).toFixed(1) : '40.7',
+                visites: stats.visitesParAnim.Ketty,
+                etoiles: stats.etoiles.Ketty,
+              },
+              {
+                id: 'secteur_emilie' as const,
+                initials: 'ET',
+                name: 'Emilie TOBIE',
+                sector: 'Secteur Sud / Métropole',
+                avatarBg: '#FDF2F8',
+                avatarColor: '#DB2777',
+                btnBg: '#FDF2F8',
+                btnBorder: '#FBCFE8',
+                btnColor: '#DB2777',
+                count: stats.chantiersParAnim.Emilie,
+                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Emilie / stats.chantiersActifs) * 100).toFixed(1) : '15.4',
+                visites: stats.visitesParAnim.Emilie,
+                etoiles: stats.etoiles.Emilie,
+              },
+            ].map((anim) => (
+              <div
+                key={anim.id}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '14px',
+                  border: '1px solid #E2E8F0',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                }}
+              >
+                {/* En-tête : avatar, nom, secteur et bouton action */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: anim.avatarBg, color: anim.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, flexShrink: 0 }}>
+                      {anim.initials}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {anim.name}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748B' }}>{anim.sector}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate(anim.id)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      backgroundColor: anim.btnBg,
+                      color: anim.btnColor,
+                      border: `1px solid ${anim.btnBorder}`,
+                      fontWeight: 700,
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    Voir Secteur →
+                  </button>
+                </div>
+
+                {/* Rangée des 2 KPIs clés */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={{ backgroundColor: '#F8FAFC', padding: '10px 12px', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Chantiers</div>
+                    <div style={{ fontSize: '16px', fontWeight: 900, color: '#0F172A', marginTop: '2px' }}>
+                      {anim.count} <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>({anim.share}%)</span>
+                    </div>
+                  </div>
+                  <div style={{ backgroundColor: '#F8FAFC', padding: '10px 12px', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Satisfaction</div>
+                    <div style={{ fontSize: '14px', fontWeight: 900, color: '#059669', marginTop: '2px' }}>
+                      {anim.visites.pct}% <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748B' }}>({anim.visites.bon}/{anim.visites.total})</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rangée répartition étoiles & qualité */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', textAlign: 'center' }}>
+                  <div style={{ backgroundColor: '#FEF3C7', padding: '6px 4px', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#92400E' }}>3 Étoiles 🌟</div>
+                    <div style={{ fontSize: '13px', fontWeight: 900, color: '#D97706', marginTop: '1px' }}>{anim.etoiles.s3}</div>
+                  </div>
+                  <div style={{ backgroundColor: '#F1F5F9', padding: '6px 4px', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569' }}>2 Étoiles 🌟</div>
+                    <div style={{ fontSize: '13px', fontWeight: 900, color: '#334155', marginTop: '1px' }}>{anim.etoiles.s2}</div>
+                  </div>
+                  <div style={{ backgroundColor: '#F8FAFC', padding: '6px 4px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748B' }}>1 Étoile 🌟</div>
+                    <div style={{ fontSize: '13px', fontWeight: 900, color: '#64748B', marginTop: '1px' }}>{anim.etoiles.s1}</div>
+                  </div>
+                  <div style={{ backgroundColor: anim.etoiles.bad > 0 ? '#FFEDD5' : '#ECFDF5', padding: '6px 4px', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', fontWeight: 700, color: anim.etoiles.bad > 0 ? '#C2410C' : '#047857' }}>Insatisfaits 🙁</div>
+                    <div style={{ fontSize: '13px', fontWeight: 900, color: anim.etoiles.bad > 0 ? '#D66927' : '#059669', marginTop: '1px' }}>{anim.etoiles.bad}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Carte Total Consolidé */}
+            <div
+              style={{
+                backgroundColor: '#0F172A',
+                borderRadius: '14px',
+                padding: '14px 16px',
+                color: '#FFFFFF',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#94A3B8' }}>
+                  TOTAL CONSOLIDÉ (3 SECTEURS)
+                </div>
+                <span style={{ fontSize: '10px', color: '#38BDF8', fontWeight: 700 }}>● Certifié 2026</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '10px', color: '#94A3B8' }}>Total Chantiers</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#FFFFFF' }}>{stats.chantiersActifs}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '10px', color: '#94A3B8' }}>Satisfaction Globale</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#38BDF8' }}>
+                    {stats.tauxSatisfactionGlobal}% <span style={{ fontSize: '10px', color: '#94A3B8' }}>({stats.visitesBonnes}/{stats.visitesTotal})</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', textAlign: 'center', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#FBBF24' }}>3🌟</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.s3}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#94A3B8' }}>2🌟</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.s2}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#64748B' }}>1🌟</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.s1}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#F87171' }}>🙁</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.bad}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
