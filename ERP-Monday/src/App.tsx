@@ -9,8 +9,7 @@ import { MaintenanceMatrix } from './components/MaintenanceMatrix';
 import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
 import { AtelierAlertsSection } from './components/AtelierAlertsSection';
 import { CreateMachineModal } from './components/CreateMachineModal';
-import { isRealCleaningMachine, AlertContextSelect } from './components/MachineSelect';
-import { ResponsableSelect } from './components/ResponsableSelect';
+import { isRealCleaningMachine } from './components/MachineSelect';
 import { SearchableSelect } from './components/SearchableSelect';
 import {
   fetchReferentielPoints,
@@ -48,11 +47,9 @@ import {
   Clock,
   RotateCcw,
   Bell,
-  Send,
   Users,
   Car,
   MapPin,
-  Trash2,
   Plus,
   ChevronLeft,
   ChevronRight,

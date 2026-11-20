@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, ChevronDown, Check, Link2, PlusCircle, Wrench, Calendar, MapPin, X } from 'lucide-react';
+import { Search, ChevronDown, Check, Link2, PlusCircle, Wrench, X } from 'lucide-react';
 import type { RepairTicket } from '../services/maintenanceApi';
 
 interface RepairTicketSelectProps {

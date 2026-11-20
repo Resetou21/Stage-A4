@@ -1,11 +1,9 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
-  Bell,
   Send,
   CheckCircle2,
   Trash2,
   Search,
-  MessageSquare,
   Reply,
   Clock,
   Wrench,
@@ -14,7 +12,6 @@ import {
   Sparkles,
   ArrowDownLeft,
   ArrowUpRight,
-  Filter,
   CheckCheck,
   Camera,
   Paperclip,

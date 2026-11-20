@@ -11,7 +11,6 @@ import {
   MapPin,
   Wrench,
   Calendar,
-  Tag,
 } from 'lucide-react';
 import { createNewMachine, CreateMachineParams } from '../services/maintenanceApi';
 
