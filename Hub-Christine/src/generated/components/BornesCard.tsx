@@ -652,53 +652,40 @@ export default function BornesCard() {
               </div>
             )}
 
-            {/* 3. FOOTER FIXE STICKY AVEC FERMER ET ACTIONS EXPORT / IMPORT */}
+            {/* 3. FOOTER FIXE STICKY AVEC ACTIONS EXPORT / IMPORT */}
             {selectedBornesMonth && (
-              <div className="p-3 sm:p-4 border-t border-border bg-card/95 flex flex-wrap items-center justify-between gap-2 shrink-0">
-                <DialogClose asChild>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBornesMonth(null)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted text-foreground px-4 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    <span>Fermer</span>
-                  </button>
-                </DialogClose>
+              <div className="p-3 sm:p-4 border-t border-border bg-card/95 flex items-center justify-between gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDownloadXls}
+                  disabled={exporting || (monthCharges.length === 0 && selectedBornesMonth.count === 0)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2.5 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                  title="Télécharger les charges de ce mois au format Excel / CSV"
+                >
+                  {exporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      <span>Export...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 shrink-0" />
+                      <span className="truncate">Télécharger XLS ({monthCharges.length || selectedBornesMonth.count})</span>
+                    </>
+                  )}
+                </button>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={handleDownloadXls}
-                    disabled={exporting || (monthCharges.length === 0 && selectedBornesMonth.count === 0)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
-                    title="Télécharger les charges de ce mois au format Excel / CSV"
-                  >
-                    {exporting ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Export en cours...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="h-3.5 w-3.5" />
-                        <span>Télécharger XLS ({monthCharges.length || selectedBornesMonth.count})</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedBornesMonth(null);
-                      inputRef.current?.click();
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>{monthCharges.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBornesMonth(null);
+                    inputRef.current?.click();
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3 py-2.5 text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  <Upload className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{monthCharges.length > 0 ? 'Mettre à jour' : 'Importer'}</span>
+                </button>
               </div>
             )}
           </DialogContent>
