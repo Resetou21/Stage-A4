@@ -794,6 +794,7 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
 
       {/* ================= FOCUS OPÉRATIONS DU MOIS ================= */}
       <div
+        className="maintenance-focus-card"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '16px',
@@ -813,7 +814,10 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
             gap: '10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            className="maintenance-focus-header-row"
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}
+          >
             <span
               style={{
                 backgroundColor: '#39A9DC',
@@ -899,12 +903,32 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
 
       {/* ================= GRILLE MATRICE DES 12 MOIS ================= */}
       <div
+        className="maintenance-matrix-scroll-hint"
+        style={{
+          display: 'none',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '11.5px',
+          color: '#3989B7',
+          fontWeight: 700,
+          marginBottom: '8px',
+          padding: '6px 12px',
+          backgroundColor: '#EBF6FC',
+          borderRadius: '8px',
+        }}
+      >
+        <span>👉 Glissez le tableau vers la droite pour voir les 12 mois</span>
+      </div>
+
+      <div
+        className="maintenance-matrix-table-container"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '16px',
           border: '1px solid #E2EEF5',
           boxShadow: '0 4px 16px rgba(27, 69, 101, 0.04)',
           overflowX: 'auto',
+          maxWidth: '100%',
         }}
       >
         <table

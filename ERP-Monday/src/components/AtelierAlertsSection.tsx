@@ -360,6 +360,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
       {/* 2. FORMULAIRE D'ENVOI D'UNE ALERTE (DESIGN ÉPURÉ & MODERNE)     */}
       {/* ============================================================== */}
       <div
+        className="atelier-alert-form-card"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '18px',
@@ -511,9 +512,10 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
           <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
             Message / Consigne <span style={{ color: '#EF4444' }}>*</span>
           </label>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="atelier-alert-input-group" style={{ display: 'flex', gap: '10px' }}>
             <input
               id="atelier-alert-message-input"
+              className="atelier-alert-input"
               type="text"
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
@@ -541,6 +543,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
 
             <button
               type="button"
+              className="atelier-alert-submit-btn"
               disabled={isSending || !messageText.trim()}
               onClick={handleSend}
               style={{

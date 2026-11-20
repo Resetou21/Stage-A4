@@ -141,11 +141,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   return (
     <div
       ref={containerRef}
+      className="searchable-select-root"
       style={{
         position: 'relative',
         display: 'inline-block',
         width: width,
         minWidth: minWidth,
+        maxWidth: '100%',
         userSelect: 'none',
         fontFamily: "'Ruda', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}

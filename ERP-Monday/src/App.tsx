@@ -1840,12 +1840,15 @@ export const App = () => {
           </div>
 
           <div
+            className="calendar-card-container"
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '16px',
               border: '1px solid #E2EEF5',
               padding: '24px',
               boxShadow: '0 4px 16px rgba(27, 69, 101, 0.04)',
+              maxWidth: '100%',
+              overflowX: 'hidden',
             }}
           >
             {/* Légende épurée aux couleurs de la charte */}
@@ -1916,17 +1919,19 @@ export const App = () => {
                   Regrouper les tournées par secteur / ville :
                 </span>
 
-                <SearchableSelect
-                  value={selectedSector}
-                  onChange={(val) => setSelectedSector(val)}
-                  options={availableSectors}
-                  allOptionValue="all"
-                  allOptionLabel={`📍 Tous les secteurs (${availableSectors.length} villes/sites)`}
-                  placeholder="Choisir un secteur..."
-                  searchPlaceholder="Rechercher un secteur ou ville (ex: Donges, Leclerc)..."
-                  width="340px"
-                  minWidth="240px"
-                />
+                <div style={{ flex: '1 1 240px', minWidth: 0, maxWidth: '100%' }}>
+                  <SearchableSelect
+                    value={selectedSector}
+                    onChange={(val) => setSelectedSector(val)}
+                    options={availableSectors}
+                    allOptionValue="all"
+                    allOptionLabel={`📍 Tous les secteurs (${availableSectors.length} villes/sites)`}
+                    placeholder="Choisir un secteur..."
+                    searchPlaceholder="Rechercher un secteur ou ville (ex: Donges, Leclerc)..."
+                    width="100%"
+                    minWidth="200px"
+                  />
+                </div>
               </div>
 
               {/* Résumé de la tournée par secteur */}

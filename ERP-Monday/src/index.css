@@ -42,6 +42,8 @@ html, body, #root {
   color: var(--facility-navy);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6, .font-title {
@@ -522,6 +524,119 @@ h1, h2, h3, h4, h5, h6, .font-title {
     justify-content: center !important;
     padding: 14px 20px !important;
     font-size: 14.5px !important;
+  }
+
+  /* Zone 1 : Formulaire d'alerte et saisie de consigne */
+  .atelier-alert-form-card {
+    padding: 14px 12px !important;
+    border-radius: 14px !important;
+  }
+  .atelier-alert-input-group {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .atelier-alert-input-group .atelier-alert-input {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .atelier-alert-input-group .atelier-alert-submit-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 12px 18px !important;
+    font-size: 13.5px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Zone 2 : Focus Mensuel & Matrice Préventive 12 Mois */
+  .maintenance-focus-card {
+    padding: 14px 12px !important;
+    border-radius: 14px !important;
+  }
+  .maintenance-focus-header-row {
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .maintenance-matrix-scroll-hint {
+    display: flex !important;
+  }
+  .maintenance-matrix-table-container {
+    border-radius: 12px !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Zone 3 : Calendrier FullCalendar & Sélecteur Secteur */
+  .calendar-card-container {
+    padding: 12px 8px !important;
+    border-radius: 14px !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  .searchable-select-root {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .fc .fc-header-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .fc .fc-toolbar-chunk {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 1.2rem !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+  .fc .fc-button-primary {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    border-radius: 8px !important;
+  }
+  .fc .fc-button-group {
+    display: inline-flex !important;
+  }
+  .fc .fc-button-group > .fc-button {
+    padding: 6px 10px !important;
+  }
+  .fc .fc-today-button {
+    margin-left: 6px !important;
+    padding: 6px 12px !important;
+  }
+  .fc-theme-standard th {
+    padding: 5px 0 !important;
+    font-size: 11px !important;
+  }
+  .fc-daygrid-day-number {
+    font-size: 11px !important;
+    padding: 2px 3px !important;
+  }
+  .fc-daygrid-event {
+    font-size: 9.5px !important;
+    padding: 1px 3px !important;
+    margin-top: 1px !important;
+    border-radius: 3px !important;
+    line-height: 1.15 !important;
+  }
+  .fc-daygrid-more-link {
+    font-size: 9.5px !important;
+    padding: 1px 2px !important;
+    margin-top: 1px !important;
+    color: var(--facility-darkblue) !important;
+    font-weight: 700 !important;
+  }
+  .fc-daygrid-day-frame {
+    min-height: 48px !important;
   }
 }
 
