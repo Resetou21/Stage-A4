@@ -1859,7 +1859,29 @@ export default function App() {
       {/* ============================================================== */}
       {/* 4. CONTENU PRINCIPAL PAR VUE                                  */}
       {/* ============================================================== */}
-      <main className="hub-main-content" style={{ flex: 1, position: 'relative', overflowY: currentView === 'home' ? 'auto' : 'hidden', overflowX: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      {(() => {
+        const isIframeView =
+          currentView === 'atelier_vehicules' ||
+          currentView === 'atelier_erp' ||
+          currentView === 'comm_lea' ||
+          currentView === 'direction_vincent' ||
+          currentView === 'secteur_natacha' ||
+          currentView === 'secteur_ketty' ||
+          currentView === 'secteur_emilie';
+
+        return (
+          <main
+            className="hub-main-content"
+            style={{
+              flex: 1,
+              position: 'relative',
+              overflowY: isIframeView ? 'hidden' : 'auto',
+              overflowX: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
+          >
         {/* ------------------------------------------------------------ */}
         {/* VUE 1 : ACCUEIL DU PORTAIL GLOBAL                           */}
         {/* ------------------------------------------------------------ */}
@@ -2649,21 +2671,21 @@ export default function App() {
             </table>
           </div>
 
-          {/* 2. FORMAT CARTES RESPONSIVES MOBILE (< 860px) */}
-          <div className="mobile-cards-container" style={{ display: 'none', flexDirection: 'column', gap: '12px', width: '100%' }}>
+          {/* 2. FORMAT COMPACT MOBILE (< 860px) : FICHES CONDENSÉES TOUT-EN-UN */}
+          <div className="mobile-cards-container" style={{ display: 'none', flexDirection: 'column', gap: '8px', width: '100%' }}>
             {[
               {
                 id: 'secteur_natacha' as const,
                 initials: 'NT',
                 name: 'Natacha THOMAS',
-                sector: 'Secteur Nord / Est',
+                sector: 'Nord / Est',
                 avatarBg: '#E0F2FE',
                 avatarColor: '#0369A1',
                 btnBg: '#F0F9FF',
                 btnBorder: '#BAE6FD',
                 btnColor: '#0369A1',
                 count: stats.chantiersParAnim.Natacha,
-                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Natacha / stats.chantiersActifs) * 100).toFixed(1) : '43.4',
+                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Natacha / stats.chantiersActifs) * 100).toFixed(0) : '43',
                 visites: stats.visitesParAnim.Natacha,
                 etoiles: stats.etoiles.Natacha,
               },
@@ -2671,14 +2693,14 @@ export default function App() {
                 id: 'secteur_ketty' as const,
                 initials: 'KP',
                 name: 'Ketty PAULIN',
-                sector: 'Secteur Ouest / Littoral',
+                sector: 'Ouest / Littoral',
                 avatarBg: '#E0F2FE',
                 avatarColor: '#0284C7',
                 btnBg: '#ECFEFF',
                 btnBorder: '#A5F3FC',
                 btnColor: '#0891B2',
                 count: stats.chantiersParAnim.Ketty,
-                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Ketty / stats.chantiersActifs) * 100).toFixed(1) : '40.7',
+                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Ketty / stats.chantiersActifs) * 100).toFixed(0) : '41',
                 visites: stats.visitesParAnim.Ketty,
                 etoiles: stats.etoiles.Ketty,
               },
@@ -2686,14 +2708,14 @@ export default function App() {
                 id: 'secteur_emilie' as const,
                 initials: 'ET',
                 name: 'Emilie TOBIE',
-                sector: 'Secteur Sud / Métropole',
+                sector: 'Sud / Métropole',
                 avatarBg: '#FDF2F8',
                 avatarColor: '#DB2777',
                 btnBg: '#FDF2F8',
                 btnBorder: '#FBCFE8',
                 btnColor: '#DB2777',
                 count: stats.chantiersParAnim.Emilie,
-                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Emilie / stats.chantiersActifs) * 100).toFixed(1) : '15.4',
+                share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Emilie / stats.chantiersActifs) * 100).toFixed(0) : '15',
                 visites: stats.visitesParAnim.Emilie,
                 etoiles: stats.etoiles.Emilie,
               },
@@ -2702,39 +2724,37 @@ export default function App() {
                 key={anim.id}
                 style={{
                   backgroundColor: '#FFFFFF',
-                  borderRadius: '14px',
+                  borderRadius: '12px',
                   border: '1px solid #E2E8F0',
-                  padding: '14px',
+                  padding: '9px 12px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px',
-                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                  gap: '6px',
+                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
                 }}
               >
-                {/* En-tête : avatar, nom, secteur et bouton action */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: anim.avatarBg, color: anim.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, flexShrink: 0 }}>
+                {/* Ligne 1 : Nom, Secteur & Bouton d'accès */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', backgroundColor: anim.avatarBg, color: anim.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>
                       {anim.initials}
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {anim.name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>{anim.sector}</div>
+                      <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '12.5px' }}>{anim.name}</span>
+                      <span style={{ fontSize: '10px', color: '#64748B', marginLeft: '6px' }}>• {anim.sector}</span>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleNavigate(anim.id)}
                     style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
+                      padding: '4px 9px',
+                      borderRadius: '6px',
                       backgroundColor: anim.btnBg,
                       color: anim.btnColor,
                       border: `1px solid ${anim.btnBorder}`,
                       fontWeight: 700,
-                      fontSize: '11px',
+                      fontSize: '10.5px',
                       cursor: 'pointer',
                       flexShrink: 0,
                     }}
@@ -2743,91 +2763,57 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Rangée des 2 KPIs clés */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <div style={{ backgroundColor: '#F8FAFC', padding: '10px 12px', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Chantiers</div>
-                    <div style={{ fontSize: '16px', fontWeight: 900, color: '#0F172A', marginTop: '2px' }}>
-                      {anim.count} <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>({anim.share}%)</span>
-                    </div>
+                {/* Ligne 2 : Données condensées en 1 seule rangée propre */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', backgroundColor: '#F8FAFC', padding: '5px 8px', borderRadius: '8px', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                    <span style={{ fontWeight: 900, color: '#0F172A', fontSize: '13px' }}>{anim.count}</span>
+                    <span style={{ fontSize: '10px', color: '#64748B' }}>ch. ({anim.share}%)</span>
                   </div>
-                  <div style={{ backgroundColor: '#F8FAFC', padding: '10px 12px', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Satisfaction</div>
-                    <div style={{ fontSize: '14px', fontWeight: 900, color: '#059669', marginTop: '2px' }}>
-                      {anim.visites.pct}% <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748B' }}>({anim.visites.bon}/{anim.visites.total})</span>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Rangée répartition étoiles & qualité */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', textAlign: 'center' }}>
-                  <div style={{ backgroundColor: '#FEF3C7', padding: '6px 4px', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#92400E' }}>3 Étoiles 🌟</div>
-                    <div style={{ fontSize: '13px', fontWeight: 900, color: '#D97706', marginTop: '1px' }}>{anim.etoiles.s3}</div>
+                  <div style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
+                    {anim.visites.pct}%
                   </div>
-                  <div style={{ backgroundColor: '#F1F5F9', padding: '6px 4px', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569' }}>2 Étoiles 🌟</div>
-                    <div style={{ fontSize: '13px', fontWeight: 900, color: '#334155', marginTop: '1px' }}>{anim.etoiles.s2}</div>
-                  </div>
-                  <div style={{ backgroundColor: '#F8FAFC', padding: '6px 4px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748B' }}>1 Étoile 🌟</div>
-                    <div style={{ fontSize: '13px', fontWeight: 900, color: '#64748B', marginTop: '1px' }}>{anim.etoiles.s1}</div>
-                  </div>
-                  <div style={{ backgroundColor: anim.etoiles.bad > 0 ? '#FFEDD5' : '#ECFDF5', padding: '6px 4px', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: anim.etoiles.bad > 0 ? '#C2410C' : '#047857' }}>Insatisfaits 🙁</div>
-                    <div style={{ fontSize: '13px', fontWeight: 900, color: anim.etoiles.bad > 0 ? '#D66927' : '#059669', marginTop: '1px' }}>{anim.etoiles.bad}</div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10.5px' }}>
+                    <span style={{ color: '#D97706', fontWeight: 800 }}>3🌟 {anim.etoiles.s3}</span>
+                    <span style={{ color: '#475569', fontWeight: 700 }}>2🌟 {anim.etoiles.s2}</span>
+                    <span style={{ color: '#64748B', fontWeight: 600 }}>1🌟 {anim.etoiles.s1}</span>
+                    {anim.etoiles.bad > 0 && (
+                      <span style={{ color: '#D66927', fontWeight: 800, backgroundColor: '#FFEDD5', padding: '1px 5px', borderRadius: '4px' }}>
+                        🙁 {anim.etoiles.bad}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
 
-            {/* Carte Total Consolidé */}
+            {/* Ligne Total Consolidé Ultra-Compacte */}
             <div
               style={{
                 backgroundColor: '#0F172A',
-                borderRadius: '14px',
-                padding: '14px 16px',
+                borderRadius: '12px',
+                padding: '9px 12px',
                 color: '#FFFFFF',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+                fontSize: '11px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#94A3B8' }}>
-                  TOTAL CONSOLIDÉ (3 SECTEURS)
-                </div>
-                <span style={{ fontSize: '10px', color: '#38BDF8', fontWeight: 700 }}>● Certifié 2026</span>
+              <div>
+                <span style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>TOTAL : </span>
+                <span style={{ fontWeight: 900, color: '#FFFFFF', fontSize: '13px' }}>{stats.chantiersActifs} ch.</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
-                  <div style={{ fontSize: '10px', color: '#94A3B8' }}>Total Chantiers</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#FFFFFF' }}>{stats.chantiersActifs}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '10px', color: '#94A3B8' }}>Satisfaction Globale</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#38BDF8' }}>
-                    {stats.tauxSatisfactionGlobal}% <span style={{ fontSize: '10px', color: '#94A3B8' }}>({stats.visitesBonnes}/{stats.visitesTotal})</span>
-                  </div>
-                </div>
+              <div style={{ fontWeight: 800, color: '#38BDF8', backgroundColor: 'rgba(56, 189, 248, 0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                {stats.tauxSatisfactionGlobal}% sat.
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', textAlign: 'center', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#FBBF24' }}>3🌟</div>
-                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.s3}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#94A3B8' }}>2🌟</div>
-                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.s2}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#64748B' }}>1🌟</div>
-                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.s1}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#F87171' }}>🙁</div>
-                  <div style={{ fontSize: '13px', fontWeight: 800 }}>{stats.etoiles.Global.bad}</div>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10.5px' }}>
+                <span style={{ color: '#FBBF24', fontWeight: 800 }}>3🌟 {stats.etoiles.Global.s3}</span>
+                <span style={{ color: '#CBD5E1', fontWeight: 700 }}>2🌟 {stats.etoiles.Global.s2}</span>
+                <span style={{ color: '#94A3B8', fontWeight: 600 }}>1🌟 {stats.etoiles.Global.s1}</span>
+                <span style={{ color: '#F87171', fontWeight: 800 }}>🙁 {stats.etoiles.Global.bad}</span>
               </div>
             </div>
           </div>
@@ -3155,6 +3141,8 @@ export default function App() {
       initialTab={roadmapInitialTab}
     />
   </main>
+        );
+      })()}
     </div >
   );
 }
