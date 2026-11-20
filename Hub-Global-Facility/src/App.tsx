@@ -2103,6 +2103,7 @@ export default function App() {
 
         {/* Bannière Boîte à Idées & Roadmap Collaborative */}
         <div
+          className="hub-roadmap-banner"
           style={{
             marginTop: '35px',
             backgroundColor: '#FFFFFF',
@@ -2133,9 +2134,8 @@ export default function App() {
             }}
           />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: '280px' }}>
+          <div className="hub-roadmap-header" style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: '280px' }}>
             <div
-              className="hub-roadmap-banner"
               style={{
                 width: '56px',
                 height: '56px',
@@ -2152,7 +2152,7 @@ export default function App() {
             >
               <Lightbulb size={28} />
             </div>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{
                   display: 'inline-flex',
@@ -2166,50 +2166,8 @@ export default function App() {
                   fontWeight: 800,
                   marginBottom: '6px',
                 }}
-              />
-
-              <div className="hub-roadmap-header" style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '16px',
-                    backgroundColor: '#FEF3C7',
-                    border: '1.5px solid #FDE68A',
-                    color: '#D97706',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)',
-                  }}
-                >
-                  <Lightbulb size={28} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '3px 10px',
-                      borderRadius: '12px',
-                      backgroundColor: '#FEF3C7',
-                      color: '#B45309',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      marginBottom: '6px',
-                    }}
-                  >
-                    <span>NOUVEAUTÉ • BOÎTE À IDÉES DU GROUPE</span>
-                  </div>
-                  <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#0F172A' }}>
-                    Une idée, un besoin ou une suggestion pour vos outils ?
-                  </h3>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#64748B', maxWidth: '640px', lineHeight: 1.5 }}>
-                    Chaque pôle (Animatrices, Atelier, Flotte Véhicules, Commercial) peut formuler ses demandes. Vos suggestions alimentent directement la feuille de route collaborative du Groupe Facility.
-                  </p>
-                </div>
+              >
+                <span>NOUVEAUTÉ • BOÎTE À IDÉES DU GROUPE</span>
               </div>
               <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#0F172A' }}>
                 Une idée, un besoin ou une suggestion pour vos outils ?
@@ -2220,32 +2178,32 @@ export default function App() {
             </div>
           </div>
 
-              <div className="hub-roadmap-buttons" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', zIndex: 1 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRoadmapInitialTab('form');
-                    setShowRoadmapModal(true);
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '11px 20px',
-                    borderRadius: '10px',
-                    backgroundColor: '#D97706',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <Lightbulb size={16} />
-                  <span>Formuler une demande</span>
-                </button>
+          <div className="hub-roadmap-buttons" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', zIndex: 1 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setRoadmapInitialTab('form');
+                setShowRoadmapModal(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '11px 20px',
+                borderRadius: '10px',
+                backgroundColor: '#D97706',
+                color: '#FFFFFF',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Lightbulb size={16} />
+              <span>Formuler une demande</span>
+            </button>
 
             <button
               type="button"
