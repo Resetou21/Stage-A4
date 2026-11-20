@@ -32,12 +32,16 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 grid gap-4 rounded-2xl border border-border bg-card p-6 shadow-2xl transition-all duration-200 w-[95vw] sm:w-full max-w-lg box-border',
+        'dialog-modal-content fixed z-50 rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 box-border flex flex-col',
+        // Mobile : ancre sécurisée en haut à 10px et s'arrête à 78px du bas pour ne jamais être masqué par la barre Monday
+        'top-2.5 bottom-20 left-2 right-2 max-h-[calc(100vh-88px)] p-3.5 sm:p-6',
+        // Desktop : centrage parfait avec w-full
+        'sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:max-h-[90vh]',
         className
       )}
       {...props}
     >
-      <DialogPrimitive.Close className="absolute right-4 top-4 z-20 rounded-full p-1.5 opacity-60 transition-all hover:opacity-100 hover:bg-muted focus:outline-none cursor-pointer">
+      <DialogPrimitive.Close className="absolute right-2.5 top-2.5 sm:right-4 sm:top-4 z-40 inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted/90 hover:bg-muted text-foreground border border-border/60 shadow-xs transition-all focus:outline-none cursor-pointer">
         <X className="h-4 w-4" />
         <span className="sr-only">Fermer</span>
       </DialogPrimitive.Close>

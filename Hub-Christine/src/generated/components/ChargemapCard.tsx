@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, type ChangeEvent } from 'react';
-import { Check, Upload, Info, Loader2, X, Download, ShieldCheck, FileSpreadsheet, AlertTriangle, Eye, Fuel, Zap, Search } from 'lucide-react';
+import { Check, Upload, Info, Loader2, X, Download, ShieldCheck, FileSpreadsheet, AlertTriangle, Eye, Fuel, Zap, Search, ArrowLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
 import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
@@ -585,18 +585,37 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
 
         {/* MODALE DE PRÉVISUALISATION DÉTAILLÉE D'UNE PÉRIODE AU CLIC (15 / 30 / MOIS) */}
         <Dialog open={!!selectedPeriodDetail} onOpenChange={(o) => !o && setSelectedPeriodDetail(null)}>
-          <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                {isTotal ? <Fuel className="h-5 w-5 text-amber-500" /> : <Zap className="h-5 w-5 text-blue-500" />}
-                {isTotal
-                  ? `Détail Facture Total — ${selectedPeriodDetail?.label} (Quinzaine ${selectedPeriodDetail?.quinzaine})`
-                  : `Détail Facture Chargemap — ${selectedPeriodDetail?.label} ${year}`}
+          <DialogContent className="max-w-3xl overflow-hidden flex flex-col p-0">
+            {/* EN-TÊTE FIXE STICKY AVEC RETOUR */}
+            <div className="p-3.5 sm:p-4 border-b border-border bg-card/95 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedPeriodDetail(null)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 text-xs font-bold transition cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Retour</span>
+              </button>
+              <DialogTitle className="flex items-center gap-2 text-sm sm:text-base font-bold truncate min-w-0">
+                {isTotal ? <Fuel className="h-4 w-4 text-amber-500 shrink-0" /> : <Zap className="h-4 w-4 text-blue-500 shrink-0" />}
+                <span className="truncate">
+                  {isTotal
+                    ? `Total — ${selectedPeriodDetail?.label} (${selectedPeriodDetail?.quinzaine})`
+                    : `Chargemap — ${selectedPeriodDetail?.label} ${year}`}
+                </span>
               </DialogTitle>
-            </DialogHeader>
+              <button
+                type="button"
+                onClick={() => setSelectedPeriodDetail(null)}
+                className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted hover:bg-muted/80 text-foreground transition cursor-pointer shrink-0"
+                title="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
             {selectedPeriodDetail && (
-              <div className="space-y-4 text-xs mt-1">
+              <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs">
                 {/* 1. Résumé en Cartes KPI */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="p-3 rounded-xl border border-border bg-muted/30 flex items-center gap-3">
@@ -760,36 +779,47 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                   </div>
                 )}
 
-                {/* 3. Informations & Actions Export / Import */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border">
-                  <div className="text-[11px] text-muted-foreground">
-                    Format recommandé : <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-foreground font-bold">{isTotal ? `TOTAL_${selectedPeriodDetail.moisStr.slice(0, 7)}_${selectedPeriodDetail.quinzaine || '15'}.xlsx` : `CHARGEMAP_${selectedPeriodDetail.moisStr.slice(0, 7)}_VINCENT.xlsx`}</code>
-                  </div>
+                <div className="text-[11px] text-muted-foreground pt-2">
+                  Format recommandé : <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-foreground font-bold">{isTotal ? `TOTAL_${selectedPeriodDetail.moisStr.slice(0, 7)}_${selectedPeriodDetail.quinzaine || '15'}.xlsx` : `CHARGEMAP_${selectedPeriodDetail.moisStr.slice(0, 7)}_VINCENT.xlsx`}</code>
+                </div>
+              </div>
+            )}
 
-                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleDownloadPeriodXls}
-                      disabled={periodLoading || cleanTransactions.length === 0}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
-                      title="Télécharger les lignes de cette période au format Excel / CSV"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span>Télécharger le XLS ({cleanTransactions.length})</span>
-                    </button>
+            {/* 3. FOOTER FIXE STICKY AVEC FERMER ET ACTIONS EXPORT / IMPORT */}
+            {selectedPeriodDetail && (
+              <div className="p-3 sm:p-4 border-t border-border bg-card/95 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPeriodDetail(null)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted text-foreground px-4 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Fermer / Retour</span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedPeriodDetail(null);
-                        inputRef.current?.click();
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{cleanTransactions.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleDownloadPeriodXls}
+                    disabled={periodLoading || cleanTransactions.length === 0}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                    title="Télécharger les lignes de cette période au format Excel / CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Télécharger ({cleanTransactions.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPeriodDetail(null);
+                      inputRef.current?.click();
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>{cleanTransactions.length > 0 ? 'Mettre à jour' : 'Importer'}</span>
+                  </button>
                 </div>
               </div>
             )}

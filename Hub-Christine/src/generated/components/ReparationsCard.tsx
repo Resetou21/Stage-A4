@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, type FormEvent, type ChangeEvent } from 'react';
-import { Wrench, Plus, Upload, Check, Loader2, Info, ShieldCheck, Download, FileText, Sparkles, ExternalLink, Eye } from 'lucide-react';
+import { Wrench, Plus, Upload, Check, Loader2, Info, ShieldCheck, Download, FileText, Sparkles, ExternalLink, Eye, ArrowLeft, X } from 'lucide-react';
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
 import { toast } from 'sonner';
@@ -265,16 +265,32 @@ export default function ReparationsCard() {
 
         {/* MODALE DE PRÉVISUALISATION D'UNE FACTURE RÉPARATION */}
         <Dialog open={!!selectedReparation} onOpenChange={(o) => !o && setSelectedReparation(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                <Wrench className="h-5 w-5 text-rose-500" />
-                Détail Réparation — {selectedReparation?.fournisseur}
+          <DialogContent className="max-w-md overflow-hidden flex flex-col p-0">
+            <div className="p-3.5 sm:p-4 border-b border-border bg-card/95 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedReparation(null)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 text-xs font-bold transition cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Retour</span>
+              </button>
+              <DialogTitle className="flex items-center gap-2 text-sm sm:text-base font-bold truncate min-w-0">
+                <Wrench className="h-4 w-4 text-rose-500 shrink-0" />
+                <span className="truncate">Détail — {selectedReparation?.fournisseur}</span>
               </DialogTitle>
-            </DialogHeader>
+              <button
+                type="button"
+                onClick={() => setSelectedReparation(null)}
+                className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted hover:bg-muted/80 text-foreground transition cursor-pointer shrink-0"
+                title="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
             {selectedReparation && (
-              <div className="space-y-3.5 text-xs mt-1">
+              <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-3.5 text-xs">
                 <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 flex items-center justify-between">
                   <div>
                     <div className="text-xl font-black text-amber-700">
@@ -317,6 +333,17 @@ export default function ReparationsCard() {
                 </div>
               </div>
             )}
+
+            <div className="p-3 sm:p-4 border-t border-border bg-card/95 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedReparation(null)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted text-foreground px-4 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Fermer</span>
+              </button>
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -332,8 +359,18 @@ export default function ReparationsCard() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="overflow-y-auto sm:max-w-xl">
           <DialogHeader>
+            <div className="flex items-center gap-2 mb-1 sm:hidden">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary px-2.5 py-1 text-xs font-bold transition cursor-pointer"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Retour</span>
+              </button>
+            </div>
             <DialogTitle className="flex items-center gap-2 text-xl font-bold">
               <Wrench className="h-5 w-5 text-primary" />
               Nouvelle facture réparation & alerte Christophe
@@ -513,21 +550,31 @@ export default function ReparationsCard() {
                 </span>
               </div>
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Envoi sur Monday & alerte de Christophe…
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" /> Enregistrer et transmettre au Hub Atelier
-                  </>
-                )}
-              </button>
+              <div className="mt-3 flex items-center justify-end gap-2.5 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted px-4 text-xs font-bold text-foreground transition cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                  <span>Annuler</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Envoi sur Monday & alerte de Christophe…
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" /> Enregistrer et transmettre au Hub Atelier
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </DialogContent>

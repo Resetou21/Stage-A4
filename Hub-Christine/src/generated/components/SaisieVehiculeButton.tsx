@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react";
-import { Loader2, Plus, Check, Sparkles, Car, Info } from 'lucide-react';
+import { Loader2, Plus, Check, Sparkles, Car, Info, ArrowLeft, X } from 'lucide-react';
 import { toast } from 'sonner';
 import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
@@ -471,8 +471,18 @@ export default function SaisieVehiculeButton() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[95vh] overflow-y-auto w-[95vw] sm:max-w-[620px]">
+        <DialogContent className="overflow-y-auto sm:max-w-[620px]">
           <DialogHeader>
+            <div className="flex items-center gap-2 mb-1 sm:hidden">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary px-2.5 py-1 text-xs font-bold transition cursor-pointer"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Retour</span>
+              </button>
+            </div>
             <DialogTitle className="flex items-center justify-between text-xl font-bold pr-10">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -696,23 +706,33 @@ export default function SaisieVehiculeButton() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-sm transition hover:opacity-95 disabled:opacity-60 sm:col-span-2 cursor-pointer"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Enregistrement sur Monday en cours…
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4" />
-                  Enregistrer dans le tableau véhicules
-                </>
-              )}
-            </button>
+            <div className="mt-3 flex items-center justify-end gap-2.5 sm:col-span-2 pb-2">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted px-4 text-xs font-bold text-foreground transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+                <span>Annuler</span>
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-sm transition hover:opacity-95 disabled:opacity-60 cursor-pointer"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Enregistrement sur Monday en cours…
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Enregistrer dans le tableau véhicules
+                  </>
+                )}
+              </button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

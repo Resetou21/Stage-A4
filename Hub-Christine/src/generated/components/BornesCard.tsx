@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Car, Info, Loader2, Upload, X, Check, Download, AlertTriangle, Eye, ShieldCheck, Clock, Zap, Search } from 'lucide-react';
+import { Car, Info, Loader2, Upload, X, Check, Download, AlertTriangle, Eye, ShieldCheck, Clock, Zap, Search, ArrowLeft } from 'lucide-react';
 import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@components/ui/dialog';
@@ -485,16 +485,33 @@ export default function BornesCard() {
 
         {/* MODALE DE PRÉVISUALISATION D'UN MOIS WELLBORNE AU CLIC AVEC LIGNES ET EXPORT */}
         <Dialog open={!!selectedBornesMonth} onOpenChange={(o) => !o && setSelectedBornesMonth(null)}>
-          <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                <Zap className="h-5 w-5 text-emerald-600" />
-                Charges Bornes Wellborne — {selectedBornesMonth?.label} {year}
+          <DialogContent className="max-w-3xl overflow-hidden flex flex-col p-0">
+            {/* EN-TÊTE FIXE STICKY AVEC RETOUR */}
+            <div className="p-3.5 sm:p-4 border-b border-border bg-card/95 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedBornesMonth(null)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 text-xs font-bold transition cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Retour</span>
+              </button>
+              <DialogTitle className="flex items-center gap-2 text-sm sm:text-base font-bold truncate min-w-0">
+                <Zap className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span className="truncate">Wellborne — {selectedBornesMonth?.label} {year}</span>
               </DialogTitle>
-            </DialogHeader>
+              <button
+                type="button"
+                onClick={() => setSelectedBornesMonth(null)}
+                className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted hover:bg-muted/80 text-foreground transition cursor-pointer shrink-0"
+                title="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
             {selectedBornesMonth && (
-              <div className="space-y-4 text-xs mt-1">
+              <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs">
                 {/* 1. Résumé en Cartes KPI (3 cartes harmonisées avec Chargemap/Total) */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="p-3 rounded-xl border border-border bg-muted/30 flex items-center gap-3">
@@ -642,45 +659,56 @@ export default function BornesCard() {
                   </div>
                 )}
 
-                {/* 3. Informations normées & Actions Télécharger (Export) / Importer */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border">
-                  <div className="text-[11px] text-muted-foreground">
-                    Format recommandé : <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-foreground font-bold">WELLBORNE_{selectedBornesMonth.ym}_BORNE.xlsx</code>
-                  </div>
+                <div className="text-[11px] text-muted-foreground pt-2">
+                  Format recommandé : <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] text-foreground font-bold">WELLBORNE_{selectedBornesMonth.ym}_BORNE.xlsx</code>
+                </div>
+              </div>
+            )}
 
-                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleDownloadXls}
-                      disabled={exporting || (monthCharges.length === 0 && selectedBornesMonth.count === 0)}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
-                      title="Télécharger les charges de ce mois au format Excel / CSV"
-                    >
-                      {exporting ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Export en cours...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="h-3.5 w-3.5" />
-                          <span>Télécharger le XLS ({monthCharges.length || selectedBornesMonth.count})</span>
-                        </>
-                      )}
-                    </button>
+            {/* 3. FOOTER FIXE STICKY AVEC FERMER ET ACTIONS EXPORT / IMPORT */}
+            {selectedBornesMonth && (
+              <div className="p-3 sm:p-4 border-t border-border bg-card/95 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedBornesMonth(null)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted text-foreground px-4 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Fermer / Retour</span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedBornesMonth(null);
-                        inputRef.current?.click();
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{monthCharges.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleDownloadXls}
+                    disabled={exporting || (monthCharges.length === 0 && selectedBornesMonth.count === 0)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                    title="Télécharger les charges de ce mois au format Excel / CSV"
+                  >
+                    {exporting ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Export en cours...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Télécharger le XLS ({monthCharges.length || selectedBornesMonth.count})</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedBornesMonth(null);
+                      inputRef.current?.click();
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>{monthCharges.length > 0 ? 'Ajouter / Mettre à jour' : 'Importer'}</span>
+                  </button>
                 </div>
               </div>
             )}
