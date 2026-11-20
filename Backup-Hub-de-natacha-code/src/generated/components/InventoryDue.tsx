@@ -361,21 +361,21 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md text-[11px] shrink-0 ${
+                    className={`inline-flex items-center gap-1.5 font-bold text-xs shrink-0 ${
                       isAllFilled
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-600 dark:text-amber-400'
                     }`}
                   >
                     {isAllFilled ? (
                       <>
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                        Prêt
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Prêt</span>
                       </>
                     ) : (
                       <>
-                        <AlertCircle className="h-3 w-3 text-amber-600" />
-                        {filledCount} / {s.products.length}
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                        <span>{filledCount} / {s.products.length}</span>
                       </>
                     )}
                   </span>
@@ -457,7 +457,7 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
       <Dialog open={!!selectedSite} onOpenChange={(open) => !open && setSelectedSiteId(null)}>
         <DialogContent className="max-w-2xl w-full p-0 overflow-hidden flex flex-col max-h-[88vh]">
           {/* En-tête de la Pop-up */}
-          <div className="p-4 sm:p-5 border-b border-border bg-card/95 flex items-center justify-between gap-3 shrink-0 pr-12">
+          <div className="p-4 sm:p-5 border-b border-border bg-card/95 flex items-center justify-between gap-3 shrink-0 pr-14">
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                 <Building2 className="h-5 w-5" />
@@ -466,39 +466,35 @@ export default function InventoryDue({ firstName, onChanged, search = '', preloa
                 <DialogTitle className="font-extrabold text-base sm:text-lg text-foreground truncate">
                   {selectedSite?.chantier}
                 </DialogTitle>
-                <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-2 mt-0.5 flex-wrap">
-                  <span>Fiche d'inventaire consommables</span>
+                <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-2 mt-1 flex-wrap">
+                  <span>Fiche consommables</span>
                   <span>•</span>
                   <span className="text-primary font-bold">
                     {selectedSite?.products.length} référence{selectedSite && selectedSite.products.length > 1 ? 's' : ''} sous contrat
                   </span>
+                  <span>•</span>
+                  <span
+                    className={`inline-flex items-center gap-1 font-bold ${
+                      selectedSiteIsAllFilled
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    {selectedSiteIsAllFilled ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Prêt à valider</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                        <span>{selectedSiteFilledCount} / {selectedSite?.products.length} saisie(s)</span>
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
-
-            {selectedSite && (
-              <div className="shrink-0 hidden sm:block">
-                <span
-                  className={`inline-flex items-center gap-1 font-bold px-2.5 py-1 rounded-lg text-xs ${
-                    selectedSiteIsAllFilled
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                  }`}
-                >
-                  {selectedSiteIsAllFilled ? (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Prêt à valider
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
-                      {selectedSiteFilledCount} / {selectedSite.products.length} saisie(s)
-                    </>
-                  )}
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Corps de la Pop-up : Liste verticale des produits sous contrat */}
