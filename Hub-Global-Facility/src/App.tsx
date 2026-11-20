@@ -2749,7 +2749,7 @@ export default function App() {
                   src={iframeSrc}
                   title={`Hub Secteur ${animFullName}`}
                   style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
-                  allow="clipboard-write; fullscreen; camera; microphone"
+                  allow="clipboard-write; fullscreen; camera; microphone; web-share"
                 />
               );
             })()}
@@ -2767,7 +2767,7 @@ export default function App() {
               src={`${URL_ATELIER_ERP}?v=20004306&ts=${refreshKey}`}
               title="ERP Parc Matériel & Machines"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone"
+              allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
         )}
@@ -2783,7 +2783,7 @@ export default function App() {
               src={`${URL_CHRISTINE_HUB}?v=20267872&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone"
+              allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
         )}
@@ -2799,7 +2799,7 @@ export default function App() {
               src={`${URL_LEA_HUB}?v=20377620&ts=${refreshKey}`}
               title="Hub de Léa — Communication & Contacts Clients"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone"
+              allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
         )}
@@ -2815,7 +2815,7 @@ export default function App() {
               src={`${URL_VINCENT_HUB}?v=20428306&ts=${refreshKey}`}
               title="Hub de Vincent — Direction & Flotte"
               style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone"
+              allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
         )}

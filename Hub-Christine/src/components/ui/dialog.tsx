@@ -37,7 +37,11 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'dialog-modal-content fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 box-border w-[95vw] sm:w-full max-w-lg max-h-[76vh] sm:max-h-[90vh] p-4 sm:p-6 overflow-y-auto',
+        'dialog-modal-content fixed z-50 rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 box-border',
+        // Mobile : ancre sécurisée en haut à 10px et s'arrête STRICTEMENT à 104px du bas (au-dessus de la barre Recherche rapide de Monday)
+        'top-2.5 bottom-[104px] left-2.5 right-2.5 p-4 sm:p-6 overflow-y-auto',
+        // Desktop : centrage parfait avec w-full, max-w-lg et max-h-[90vh]
+        'sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:max-h-[90vh]',
         className
       )}
       {...props}

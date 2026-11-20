@@ -571,7 +571,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
 
         {/* MODALE DE PRÉVISUALISATION DÉTAILLÉE D'UNE PÉRIODE AU CLIC (15 / 30 / MOIS) */}
         <Dialog open={!!selectedPeriodDetail} onOpenChange={(o) => !o && setSelectedPeriodDetail(null)}>
-          <DialogContent hideDefaultClose className="max-w-3xl sm:max-w-4xl max-h-[74vh] sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogContent hideDefaultClose className="max-w-3xl sm:max-w-4xl overflow-hidden flex flex-col p-0">
             {/* EN-TÊTE FIXE STICKY AVEC RETOUR */}
             <div className="p-3.5 sm:p-4 border-b border-border bg-card/95 flex items-center justify-between gap-2 shrink-0">
               <button
