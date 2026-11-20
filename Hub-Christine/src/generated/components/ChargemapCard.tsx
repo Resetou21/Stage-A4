@@ -666,37 +666,6 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                   </div>
                 </div>
 
-                {/* 1.bis Actions Principales : Télécharger et Importer / Mettre à jour (Toujours visibles en haut !) */}
-                <div className="p-3 bg-muted/30 rounded-xl border border-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shadow-2xs">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    <span>Actions rapides :</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                    <button
-                      type="button"
-                      onClick={handleDownloadPeriodXls}
-                      disabled={periodLoading || cleanTransactions.length === 0}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
-                      title="Télécharger les lignes de cette période au format Excel / CSV"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span>Télécharger XLS ({cleanTransactions.length})</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedPeriodDetail(null);
-                        inputRef.current?.click();
-                      }}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground px-3.5 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{cleanTransactions.length > 0 ? 'Mettre à jour (.xlsx)' : 'Importer (.xlsx)'}</span>
-                    </button>
-                  </div>
-                </div>
-
                 {/* 2. Données réelles ou état d'attente d'importation */}
                 {periodLoading ? (
                   <div className="py-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">

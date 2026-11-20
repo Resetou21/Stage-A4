@@ -38,8 +38,8 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         'dialog-modal-content fixed z-50 rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 box-border flex flex-col',
-        // Mobile : ancre sécurisée en haut à 8px et s'arrête à 112px du bas (toujours au-dessus de la barre flottante Monday)
-        'top-2 bottom-28 left-2 right-2 max-h-[calc(100dvh-120px)] p-3.5 sm:p-6',
+        // Mobile : ancre parfaitement équilibrée (descendue de 40px en haut pour ne jamais être coupée, et s'arrêtant à 74px du bas juste au-dessus de la barre Monday)
+        'top-10 bottom-[74px] left-2.5 right-2.5 max-h-[calc(100dvh-118px)] p-3.5 sm:p-6',
         // Desktop : centrage parfait avec w-full
         'sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:max-h-[90vh]',
         className
