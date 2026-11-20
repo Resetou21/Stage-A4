@@ -64,6 +64,11 @@ html, body, #root {
     display: none !important;
   }
 
+  /* Masquer le master header sur mobile lorsqu'on consulte un hub spécifique pour laisser 100% de la hauteur au hub */
+  .hub-master-header.in-subview {
+    display: none !important;
+  }
+
   .mobile-menu-btn {
     display: inline-flex !important;
     align-items: center;

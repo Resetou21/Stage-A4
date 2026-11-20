@@ -744,6 +744,7 @@ export default function App() {
       {/* ============================================================== */}
       <header
         ref={dropdownRef}
+        className={`hub-master-header ${currentView !== 'home' ? 'in-subview' : ''}`}
         style={{
           height: '64px',
           backgroundColor: '#FFFFFF',
@@ -1858,7 +1859,7 @@ export default function App() {
       {/* ============================================================== */}
       {/* 4. CONTENU PRINCIPAL PAR VUE                                  */}
       {/* ============================================================== */}
-      <main className="hub-main-content" style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <main className="hub-main-content" style={{ flex: 1, position: 'relative', overflowY: currentView === 'home' ? 'auto' : 'hidden', overflowX: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {/* ------------------------------------------------------------ */}
         {/* VUE 1 : ACCUEIL DU PORTAIL GLOBAL                           */}
         {/* ------------------------------------------------------------ */}
@@ -2724,7 +2725,7 @@ export default function App() {
     {/* VUE 3 : SECTEURS EN DIRECT (NATACHA, KETTY, EMILIE)          */}
     {/* ------------------------------------------------------------ */}
     {(currentView === 'secteur_natacha' || currentView === 'secteur_ketty' || currentView === 'secteur_emilie') && (
-      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {(() => {
           const animKey =
             currentView === 'secteur_natacha'
@@ -2748,7 +2749,7 @@ export default function App() {
                   key={`${animKey}_${refreshKey}`}
                   src={iframeSrc}
                   title={`Hub Secteur ${animFullName}`}
-                  style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+                  style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
                   allow="clipboard-write; fullscreen; camera; microphone; web-share"
                 />
               );
@@ -2760,13 +2761,13 @@ export default function App() {
         {/* VUE 4 : ERP ATELIER & PARC MACHINES                         */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_erp' && (
-          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <iframe
               ref={activeIframeRef}
               key={`atelier_erp_${refreshKey}`}
               src={`${URL_ATELIER_ERP}?v=20004306&ts=${refreshKey}`}
               title="ERP Parc Matériel & Machines"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
@@ -2776,13 +2777,13 @@ export default function App() {
         {/* VUE 5 : HUB DE CHRISTINE — FACTURATION VÉHICULES & ÉNERGIE   */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'atelier_vehicules' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <iframe
               ref={activeIframeRef}
               key={`atelier_vehicules_${refreshKey}`}
               src={`${URL_CHRISTINE_HUB}?v=20267872&ts=${refreshKey}`}
               title="Hub de Christine — Facturation & Flotte"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
@@ -2792,13 +2793,13 @@ export default function App() {
         {/* VUE : HUB DE LÉA — COMMUNICATION & CONTACTS CLIENTS           */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'comm_lea' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <iframe
               ref={activeIframeRef}
               key={`comm_lea_${refreshKey}`}
               src={`${URL_LEA_HUB}?v=20377620&ts=${refreshKey}`}
               title="Hub de Léa — Communication & Contacts Clients"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
@@ -2808,13 +2809,13 @@ export default function App() {
         {/* VUE : HUB DE VINCENT — DIRECTION & FLOTTE                    */}
         {/* ------------------------------------------------------------ */}
         {currentView === 'direction_vincent' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 'calc(100vh - 106px)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <iframe
               ref={activeIframeRef}
               key={`direction_vincent_${refreshKey}`}
               src={`${URL_VINCENT_HUB}?v=20428306&ts=${refreshKey}`}
               title="Hub de Vincent — Direction & Flotte"
-              style={{ flex: 1, width: '100%', height: 'calc(100vh - 106px)', minHeight: '650px', border: 'none' }}
+              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />
           </div>
