@@ -92,7 +92,7 @@ function Cell({
             placeholder="—"
             className={`h-11 w-24 sm:w-28 rounded-xl border-2 text-center text-sm font-extrabold tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-primary ${
               isFilled
-                ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 dark:bg-emerald-950/20 dark:text-emerald-300'
+                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                 : 'border-destructive/80 bg-destructive/5 text-destructive placeholder:text-destructive/50'
             } ${saving ? 'opacity-60 animate-pulse' : ''}`}
           />
