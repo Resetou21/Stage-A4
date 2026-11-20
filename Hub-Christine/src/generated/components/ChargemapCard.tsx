@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
 import { cn } from '@lib/utils';
+import { downloadFile } from '@lib/downloadFile';
 import { getChargemapMois, getTotalBimonthlyStatus, getPeriodTransactions, type TotalPeriodMonth, type PeriodTransactionItem } from '@generated/server/chargemap';
 import { analyzeFacturesChargemap, importFactures } from '@generated/server/factures';
 import { analyzeFacturesTotal, importFacturesTotal } from '@generated/server/facturesTotal';
@@ -136,7 +137,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
   }, [cleanTransactions, periodSearch]);
 
   // Export des lignes de la période sélectionnée au format Excel / CSV avec BOM UTF-8
-  const handleDownloadPeriodXls = () => {
+  const handleDownloadPeriodXls = async () => {
     if (!selectedPeriodDetail || !cleanTransactions.length) return;
     const headers = ['Date', 'Véhicule', 'Produit / Carte', 'Volume / Quantité', 'Montant HT', 'Station / Lieu'];
     const rows = cleanTransactions.map((t) => [
@@ -157,15 +158,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
       ? `TOTAL_${selectedPeriodDetail.moisStr.slice(0, 7)}_${selectedPeriodDetail.quinzaine || '15'}.csv`
       : `CHARGEMAP_${selectedPeriodDetail.moisStr.slice(0, 7)}_VINCENT.csv`;
 
-    const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await downloadFile(filename, content);
     toast.success(`Export de ${periodTransactions.length} transactions (${filename}) réussi !`);
   };
 
@@ -363,16 +356,9 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
   };
 
   // Télécharger le fichier sous son nom normalisé
-  const downloadRenamed = () => {
+  const downloadRenamed = async () => {
     if (!analysis) return;
-    const url = URL.createObjectURL(analysis.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = analysis.suggestedName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await downloadFile(analysis.suggestedName, analysis.file);
     toast.success(`Fichier téléchargé : ${analysis.suggestedName}`);
   };
 

@@ -3,6 +3,7 @@ import { Car, Info, Loader2, Upload, X, Check, Download, AlertTriangle, Eye, Shi
 import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@components/ui/dialog';
+import { downloadFile } from '@lib/downloadFile';
 import { getWellborneMois } from '@generated/server/chargemap';
 import { getWellborneNames, getWellborneMonthlyStats, importWellborne, getWellborneMonthCharges, type WellborneChargeItem } from '@generated/server/wellborne';
 import { readSheet, extractHeadersAndRows } from '@generated/components/readSheet';
@@ -151,16 +152,7 @@ export default function BornesCard() {
       ].join('\r\n');
 
       const filename = `WELLBORNE_${selectedBornesMonth.ym}_BORNE.csv`;
-      const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
+      await downloadFile(filename, content);
       toast.success(`${charges.length} charges exportées avec succès dans ${filename} !`);
     } catch (err) {
       console.error(err);
@@ -355,16 +347,9 @@ export default function BornesCard() {
   };
 
   // Télécharger le fichier sous son nom normalisé
-  const downloadRenamed = () => {
+  const downloadRenamed = async () => {
     if (!analysis) return;
-    const url = URL.createObjectURL(analysis.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = analysis.suggestedName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await downloadFile(analysis.suggestedName, analysis.file);
     toast.success(`Fichier téléchargé : ${analysis.suggestedName}`);
   };
 
