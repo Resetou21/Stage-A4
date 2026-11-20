@@ -842,6 +842,9 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     style={{
                       width: '22px',
                       height: '22px',
+                      minWidth: '22px',
+                      minHeight: '22px',
+                      flexShrink: 0,
                       borderRadius: '6px',
                       backgroundColor: pastilleConforme ? '#00C875' : '#E2445C',
                       color: '#FFFFFF',
@@ -1300,9 +1303,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div
                     style={{
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '5px',
+                      width: '22px',
+                      height: '22px',
+                      minWidth: '22px',
+                      minHeight: '22px',
+                      flexShrink: 0,
+                      borderRadius: '6px',
                       border: `1.5px solid ${machineVetuste ? '#D66927' : '#94A3B8'}`,
                       backgroundColor: machineVetuste ? '#F7AC37' : '#FFFFFF',
                       color: '#FFFFFF',
@@ -1721,6 +1727,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                   ↳ {sub.name}
                                 </span>
                                 <span
+                                  className="inspection-info-tooltip"
                                   title={getInspectionTip(sub.name)}
                                   style={{
                                     cursor: 'help',
@@ -1735,6 +1742,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                     border: '1px solid #BAE6FD',
                                     fontSize: '11px',
                                     fontWeight: 800,
+                                    flexShrink: 0,
                                   }}
                                 >
                                   <Info size={11} />
@@ -1806,6 +1814,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                           {pt.name}
                         </span>
                         <span
+                          className="inspection-info-tooltip"
                           title={getInspectionTip(pt.name)}
                           style={{
                             cursor: 'help',
@@ -1820,6 +1829,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                             border: '1px solid #BAE6FD',
                             fontSize: '11px',
                             fontWeight: 800,
+                            flexShrink: 0,
                           }}
                         >
                           <Info size={11} />
@@ -2317,9 +2327,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div
                       style={{
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '5px',
+                        width: '22px',
+                        height: '22px',
+                        minWidth: '22px',
+                        minHeight: '22px',
+                        flexShrink: 0,
+                        borderRadius: '6px',
                         border: `1.5px solid ${besoinRevisite ? '#39A9DC' : '#94A3B8'}`,
                         backgroundColor: besoinRevisite ? '#39A9DC' : '#FFFFFF',
                         color: '#FFFFFF',

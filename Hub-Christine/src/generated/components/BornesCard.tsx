@@ -558,8 +558,31 @@ export default function BornesCard() {
                       </span>
                     </div>
 
-                    <div className="rounded-xl border border-border overflow-hidden shadow-xs">
-                      <div className="max-h-72 overflow-y-auto">
+                    {/* Vue Cartes Mobiles pour smartphone (md:hidden) */}
+                    <div className="md:hidden space-y-2 max-h-72 overflow-y-auto pr-0.5">
+                      {filteredMonthCharges.map((c) => (
+                        <div key={c.id} className="p-3 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-foreground text-xs font-mono">{c.startTime}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded border border-border/40">
+                                {c.duration ? `${c.duration} min` : '—'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
+                              Fin : {c.endTime || '—'}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-extrabold text-emerald-600 text-xs font-mono">{c.energyKwh} kWh</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Vue Tableau pour Desktop (hidden md:block) */}
+                    <div className="hidden md:block rounded-xl border border-border overflow-hidden shadow-xs">
+                      <div className="max-h-72 overflow-y-auto overflow-x-auto">
                         <table className="w-full text-left text-[11px] border-collapse">
                           <thead className="bg-muted/70 text-foreground font-bold sticky top-0 z-10 border-b border-border">
                             <tr>

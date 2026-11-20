@@ -669,8 +669,30 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                       </span>
                     </div>
 
-                    <div className="rounded-xl border border-border overflow-hidden shadow-xs">
-                      <div className="max-h-72 overflow-y-auto">
+                    {/* Vue Cartes Mobiles pour smartphone (md:hidden) */}
+                    <div className="md:hidden space-y-2 max-h-72 overflow-y-auto pr-0.5">
+                      {filteredPeriodTransactions.map((t) => (
+                        <div key={t.id} className="p-3 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-foreground text-xs">{t.vehicule}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded border border-border/40">{t.date}</span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate max-w-[200px] mt-1">
+                              {t.station || t.produit}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-extrabold text-primary text-xs">{t.montant}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono">{t.quantite}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Vue Tableau pour Desktop (hidden md:block) */}
+                    <div className="hidden md:block rounded-xl border border-border overflow-hidden shadow-xs">
+                      <div className="max-h-72 overflow-y-auto overflow-x-auto">
                         <table className="w-full text-left text-[11px] border-collapse">
                           <thead className="bg-muted/70 text-foreground font-bold sticky top-0 z-10 border-b border-border">
                             <tr>
@@ -686,7 +708,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                             {filteredPeriodTransactions.map((t) => (
                               <tr key={t.id} className="hover:bg-muted/50 transition-colors">
                                 <td className="py-2 px-3 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
-                                  {t.date}
+                                   {t.date}
                                 </td>
                                 <td className="py-2 px-3 font-bold text-foreground whitespace-nowrap">
                                   {t.vehicule}

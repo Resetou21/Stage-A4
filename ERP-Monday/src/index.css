@@ -639,6 +639,11 @@ h1, h2, h3, h4, h5, h6, .font-title {
     min-height: 48px !important;
   }
 
+  /* Masquage des petites pastilles (i) sur smartphone pour alléger la vue */
+  .inspection-info-tooltip {
+    display: none !important;
+  }
+
   /* Vue Cartes Mobile vs Tableau pour la Matrice 12M */
   .mobile-view-mode-toggle {
     display: flex !important;

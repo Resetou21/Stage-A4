@@ -1048,31 +1048,90 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                   )}
                 </div>
 
-                {/* Ligne 2 : Fréquence */}
+                {/* Ligne 2 : Activation Préventive & Fréquence */}
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '8px',
                     marginTop: '10px',
                     marginBottom: '10px',
-                    padding: '6px 10px',
-                    backgroundColor: '#F8FCFE',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    border: '1px solid #E2EEF5',
+                    padding: '8px 10px',
+                    backgroundColor: isPrev ? '#F0F8FD' : '#F8FAFC',
+                    borderRadius: '10px',
+                    border: isPrev ? '1.5px solid #BAE6FD' : '1px solid #E2EEF5',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ color: '#57778E', fontWeight: 600 }}>Fréquence :</span>
-                    <span style={{ color: '#1B4565', fontWeight: 800 }}>{m.frequence || 'Non définie'}</span>
+                  {/* Case à cocher Maintenance Préventive */}
+                  <div
+                    onClick={() => !isViewingArchive && handleTogglePreventive(m.id, isPrev)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: isViewingArchive ? 'not-allowed' : 'pointer',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '22px',
+                        height: '22px',
+                        minWidth: '22px',
+                        minHeight: '22px',
+                        flexShrink: 0,
+                        borderRadius: '6px',
+                        border: `1.5px solid ${isPrev ? '#0073EA' : '#94A3B8'}`,
+                        backgroundColor: isPrev ? '#0073EA' : '#FFFFFF',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: isPrev ? '0 2px 6px rgba(0, 115, 234, 0.3)' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isPrev && <Check size={14} strokeWidth={3} />}
+                    </div>
+                    <span style={{ fontSize: '12.5px', fontWeight: 800, color: isPrev ? '#0073EA' : '#475569', fontFamily: "'Ruda', sans-serif" }}>
+                      {isPrev ? 'Maintenance Préventive Active' : 'Activer la maintenance préventive'}
+                    </span>
                   </div>
-                  <span style={{ fontSize: '11.5px', color: '#57778E' }}>
-                    {m.checkedCount} / {m.required || 0} validé(s)
-                  </span>
+
+                  {/* Choix de la Fréquence */}
+                  {isPrev && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <select
+                        value={m.frequence}
+                        disabled={isViewingArchive}
+                        onChange={(e) => handleChangeFrequence(m.id, e.target.value)}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #C8DCE8',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          color: '#1B4565',
+                          backgroundColor: '#FFFFFF',
+                          outline: 'none',
+                          cursor: isViewingArchive ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <option value="1 fois par an">1 fois par an</option>
+                        <option value="2 fois par an">2 fois par an</option>
+                        <option value="4 fois par an (Trimestriel)">4 fois par an (Trimestriel)</option>
+                        <option value="1 fois par mois (Mensuel)">1 fois par mois (Mensuel)</option>
+                      </select>
+                      <span style={{ fontSize: '11px', color: '#57778E', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        ({m.checkedCount}/{m.required})
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Ligne 3 : Les 12 mois en 2 rangées de 6 (tactile au doigt) */}
+                {/* Ligne 3 : Les 12 mois en 2 rangées de 6 (tactile au doigt) ou message d'activation */}
                 {isPrev ? (
                   <div>
                     <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#6C8CA3', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', justifyContent: 'space-between' }}>
@@ -1119,8 +1178,24 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div style={{ fontSize: '11.5px', color: '#94A3B8', fontStyle: 'italic', padding: '4px 0' }}>
-                    Machine hors maintenance préventive
+                  <div
+                    onClick={() => !isViewingArchive && handleTogglePreventive(m.id, false)}
+                    style={{
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      backgroundColor: '#F8FAFC',
+                      border: '1px dashed #CBD5E1',
+                      fontSize: '11.5px',
+                      color: '#64748B',
+                      textAlign: 'center',
+                      cursor: isViewingArchive ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>💡 Cochez la case ci-dessus pour planifier la maintenance préventive de cette machine</span>
                   </div>
                 )}
               </div>
