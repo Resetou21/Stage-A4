@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
+  CalendarCheck,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
@@ -8,7 +9,6 @@ import {
   Layers,
   MapPin,
   User,
-  LayoutGrid,
   Check,
   Archive,
   RotateCcw,
@@ -143,6 +143,9 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
   const [localMonthChecks, setLocalMonthChecks] = useState<Record<string, boolean>>({});
   const [localPreventive, setLocalPreventive] = useState<Record<string, boolean>>({});
   const [localFrequence, setLocalFrequence] = useState<Record<string, string>>({});
+
+  // Mode d'affichage mobile : Cartes tactiles (par défaut sur smartphone) ou Tableau scrollable
+  const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'table'>('cards');
 
   // Helper pour extraire le texte d'une colonne
   const getCol = (m: Machine, colId: string) => {
@@ -494,22 +497,26 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
           gap: '16px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
           <div
             style={{
-              width: '46px',
-              height: '46px',
+              width: '44px',
+              height: '44px',
+              minWidth: '44px',
+              minHeight: '44px',
+              flexShrink: 0,
               borderRadius: '12px',
               backgroundColor: '#1B4565',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#FFFFFF',
+              boxShadow: '0 4px 12px rgba(27, 69, 101, 0.2)',
             }}
           >
-            <LayoutGrid size={24} />
+            <CalendarCheck size={22} />
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <h2
               style={{
                 margin: 0,
@@ -901,7 +908,228 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
         )}
       </div>
 
-      {/* ================= GRILLE MATRICE DES 12 MOIS ================= */}
+      {/* ================= SÉLECTEUR DE VUE MOBILE (CARTES VS TABLEAU) ================= */}
+      <div
+        className="mobile-view-mode-toggle"
+        style={{
+          display: 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          marginBottom: '14px',
+          padding: '4px',
+          backgroundColor: '#F1F5F9',
+          borderRadius: '12px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setMobileViewMode('cards')}
+          style={{
+            flex: 1,
+            padding: '9px 12px',
+            borderRadius: '9px',
+            border: 'none',
+            backgroundColor: mobileViewMode === 'cards' ? '#FFFFFF' : 'transparent',
+            color: mobileViewMode === 'cards' ? '#1B4565' : '#64748B',
+            fontWeight: 800,
+            fontSize: '12.5px',
+            fontFamily: "'Ruda', sans-serif",
+            cursor: 'pointer',
+            boxShadow: mobileViewMode === 'cards' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          📱 Vue Cartes ({filteredMachines.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileViewMode('table')}
+          style={{
+            flex: 1,
+            padding: '9px 12px',
+            borderRadius: '9px',
+            border: 'none',
+            backgroundColor: mobileViewMode === 'table' ? '#FFFFFF' : 'transparent',
+            color: mobileViewMode === 'table' ? '#1B4565' : '#64748B',
+            fontWeight: 800,
+            fontSize: '12.5px',
+            fontFamily: "'Ruda', sans-serif",
+            cursor: 'pointer',
+            boxShadow: mobileViewMode === 'table' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          📊 Vue Tableau
+        </button>
+      </div>
+
+      {/* ================= VUE CARTES TACTILES POUR SMARTPHONE ================= */}
+      <div
+        className={`mobile-matrix-cards-wrapper ${mobileViewMode === 'cards' ? 'active-mobile-cards' : 'hidden-mobile-cards'}`}
+      >
+        {filteredMachines.length === 0 ? (
+          <div
+            style={{
+              padding: '24px',
+              textAlign: 'center',
+              color: '#6C8CA3',
+              fontStyle: 'italic',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              border: '1px solid #E2EEF5',
+            }}
+          >
+            Aucune machine trouvée pour ce filtre.
+          </div>
+        ) : (
+          filteredMachines.map((m) => {
+            const isPrev = m.isPreventive;
+            const diff = m.balanceDiff !== undefined ? m.balanceDiff : (m.required - m.checkedCount);
+            const currentCalendarMonth = new Date().getMonth() + 1;
+
+            return (
+              <div
+                key={m.id}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '14px',
+                  border: isPrev
+                    ? (diff === 0 ? '1.5px solid #00C875' : diff < 0 ? '1.5px solid #E2445C' : '1.5px solid #39A9DC')
+                    : '1px solid #E2EEF5',
+                  padding: '14px 14px 12px 14px',
+                  marginBottom: '12px',
+                  boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)',
+                }}
+              >
+                {/* Ligne 1 : Nom machine + Statut reste à cocher */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#1B4565', fontFamily: "'Ruda', sans-serif" }}>
+                      {m.name}
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', fontSize: '12px', color: '#57778E' }}>
+                      <span style={{ color: '#39A9DC', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <Layers size={13} /> {m.type}
+                      </span>
+                      <span>•</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <MapPin size={13} /> {m.site}
+                      </span>
+                      {m.animateur !== '—' && (
+                        <>
+                          <span>•</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <User size={12} /> {m.animateur}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Badge statut Reste à cocher */}
+                  {isPrev && (
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        fontFamily: "'Ruda', sans-serif",
+                        backgroundColor: diff === 0 ? '#E6F8F0' : diff < 0 ? '#FDECEE' : '#FFF8EC',
+                        color: diff === 0 ? '#0E7042' : diff < 0 ? '#961C2E' : '#D66927',
+                        border: `1px solid ${diff === 0 ? '#00C875' : diff < 0 ? '#E2445C' : '#F7AC37'}`,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {diff === 0 ? '✓ À jour' : diff < 0 ? `+${Math.abs(diff)} en trop` : `${diff} restant(s)`}
+                    </span>
+                  )}
+                </div>
+
+                {/* Ligne 2 : Fréquence */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: '10px',
+                    marginBottom: '10px',
+                    padding: '6px 10px',
+                    backgroundColor: '#F8FCFE',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    border: '1px solid #E2EEF5',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#57778E', fontWeight: 600 }}>Fréquence :</span>
+                    <span style={{ color: '#1B4565', fontWeight: 800 }}>{m.frequence || 'Non définie'}</span>
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#57778E' }}>
+                    {m.checkedCount} / {m.required || 0} validé(s)
+                  </span>
+                </div>
+
+                {/* Ligne 3 : Les 12 mois en 2 rangées de 6 (tactile au doigt) */}
+                {isPrev ? (
+                  <div>
+                    <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#6C8CA3', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Mois d'intervention</span>
+                      <span style={{ color: '#39A9DC' }}>Cliquer pour valider</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '5px' }}>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+                        const checked = Boolean(m.monthMap?.[month]);
+                        const isCurrentMonth = month === currentCalendarMonth;
+                        return (
+                          <button
+                            key={month}
+                            type="button"
+                            disabled={isViewingArchive}
+                            onClick={() => !isViewingArchive && handleToggleMonth(m.id, month, checked)}
+                            style={{
+                              padding: '8px 2px',
+                              borderRadius: '8px',
+                              border: checked ? '1.5px solid #00C875' : isCurrentMonth ? '1.5px solid #39A9DC' : '1px solid #CBD5E1',
+                              backgroundColor: checked ? '#00C875' : isCurrentMonth ? '#EBF6FC' : '#FFFFFF',
+                              color: checked ? '#FFFFFF' : isCurrentMonth ? '#1B4565' : '#475569',
+                              fontWeight: 800,
+                              fontSize: '11px',
+                              fontFamily: "'Ruda', sans-serif",
+                              cursor: isViewingArchive ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: checked ? '0 2px 6px rgba(0, 200, 117, 0.28)' : 'none',
+                              transition: 'all 0.12s ease',
+                              touchAction: 'manipulation',
+                              userSelect: 'none',
+                            }}
+                          >
+                            <span>{MONTH_COLUMN_IDS[month].short}</span>
+                            <span style={{ fontSize: '9.5px', marginTop: '1px', fontWeight: 900 }}>
+                              {checked ? '✓' : '—'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '11.5px', color: '#94A3B8', fontStyle: 'italic', padding: '4px 0' }}>
+                    Machine hors maintenance préventive
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ================= GRILLE MATRICE DES 12 MOIS (TABLEAU) ================= */}
       <div
         className="maintenance-matrix-scroll-hint"
         style={{
@@ -921,7 +1149,7 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
       </div>
 
       <div
-        className="maintenance-matrix-table-container"
+        className={`maintenance-matrix-table-container ${mobileViewMode === 'cards' ? 'desktop-only-table' : ''}`}
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '16px',

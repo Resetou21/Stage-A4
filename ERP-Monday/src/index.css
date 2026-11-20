@@ -638,5 +638,32 @@ h1, h2, h3, h4, h5, h6, .font-title {
   .fc-daygrid-day-frame {
     min-height: 48px !important;
   }
+
+  /* Vue Cartes Mobile vs Tableau pour la Matrice 12M */
+  .mobile-view-mode-toggle {
+    display: flex !important;
+  }
+  .mobile-matrix-cards-wrapper.active-mobile-cards {
+    display: block !important;
+  }
+  .mobile-matrix-cards-wrapper.hidden-mobile-cards {
+    display: none !important;
+  }
+  .maintenance-matrix-table-container.desktop-only-table {
+    display: none !important;
+  }
+}
+
+/* Sur écran Desktop / PC (> 640px) : la table reste 100% visible et le mode mobile cartes est masqué */
+@media (min-width: 641px) {
+  .mobile-view-mode-toggle {
+    display: none !important;
+  }
+  .mobile-matrix-cards-wrapper {
+    display: none !important;
+  }
+  .maintenance-matrix-table-container {
+    display: block !important;
+  }
 }
 
