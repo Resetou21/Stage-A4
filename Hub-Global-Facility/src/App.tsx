@@ -1349,8 +1349,8 @@ export default function App() {
                 }}
               >
                 <ArrowLeft size={13} />
-                <span className="hidden sm:inline">{backLabel}</span>
-                <span className="sm:hidden">{isAnimatrice ? 'Supervision' : 'Accueil'}</span>
+                <span className="desktop-only">{backLabel}</span>
+                <span className="mobile-only">{isAnimatrice ? 'Supervision' : 'Accueil'}</span>
               </button>
             );
           })()}
@@ -2282,7 +2282,7 @@ export default function App() {
     {/* VUE 2 : SUPERVISION GLOBALE (TOUS SECTEURS) - CHARTE 2026   */}
     {/* ------------------------------------------------------------ */}
     {currentView === 'secteur_global' && (
-      <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
         {/* En-tête de section aux normes Charte 2026 */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
@@ -2807,7 +2807,7 @@ export default function App() {
     {/* VUE 6 : HUB FOURNISSEURS & SAV                               */}
     {/* ------------------------------------------------------------ */}
     {currentView === 'atelier_fournisseurs' && (
-      <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ marginBottom: '24px' }}>
           <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
             Hub Fournisseurs & Pièces SAV
@@ -2851,7 +2851,7 @@ export default function App() {
     {/* VUE 7 : COMMUNICATION & CENTRE D'ALERTES                     */}
     {/* ------------------------------------------------------------ */}
     {currentView === 'comm_alertes' && (
-      <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ marginBottom: '24px' }}>
           <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
             Centre d’Alertes Transversal • Tous Secteurs
@@ -2908,7 +2908,7 @@ export default function App() {
     {/* VUE 8 : INVENTAIRES CONSOMMABLES (5105902205)               */}
     {/* ------------------------------------------------------------ */}
     {currentView === 'commercial_contrats' && (
-      <div style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
           <div>
             <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>

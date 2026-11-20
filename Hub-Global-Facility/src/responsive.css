@@ -13,6 +13,14 @@ html, body, #root {
   box-sizing: border-box;
 }
 
+.desktop-only {
+  display: inline !important;
+}
+
+.mobile-only {
+  display: none !important;
+}
+
 /* 1. Header Desktop vs Mobile */
 .desktop-nav {
   display: flex !important;
@@ -36,6 +44,14 @@ html, body, #root {
 
 /* 2. Responsive Breakpoint (< 860px) */
 @media (max-width: 860px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: inline !important;
+  }
+
   .desktop-nav {
     display: none !important;
   }
@@ -132,7 +148,14 @@ html, body, #root {
   }
 
   .hub-home-container {
-    padding: 16px 12px 30px 12px !important;
+    padding: 16px 12px 100px 12px !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+
+  .hub-view-container {
+    padding: 16px 12px 100px 12px !important;
     width: 100% !important;
     max-width: 100vw !important;
     box-sizing: border-box !important;
