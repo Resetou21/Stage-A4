@@ -514,18 +514,45 @@ export default function RoadmapModal({
           to { opacity: 1; transform: scale(1); }
         }
         @media (max-width: 640px) {
-          .roadmap-modal-overlay { padding: 6px !important; }
-          .roadmap-modal-container { max-height: 96vh !important; border-radius: 16px !important; }
-          .roadmap-header { padding: 18px 16px !important; }
-          .roadmap-header-kpis { flex-direction: column !important; gap: 8px !important; align-items: stretch !important; }
-          .roadmap-kpi-chip { width: 100% !important; justify-content: flex-start !important; }
+          .roadmap-modal-overlay { padding: 4px !important; }
+          .roadmap-modal-container { max-height: 98vh !important; border-radius: 14px !important; }
+          .roadmap-header { padding: 10px 14px 8px !important; }
+          .roadmap-header-icon { width: 28px !important; height: 28px !important; border-radius: 8px !important; }
+          .roadmap-header-icon svg { width: 16px !important; height: 16px !important; }
+          .roadmap-header-title { font-size: 14px !important; }
+          .roadmap-header-live-badge { font-size: 10px !important; padding: 1px 6px !important; }
+          .roadmap-close-btn { top: 8px !important; right: 10px !important; width: 28px !important; height: 28px !important; }
+          .roadmap-subtitle { display: none !important; }
+          .roadmap-header-kpis {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 6px !important;
+            margin-top: 6px !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+          }
+          .roadmap-kpi-chip {
+            width: auto !important;
+            padding: 3px 8px !important;
+            font-size: 10.5px !important;
+            border-radius: 6px !important;
+            gap: 4px !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+          }
+          .roadmap-kpi-label-full { display: none !important; }
+          .roadmap-tab-bar { padding: 0 10px !important; }
+          .roadmap-tab-button { padding: 9px 12px !important; font-size: 12px !important; gap: 6px !important; }
+          .roadmap-body-scroll {
+            padding: 12px 14px 100px !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
           .roadmap-card-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
           .roadmap-card-badges { width: 100% !important; justify-content: flex-start !important; }
           .roadmap-filter-bar { flex-direction: column !important; align-items: stretch !important; }
           .roadmap-filter-buttons { overflow-x: auto !important; width: 100% !important; padding-bottom: 4px !important; }
-          .roadmap-tab-button { padding: 12px 14px !important; font-size: 12px !important; }
-          .roadmap-footer { flex-direction: column !important; gap: 10px !important; align-items: stretch !important; }
-          .roadmap-footer button { width: 100% !important; }
+          .roadmap-footer { display: none !important; }
         }
       `}</style>
 
@@ -560,6 +587,7 @@ export default function RoadmapModal({
         >
           <button
             type="button"
+            className="roadmap-close-btn"
             onClick={onClose}
             style={{
               position: 'absolute',
@@ -584,6 +612,7 @@ export default function RoadmapModal({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
             <div
+              className="roadmap-header-icon"
               style={{
                 width: '42px',
                 height: '42px',
@@ -600,10 +629,11 @@ export default function RoadmapModal({
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, letterSpacing: '-0.3px' }}>
+                <h2 className="roadmap-header-title" style={{ margin: 0, fontSize: '19px', fontWeight: 800, letterSpacing: '-0.3px' }}>
                   Boîte à Idées & Suivi des Améliorations
                 </h2>
                 <span
+                  className="roadmap-header-live-badge"
                   style={{
                     fontSize: '11px',
                     fontWeight: 700,
@@ -617,7 +647,7 @@ export default function RoadmapModal({
                   ● En direct
                 </span>
               </div>
-              <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94A3B8', lineHeight: 1.4 }}>
+              <p className="roadmap-subtitle" style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94A3B8', lineHeight: 1.4 }}>
                 {isManager
                   ? "Exprimez vos besoins ou remarques • Suivez l'avancement et la mise en production des demandes"
                   : "Suivez l'avancement de vos demandes et exprimez vos besoins d'amélioration auprès de Guillaume"}
@@ -642,7 +672,7 @@ export default function RoadmapModal({
             >
               <Clock size={14} color="#F59E0B" />
               <span>
-                <strong>{stats.todoCount}</strong> demandes en cours
+                <strong>{stats.todoCount}</strong> <span className="roadmap-kpi-label-full">demandes </span>en cours
               </span>
             </div>
 
@@ -661,7 +691,7 @@ export default function RoadmapModal({
             >
               <CheckCircle2 size={14} color="#10B981" />
               <span>
-                <strong>{stats.doneCount}</strong> déjà livrées
+                <strong>{stats.doneCount}</strong> <span className="roadmap-kpi-label-full">déjà </span>livrées
               </span>
             </div>
 
@@ -680,7 +710,7 @@ export default function RoadmapModal({
             >
               <TrendingUp size={14} color="#60A5FA" />
               <span>
-                Avancement global : <strong>{stats.pctDone}%</strong>
+                <span className="roadmap-kpi-label-full">Avancement global : </span><strong>{stats.pctDone}%</strong>
               </span>
             </div>
           </div>
@@ -690,6 +720,7 @@ export default function RoadmapModal({
         {/* BARRE D'ONGLETS                                                */}
         {/* ============================================================== */}
         <div
+          className="roadmap-tab-bar"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -748,7 +779,7 @@ export default function RoadmapModal({
         {/* ============================================================== */}
         {/* CONTENU PRINCIPAL DES ONGLETS                                  */}
         {/* ============================================================== */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
+        <div className="roadmap-body-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', backgroundColor: '#FFFFFF' }}>
           {/* ------------------------------------------------------------ */}
           {/* ONGLET 1 : FORMULAIRE DE DEMANDE (ÉPURÉ & SANS CHAMP NOM)     */}
           {/* ------------------------------------------------------------ */}
