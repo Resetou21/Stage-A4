@@ -211,13 +211,13 @@ export default function InventoryActions({
                       </h4>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
+                          className={`inline-flex items-center gap-1 text-xs font-bold ${
                             isRecup
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-blue-600 dark:text-blue-400'
                           }`}
                         >
-                          {isRecup ? '📦 À récupérer sur site' : '📄 Avenant de diminution'}
+                          <span>{isRecup ? 'À récupérer sur site' : 'Avenant de diminution'}</span>
                         </span>
                       </div>
                     </div>
@@ -339,10 +339,10 @@ export default function InventoryActions({
                   </td>
                   <td className="px-3 py-2.5">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold cursor-help transition-opacity hover:opacity-90 ${
+                      className={`inline-flex items-center gap-1 text-xs font-bold cursor-help transition-opacity hover:opacity-90 ${
                         r.type === 'Avenant'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
-                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
                       }`}
                       title={
                         r.type === 'Avenant'
@@ -391,15 +391,17 @@ export default function InventoryActions({
                 </DialogTitle>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
+                    className={`inline-flex items-center gap-1 text-xs font-bold ${
                       selectedAction?.type === 'À récupérer'
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-blue-600 dark:text-blue-400'
                     }`}
                   >
-                    {selectedAction?.type === 'À récupérer'
-                      ? '📦 À récupérer sur site'
-                      : '📄 Avenant de diminution'}
+                    <span>
+                      {selectedAction?.type === 'À récupérer'
+                        ? 'À récupérer sur site'
+                        : 'Avenant de diminution'}
+                    </span>
                   </span>
                   <span className="text-[11px] text-muted-foreground font-semibold">
                     • {selectedAction?.values.length} référence(s) à traiter
