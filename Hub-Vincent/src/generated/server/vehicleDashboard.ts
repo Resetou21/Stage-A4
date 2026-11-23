@@ -111,7 +111,7 @@ export type FleetFinancialData = {
   conso6mTotal: VehicleCostTotalRow[];
 };
 
-const OVERVIEW_LS_KEY = 'hub_vincent_fleet_overview_v1';
+const OVERVIEW_LS_KEY = 'hub_vincent_fleet_overview_v2';
 const FIN_LS_KEY = 'hub_vincent_fleet_financial_v1';
 const LS_TTL_MS = 30 * 60 * 1000;
 
@@ -127,6 +127,7 @@ export function clearVehicleDashboardCache() {
   inFlightFin = null;
   try {
     localStorage.removeItem(OVERVIEW_LS_KEY);
+    localStorage.removeItem('hub_vincent_fleet_overview_v1');
     localStorage.removeItem(FIN_LS_KEY);
   } catch {}
 }
@@ -327,7 +328,7 @@ export const getFleetOverviewData = createServerFn({ method: 'GET' })
         if (!Number.isNaN(pStart) && !Number.isNaN(pEnd) && pEnd > pStart) {
           utilisation.push({
             plate,
-            label: num ? `#${num} · ${plate}` : plate,
+            label: plate,
             num,
             model: fullModel,
             start: pStart,

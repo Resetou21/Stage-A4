@@ -699,8 +699,8 @@ export default function VehicleDashboardPanel({
                     />
                     <YAxis
                       type="category"
-                      dataKey="label"
-                      width={106}
+                      dataKey="plate"
+                      width={84}
                       tickLine={false}
                       axisLine={false}
                       fontSize={10}
@@ -709,13 +709,13 @@ export default function VehicleDashboardPanel({
                     <Tooltip
                       cursor={{ fill: 'hsl(var(--muted))' }}
                       formatter={(v: any, name: any, item: any) => {
-                        if (name === 'start') return [`${v}h`, 'Début de prestation'];
+                        if (name === 'start') return [`${v}h`, 'Presta début'];
                         const p = item?.payload;
-                        return p ? [`${p.start}h → ${p.end}h (${p.duration}h/j)`, 'Amplitude'] : [`${v}h`, 'Durée'];
+                        return p ? [`${p.start}h → ${p.end}h (${p.duration}h/j)`, 'Amplitude (Presta début → fin)'] : [`${v}h`, 'Durée'];
                       }}
                       labelFormatter={(lbl: any) => {
-                        const row = list.find((u) => u.label === String(lbl));
-                        return row ? `${row.label}${row.model ? ` — ${row.model}` : ''}` : String(lbl);
+                        const row = list.find((u) => u.plate === String(lbl));
+                        return row ? `${row.plate}${row.model ? ` — ${row.model}` : ''}` : String(lbl);
                       }}
                       contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12 }}
                     />
@@ -810,7 +810,7 @@ export default function VehicleDashboardPanel({
                       formatter={(v: any) => [eur(Number(v)), consoEnergy === 'elec' ? 'Chargemap (6 mois)' : 'Carburant Total (6 mois)']}
                       labelFormatter={(lbl: any) => {
                         const row = consoData.find((r) => r.plate === String(lbl));
-                        return row ? `${row.plate}${row.num ? ` (#${row.num})` : ''}${row.model ? ` — ${row.model}` : ''}` : String(lbl);
+                        return row ? `${row.plate}${row.model ? ` — ${row.model}` : ''}` : String(lbl);
                       }}
                       contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12 }}
                     />
@@ -850,7 +850,7 @@ export default function VehicleDashboardPanel({
                   formatter={(v: any) => [eur(Number(v)), consoEnergy === 'elec' ? 'Chargemap (6 mois)' : 'Carburant Total (6 mois)']}
                   labelFormatter={(lbl: any) => {
                     const row = consoData.find((r) => r.plate === String(lbl));
-                    return row ? `${row.plate}${row.num ? ` (#${row.num})` : ''}${row.model ? ` — ${row.model}` : ''}` : String(lbl);
+                    return row ? `${row.plate}${row.model ? ` — ${row.model}` : ''}` : String(lbl);
                   }}
                   contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12 }}
                 />
@@ -867,48 +867,48 @@ export default function VehicleDashboardPanel({
     <div className="flex w-full flex-col justify-between gap-3 rounded-[var(--radius-xl)] border border-border bg-background p-4 sm:p-5">
       {/* 1. Bandeau compact des 4 KPIs du Dashboard Suivi des véhicules */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="flex items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 shadow-2xs">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#EBF6FC] text-[#39A9DC]">
+        <div className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-card px-2 py-2 shadow-2xs">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EBF6FC] text-[#39A9DC]">
             <Zap className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Électriques</p>
+            <p className="truncate text-[9.5px] font-bold uppercase tracking-tight text-muted-foreground">Électriques</p>
             <p className="font-[family-name:var(--font-heading)] text-base font-extrabold text-[#3989B7]">
               {overview ? overview.elec : '…'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 shadow-2xs">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FFF4EB] text-[#D66927]">
+        <div className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-card px-2 py-2 shadow-2xs">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FFF4EB] text-[#D66927]">
             <Fuel className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Thermiques</p>
+            <p className="truncate text-[9.5px] font-bold uppercase tracking-tight text-muted-foreground">Thermiques</p>
             <p className="font-[family-name:var(--font-heading)] text-base font-extrabold text-[#D66927]">
               {overview ? overview.therm : '…'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 shadow-2xs">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#E6F9F1] text-[#00C875]">
+        <div className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-card px-2 py-2 shadow-2xs">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#E6F9F1] text-[#00C875]">
             <ShoppingCart className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Achat</p>
+            <p className="truncate text-[9.5px] font-bold uppercase tracking-tight text-muted-foreground">Achat</p>
             <p className="font-[family-name:var(--font-heading)] text-base font-extrabold text-[#0E7042]">
               {overview ? overview.achat : '…'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 rounded-lg border border-border/80 bg-card px-2.5 py-2 shadow-2xs">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FEF6E7] text-[#F7AC37]">
+        <div className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-card px-2 py-2 shadow-2xs">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FEF6E7] text-[#F7AC37]">
             <FileText className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">LLD</p>
+            <p className="truncate text-[9.5px] font-bold uppercase tracking-tight text-muted-foreground">LLD</p>
             <p className="font-[family-name:var(--font-heading)] text-base font-extrabold text-[#B87414]">
               {overview ? overview.lld : '…'}
             </p>
