@@ -23,6 +23,8 @@ import {
   ExternalLink,
   UploadCloud,
   FileText,
+  Pencil,
+  Save,
 } from 'lucide-react';
 
 export interface RoadmapItem {
@@ -83,6 +85,8 @@ export default function RoadmapModal({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successSent, setSuccessSent] = useState(false);
+  const [successMode, setSuccessMode] = useState<'create' | 'edit'>('create');
+  const [editingItem, setEditingItem] = useState<RoadmapItem | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Droits d'administration : SEUL Guillaume Daniel peut cocher / valider les demandes livrées
@@ -177,9 +181,75 @@ export default function RoadmapModal({
     setDateFin(end);
   };
 
+  const resetForm = () => {
+    setEditingItem(null);
+    setTypeDemande('adjust');
+    setPoleConcerne('Animatrices');
+    setTitre('');
+    setDescription('');
+    setPriorite('2 (Normal)');
+    setDateDebut(new Date().toISOString().slice(0, 10));
+    setDateFin(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+    setAttachedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const startEditItem = (item: RoadmapItem) => {
+    // Détecte un éventuel préfixe [Ajustement], [Nouvelle idée], [À retirer], [Signalement de bug]
+    let detectedType = 'adjust';
+    let cleanTitle = item.name.trim();
+    const prefixMatch = cleanTitle.match(/^\[([^\]]+)\]\s*(.*)$/);
+    if (prefixMatch) {
+      const pText = prefixMatch[1].toLowerCase();
+      if (pText.includes('nouvelle') || pText.includes('fonction') || pText.includes('idée') || pText.includes('idee')) {
+        detectedType = 'feat';
+      } else if (pText.includes('retirer') || pText.includes('simplif')) {
+        detectedType = 'remove';
+      } else if (pText.includes('bug') || pText.includes('signalement')) {
+        detectedType = 'bug';
+      } else {
+        detectedType = 'adjust';
+      }
+      cleanTitle = prefixMatch[2].trim() || cleanTitle;
+    }
+
+    const matchedPole =
+      POLE_OPTIONS.find((p) => item.workspace.toLowerCase().includes(p.id.toLowerCase()))?.id || 'Animatrices';
+
+    const matchedPriority: '1 (Urgent)' | '2 (Normal)' | '3 (Basse)' = item.priority.includes('1')
+      ? '1 (Urgent)'
+      : item.priority.includes('3')
+      ? '3 (Basse)'
+      : '2 (Normal)';
+
+    const tlMatch = item.timeline.match(/(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/);
+    const start = tlMatch ? tlMatch[1] : item.date || new Date().toISOString().slice(0, 10);
+    const end = tlMatch ? tlMatch[2] : start;
+
+    setEditingItem(item);
+    setTypeDemande(detectedType);
+    setPoleConcerne(matchedPole);
+    setTitre(cleanTitle);
+    setDescription(item.description || '');
+    setPriorite(matchedPriority);
+    setDateDebut(start);
+    setDateFin(end);
+    setAttachedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setSuccessSent(false);
+    setActiveTab('form');
+  };
+
+  const cancelEdit = () => {
+    resetForm();
+    setActiveTab('list');
+  };
+
   // Synchronisation onglet initial
   useEffect(() => {
     if (isOpen) {
+      setEditingItem(null);
+      setSuccessSent(false);
       setActiveTab(initialTab);
       loadRoadmap();
     }
@@ -342,7 +412,7 @@ export default function RoadmapModal({
     }
   };
 
-  // Soumission d'une nouvelle demande vers Monday
+  // Soumission d'une nouvelle demande OU mise à jour d'une demande existante vers Monday
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!titre.trim()) return;
@@ -351,19 +421,81 @@ export default function RoadmapModal({
     try {
       const typeObj = TYPE_OPTIONS.find((t) => t.id === typeDemande);
       const formattedTitle = `[${typeObj?.label.split('/')[0].trim() || 'Demande'}] ${titre.trim()}`;
+      const cleanDesc = description.trim();
 
-      // Auteur automatiquement injecté via la colonne dédiée "Personne concerné"
+      if (editingItem) {
+        // MODE ÉDITION : mise à jour de l'élément existant sur Monday (sans toucher auteur/date/statut)
+        const updateColsObj: Record<string, any> = {
+          name: formattedTitle,
+          short_text2v8w5gvp: cleanDesc,
+          color_mm7yntfh: { label: priorite },
+          multi_selectp70jvoio: { labels: [poleConcerne] },
+        };
+
+        if (dateDebut && dateFin) {
+          updateColsObj.timerange_mm7wqn4x = {
+            from: dateDebut,
+            to: dateFin >= dateDebut ? dateFin : dateDebut,
+          };
+        }
+
+        const colVals = JSON.stringify(updateColsObj);
+        const mutation = `mutation ($itemId: ID!, $colVals: JSON!) {
+          change_multiple_column_values(
+            board_id: ${BOARD_ROADMAP_ID},
+            item_id: $itemId,
+            column_values: $colVals,
+            create_labels_if_missing: true
+          ) {
+            id
+            name
+          }
+        }`;
+
+        const res: any = await monday.api(mutation, {
+          variables: {
+            itemId: editingItem.id,
+            colVals,
+          },
+        });
+
+        if (res?.errors?.length) {
+          throw new Error(res.errors.map((err: any) => err.message).join(' | '));
+        }
+
+        // Pièce jointe supplémentaire éventuelle
+        if (attachedFile) {
+          try {
+            await uploadFileToMonday(editingItem.id, attachedFile);
+          } catch (upErr) {
+            console.error("Erreur d'upload du document sur Monday :", upErr);
+          }
+        }
+
+        setSuccessMode('edit');
+        setSuccessSent(true);
+        resetForm();
+
+        roadmapCache = null;
+        await loadRoadmap(true);
+
+        setTimeout(() => {
+          setSuccessSent(false);
+          setActiveTab('list');
+        }, 1400);
+        return;
+      }
+
+      // MODE CRÉATION : auteur automatiquement injecté via la colonne dédiée "Personne concerné"
       const senderName = currentUserName && currentUserName !== 'Utilisateur' ? currentUserName.trim() : 'Collaborateur';
-      const cleanDesc = description.trim(); // Texte propre dans court texte
-
-      const todayIso = new Date().toISOString().slice(0, 10);
+      const nowIso = new Date().toISOString().slice(0, 10);
 
       const colValsObj: any = {
         short_text2v8w5gvp: cleanDesc,
         dropdown_mm978xpa: { labels: [senderName] },
         color_mm7yntfh: { label: priorite },
         status: { label: 'En cours' },
-        date_mm7yphvc: { date: todayIso },
+        date_mm7yphvc: { date: nowIso },
         multi_selectp70jvoio: { labels: [poleConcerne] },
       };
 
@@ -408,12 +540,9 @@ export default function RoadmapModal({
       }
 
       // Notification succès
+      setSuccessMode('create');
       setSuccessSent(true);
-      setTitre('');
-      setDescription('');
-      setAttachedFile(null);
-      setDateDebut(new Date().toISOString().slice(0, 10));
-      setDateFin(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+      resetForm();
 
       // Recharger la liste (invalidation cache)
       roadmapCache = null;
@@ -424,7 +553,7 @@ export default function RoadmapModal({
         setActiveTab('list');
       }, 1500);
     } catch (err) {
-      console.error('Erreur création suggestion:', err);
+      console.error('Erreur enregistrement suggestion:', err);
       alert("Une erreur s'est produite lors de la transmission à Monday.");
     } finally {
       setSubmitting(false);
@@ -743,7 +872,10 @@ export default function RoadmapModal({
           <button
             type="button"
             className="roadmap-tab-button"
-            onClick={() => setActiveTab('list')}
+            onClick={() => {
+              if (editingItem) resetForm();
+              setActiveTab('list');
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -782,8 +914,8 @@ export default function RoadmapModal({
               transition: 'all 0.15s ease',
             }}
           >
-            <PlusCircle size={16} />
-            <span>Formuler une demande</span>
+            {editingItem ? <Pencil size={15} /> : <PlusCircle size={16} />}
+            <span>{editingItem ? 'Modifier la demande' : 'Formuler une demande'}</span>
           </button>
         </div>
 
@@ -823,51 +955,112 @@ export default function RoadmapModal({
                     <Check size={28} />
                   </div>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#065F46' }}>
-                    Demande enregistrée avec succès !
+                    {successMode === 'edit' ? 'Modifications enregistrées avec succès !' : 'Demande enregistrée avec succès !'}
                   </h3>
                   <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#047857' }}>
-                    Elle apparaît dès maintenant dans la liste pour un suivi direct.
+                    {successMode === 'edit'
+                      ? 'La demande a été mise à jour en direct sur Monday.com.'
+                      : 'Elle apparaît dès maintenant dans la liste pour un suivi direct.'}
                   </p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  {/* Badge d'identification automatique (zéro saisie demandée) */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      backgroundColor: '#F8FAFC',
-                      border: '1px solid #E2E8F0',
-                      fontSize: '12px',
-                      color: '#475569',
-                    }}
-                  >
+                  {/* Bandeau mode édition OU Badge d'identification automatique */}
+                  {editingItem ? (
                     <div
                       style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '50%',
-                        backgroundColor: '#E0F2FE',
-                        color: '#0284C7',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: '11px',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        backgroundColor: '#EBF6FC',
+                        border: '1.5px solid #39A9DC',
+                        fontSize: '12px',
+                        color: '#1B4565',
                       }}
                     >
-                      <User size={14} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <div
+                          style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '50%',
+                            backgroundColor: '#39A9DC',
+                            color: '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: '12.5px' }}>Modification d’une idée existante</div>
+                          <div style={{ fontSize: '11px', color: '#3989B7' }}>
+                            {editingItem.author ? `Par ${editingItem.author}` : 'Demande existante'}
+                            {editingItem.date ? ` • Créée le ${editingItem.date}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '7px',
+                          border: '1px solid #93C5FD',
+                          backgroundColor: '#FFFFFF',
+                          color: '#1B4565',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Annuler
+                      </button>
                     </div>
-                    <div>
-                      Demandeur identifié : <strong>{currentUserName || 'Collaborateur connecté'}</strong>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        backgroundColor: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        fontSize: '12px',
+                        color: '#475569',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          backgroundColor: '#E0F2FE',
+                          color: '#0284C7',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '11px',
+                        }}
+                      >
+                        <User size={14} />
+                      </div>
+                      <div>
+                        Demandeur identifié : <strong>{currentUserName || 'Collaborateur connecté'}</strong>
+                      </div>
+                      <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#10B981', fontWeight: 700 }}>
+                        ● Pris en compte
+                      </span>
                     </div>
-                    <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#10B981', fontWeight: 700 }}>
-                      ● Pris en compte
-                    </span>
-                  </div>
+                  )}
 
                   {/* Type d'intervention */}
                   <div>
@@ -1154,6 +1347,39 @@ export default function RoadmapModal({
                       }}
                     />
 
+                    {editingItem?.fileUrl && !attachedFile && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px',
+                          padding: '8px 12px',
+                          marginBottom: '8px',
+                          borderRadius: '9px',
+                          backgroundColor: '#F0F9FF',
+                          border: '1px solid #BAE6FD',
+                          fontSize: '11.5px',
+                          color: '#0369A1',
+                        }}
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                          <Paperclip size={13} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Document déjà joint : <strong>{editingItem.fileName || 'Pièce jointe'}</strong>
+                          </span>
+                        </span>
+                        <a
+                          href={editingItem.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#0284C7', fontWeight: 700, textDecoration: 'none', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                        >
+                          Ouvrir <ExternalLink size={11} />
+                        </a>
+                      </div>
+                    )}
+
                     {!attachedFile ? (
                       <div
                         onClick={() => fileInputRef.current?.click()}
@@ -1288,12 +1514,33 @@ export default function RoadmapModal({
                   </div>
 
                   {/* Bouton de validation */}
-                  <div style={{ marginTop: '6px' }}>
+                  <div style={{ marginTop: '6px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {editingItem && (
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        disabled={submitting}
+                        style={{
+                          height: '46px',
+                          padding: '0 18px',
+                          backgroundColor: '#FFFFFF',
+                          color: '#475569',
+                          border: '1.5px solid #CBD5E1',
+                          borderRadius: '12px',
+                          fontSize: '13.5px',
+                          fontWeight: 700,
+                          cursor: submitting ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Annuler
+                      </button>
+                    )}
                     <button
                       type="submit"
                       disabled={submitting || !titre.trim()}
                       style={{
-                        width: '100%',
+                        flex: 1,
+                        minWidth: '200px',
                         height: '46px',
                         backgroundColor: '#39A9DC',
                         color: '#FFFFFF',
@@ -1311,8 +1558,14 @@ export default function RoadmapModal({
                         transition: 'all 0.15s ease',
                       }}
                     >
-                      <Send size={16} />
-                      <span>{submitting ? 'Enregistrement...' : 'Envoyer ma demande'}</span>
+                      {editingItem ? <Save size={16} /> : <Send size={16} />}
+                      <span>
+                        {submitting
+                          ? 'Enregistrement...'
+                          : editingItem
+                          ? 'Enregistrer les modifications'
+                          : 'Envoyer ma demande'}
+                      </span>
                     </button>
                   </div>
                 </form>
@@ -1453,7 +1706,10 @@ export default function RoadmapModal({
                 {/* Bouton Proposer une idée */}
                 <button
                   type="button"
-                  onClick={() => setActiveTab('form')}
+                  onClick={() => {
+                    resetForm();
+                    setActiveTab('form');
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1502,7 +1758,10 @@ export default function RoadmapModal({
                     </p>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('form')}
+                      onClick={() => {
+                        resetForm();
+                        setActiveTab('form');
+                      }}
                       style={{
                         padding: '8px 16px',
                         borderRadius: '8px',
@@ -1620,8 +1879,31 @@ export default function RoadmapModal({
                             </h4>
                           </div>
 
-                          {/* Badges statut & priorité */}
-                          <div className="roadmap-card-badges" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                          {/* Badges statut & priorité + bouton Modifier */}
+                          <div className="roadmap-card-badges" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => startEditItem(item)}
+                              title="Modifier cette idée"
+                              style={{
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '5px',
+                                backgroundColor: '#EBF6FC',
+                                color: '#3989B7',
+                                border: '1px solid #BAE6FD',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <Pencil size={11} />
+                              <span>Modifier</span>
+                            </button>
+
                             {item.workspace && (
                               <span
                                 style={{
