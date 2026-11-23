@@ -152,8 +152,10 @@ export default function App() {
     });
 
     // Requête contextuelle immédiate ; requête GraphQL `me` uniquement en secours si le contexte SDK ne suffit pas
+    let meRequested = false;
     const runMeFallback = () => {
-      if (resolved) return;
+      if (resolved || meRequested) return;
+      meRequested = true;
       callMondayApi('query { me { id name email } }')
         .then((apiRes) => {
           const me = apiRes?.data?.me || apiRes?.me;
@@ -182,6 +184,9 @@ export default function App() {
       runMeFallback();
     });
 
+    // Sécurité si le contexte SDK tarde dans une iframe imbriquée : déclenche `me` à 500ms avant le timeout de 1.5s
+    const meTimer = setTimeout(runMeFallback, 500);
+
     // Sécurité anti-blocage immédiate : si après 1.5s le profil n'a pas répondu (ex: iframe imbriquée ou latence)
     const fallbackTimer = setTimeout(() => {
       if (!resolved) {
@@ -192,6 +197,7 @@ export default function App() {
 
     return () => {
       clearTimeout(fallbackTimer);
+      clearTimeout(meTimer);
       if (typeof unsubscribe === 'function') {
         try { (unsubscribe as any)(); } catch {}
       }

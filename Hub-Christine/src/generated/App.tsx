@@ -234,7 +234,7 @@ export default function App() {
 
             {/* 5. Nouvel onglet Réparations Matériel (alerte Hub de Christophe) */}
             <div className="flex w-full md:col-span-2 lg:col-span-2">
-              <ReparationsCard />
+              <ReparationsCard key={`rep-${refreshKey}`} />
             </div>
           </div>
         </section>
