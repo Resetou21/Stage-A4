@@ -158,6 +158,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
 
   return (
     <div
+      className="erp-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -175,6 +176,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
       onClick={onClose}
     >
       <div
+        className="erp-modal-sheet"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '16px',
@@ -182,10 +184,10 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           maxWidth: '560px',
           boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25)',
           border: '1.5px solid #D2E9F6',
-          overflow: 'visible',
+          overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '94vh',
+          maxHeight: '90vh',
           position: 'relative',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -285,7 +287,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           )}
 
           {/* Numéro & Modèle */}
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '10px' }}>
             <div>
               <label
                 style={{
@@ -373,7 +375,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           </div>
 
           {/* Type de machine & Fréquence (Menu personnalisés avec beau design) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: '12px' }}>
             {/* 1. SELECT PERSONNALISÉ : TYPE DE MACHINE */}
             <div ref={typeContainerRef} style={{ position: 'relative' }}>
               <label
@@ -462,7 +464,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                           borderRadius: '8px',
                           cursor: 'pointer',
                           backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
-                          color: isSelected ? '#0073EA' : '#1B4565',
+                          color: isSelected ? '#3989B7' : '#1B4565',
                           fontSize: '12px',
                           fontWeight: isSelected ? 800 : 600,
                           transition: 'background 0.1s ease',
@@ -475,7 +477,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                         }}
                       >
                         <span>{t}</span>
-                        {isSelected && <Check size={14} color="#0073EA" strokeWidth={3} />}
+                        {isSelected && <Check size={14} color="#3989B7" strokeWidth={3} />}
                       </div>
                     );
                   })}
@@ -569,7 +571,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                           borderRadius: '8px',
                           cursor: 'pointer',
                           backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
-                          color: isSelected ? '#0073EA' : '#1B4565',
+                          color: isSelected ? '#3989B7' : '#1B4565',
                           fontSize: '12px',
                           fontWeight: isSelected ? 800 : 600,
                           transition: 'background 0.1s ease',
@@ -582,7 +584,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                         }}
                       >
                         <span>{f}</span>
-                        {isSelected && <Check size={14} color="#0073EA" strokeWidth={3} />}
+                        {isSelected && <Check size={14} color="#3989B7" strokeWidth={3} />}
                       </div>
                     );
                   })}
@@ -768,7 +770,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                             borderRadius: '8px',
                             cursor: 'pointer',
                             backgroundColor: isSelected ? '#EBF6FC' : 'transparent',
-                            color: isSelected ? '#0073EA' : '#1B4565',
+                            color: isSelected ? '#3989B7' : '#1B4565',
                             fontSize: '12.5px',
                             fontWeight: isSelected ? 800 : 600,
                             transition: 'background 0.1s ease',
@@ -781,10 +783,10 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                           }}
                         >
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <MapPin size={12} color={isSelected ? '#0073EA' : '#94A3B8'} />
+                            <MapPin size={12} color={isSelected ? '#3989B7' : '#94A3B8'} />
                             {s}
                           </span>
-                          {isSelected && <Check size={14} color="#0073EA" strokeWidth={3} />}
+                          {isSelected && <Check size={14} color="#3989B7" strokeWidth={3} />}
                         </div>
                       );
                     })
@@ -798,7 +800,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
               gap: '10px',
               padding: '12px 14px',
               backgroundColor: '#F8FCFE',

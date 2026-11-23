@@ -4,19 +4,44 @@ import { toast } from 'sonner';
 import { getFixedChargesStatus, createSingleFixedCharge, type FixedChargesStatus, type MissingChargeItem } from '@generated/server/syncFixedCharges';
 import { clearBoardCache } from '@api/mondayApi';
 
+const FIXED_STATUS_CACHE_KEY = 'hub_vincent_fixed_charges_status_v1';
+const FIXED_STATUS_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function getCachedFixedStatus(): FixedChargesStatus | null {
+  try {
+    const raw = localStorage.getItem(FIXED_STATUS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.ts === 'number' && Date.now() - parsed.ts < FIXED_STATUS_TTL_MS && parsed.data) {
+      return parsed.data as FixedChargesStatus;
+    }
+  } catch {}
+  return null;
+}
+
 export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<FixedChargesStatus | null>(null);
+  const [status, setStatus] = useState<FixedChargesStatus | null>(() => getCachedFixedStatus());
   const [syncing, setSyncing] = useState(false);
   const [showVehicles, setShowVehicles] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; currentItem?: MissingChargeItem } | null>(null);
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (force = false) => {
+    if (!force) {
+      const cached = getCachedFixedStatus();
+      if (cached) {
+        setStatus(cached);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const res = await getFixedChargesStatus({});
       setStatus(res);
+      try {
+        localStorage.setItem(FIXED_STATUS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: res }));
+      } catch {}
     } catch (err) {
       console.error(err);
       toast.error('Impossible de charger le statut des charges fixes.');
@@ -26,7 +51,7 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
   };
 
   useEffect(() => {
-    fetchStatus();
+    fetchStatus(false);
   }, []);
 
   const handleStartSync = async () => {
@@ -59,14 +84,17 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
       });
 
       clearBoardCache();
-      await fetchStatus();
+      try {
+        localStorage.removeItem(FIXED_STATUS_CACHE_KEY);
+      } catch {}
+      await fetchStatus(true);
       if (onComplete) onComplete();
     } catch (err: any) {
       console.error(err);
       toast.error('Erreur pendant la synchronisation', {
         description: err?.message || 'Une interruption est survenue. Relancez pour continuer le rattrapage.',
       });
-      await fetchStatus();
+      await fetchStatus(true);
     } finally {
       setSyncing(false);
       setProgress(null);
@@ -82,7 +110,7 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
         type="button"
         onClick={() => {
           setOpen(true);
-          fetchStatus();
+          fetchStatus(true);
         }}
         className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-background px-3.5 py-2 text-xs font-bold text-foreground transition hover:bg-muted shadow-xs cursor-pointer"
         title="Gérer et synchroniser les charges fixes mensuelles des véhicules"
@@ -104,7 +132,7 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
 
       {/* Fenêtre Modale de Contrôle & Synchronisation */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-2.5 pb-28 sm:items-center sm:p-4">
           {/* Backdrop avec flou */}
           <div
             className="fixed inset-0 bg-background/80 backdrop-blur-xs transition-opacity"
@@ -112,8 +140,8 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
           />
 
           {/* Contenu de la Modale */}
-          <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-[var(--radius-xl)] border border-border bg-card p-6 shadow-2xl transition-all">
-            <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
+          <div className="relative z-10 flex max-h-[calc(100dvh-118px)] w-full max-w-xl flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-card shadow-2xl transition-all sm:max-h-[90vh]">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:pt-6">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Layers className="h-5 w-5" />
@@ -139,7 +167,7 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
               )}
             </div>
 
-            <div className="mt-4 space-y-4">
+            <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
               {/* Encadré d'assurance ZÉRO CASSE */}
               <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-800 dark:text-emerald-300">
                 <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600 mt-0.5" />
@@ -292,7 +320,7 @@ export default function SyncFixedChargesModal({ onComplete }: { onComplete?: () 
             </div>
 
             {/* Pied de Modale */}
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-border pt-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2.5 border-t border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4">
               <button
                 type="button"
                 disabled={syncing}

@@ -152,7 +152,7 @@ export interface TechnicienLabel {
 }
 
 export const DEFAULT_TECHNICIEN_LABELS: TechnicienLabel[] = [
-  { name: 'Christophe', color: '#0073ea', border: '#0060b9' },
+  { name: 'Christophe', color: '#39A9DC', border: '#3989B7' },
   { name: 'Guillaume', color: '#00c875', border: '#00b461' },
   { name: 'Technicien Externe', color: '#fdab3d', border: '#e99729' },
 ];
@@ -198,8 +198,8 @@ export async function fetchTechnicienStatusLabels(forceRefresh = false): Promise
         const colorData = colorsObj[key] || {};
         list.push({
           name: strName,
-          color: colorData.color || '#0073ea',
-          border: colorData.border || '#0060b9',
+          color: colorData.color || '#39A9DC',
+          border: colorData.border || '#3989B7',
         });
       }
       if (list.length > 0) {

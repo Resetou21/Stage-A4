@@ -126,3 +126,13 @@ html, body, #root {
   animation: dialogContentHide 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
+/* Sécurité viewport mobile : évite que les modales soient masquées par la barre flottante Monday */
+@media (max-width: 640px) {
+  .dialog-content {
+    top: calc(50% - 44px);
+    max-height: calc(100dvh - 116px) !important;
+    max-width: calc(100vw - 20px) !important;
+    overflow-y: auto;
+  }
+}
+

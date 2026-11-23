@@ -23,7 +23,7 @@ export const RESPONSABLES_DATA: ResponsableMeta[] = [
   {
     name: 'Emilie TOBIE',
     role: 'Hub Responsable de Secteur',
-    color: '#0073EA',
+    color: '#3989B7',
     bgLight: '#EBF6FC',
     border: '#D2E9F6',
     initials: 'ET',
@@ -397,7 +397,7 @@ export const ResponsableSelect: React.FC<ResponsableSelectProps> = React.memo(({
                           style={{
                             fontSize: '12.5px',
                             fontWeight: isSelected ? 800 : 700,
-                            color: isSelected ? '#0073EA' : '#1B4565',
+                            color: isSelected ? '#3989B7' : '#1B4565',
                             fontFamily: "'Ruda', sans-serif",
                           }}
                         >
@@ -409,7 +409,7 @@ export const ResponsableSelect: React.FC<ResponsableSelectProps> = React.memo(({
                       </div>
                     </div>
 
-                    {isSelected && <Check size={15} color="#0073EA" />}
+                    {isSelected && <Check size={15} color="#3989B7" />}
                   </div>
                 );
               })

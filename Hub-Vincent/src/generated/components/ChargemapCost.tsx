@@ -34,8 +34,14 @@ export function setStorageCost(source: Source, data: Data) {
 
 const inFlight = new Map<Source, Promise<Data>>();
 
-export function loadCost(source: Source): Promise<Data> {
-  const cached = getStorageCost(source);
+export function loadCost(source: Source, force = false): Promise<Data> {
+  // Si on a déjà un cache local valide (< 30 min) et pas de forceRefresh, on ne lance AUCUN appel API
+  if (!force) {
+    const cached = getStorageCost(source);
+    if (cached) {
+      return Promise.resolve(cached);
+    }
+  }
 
   let p = inFlight.get(source);
   if (!p) {
@@ -48,11 +54,6 @@ export function loadCost(source: Source): Promise<Data> {
         inFlight.delete(source);
       });
     inFlight.set(source, p);
-  }
-
-  // Si on a déjà un cache local valide, on le résout immédiatement sans attendre le réseau
-  if (cached) {
-    return Promise.resolve(cached);
   }
 
   return p;

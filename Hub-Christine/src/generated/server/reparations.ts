@@ -94,7 +94,7 @@ export const createFactureReparation = createServerFn({ method: 'POST' })
       try {
         const updateBody = `
           <div style="font-family: sans-serif; line-height: 1.5; color: #1e293b;">
-            <p style="font-size: 15px; font-weight: bold; color: #0073ea; margin: 0 0 8px 0;">
+            <p style="font-size: 15px; font-weight: bold; color: #3989B7; margin: 0 0 8px 0;">
               🔔 Alerte Hub Facturation (Christine) ➔ Hub Atelier & Parc (Christophe)
             </p>
             <p style="margin: 0 0 6px 0;">

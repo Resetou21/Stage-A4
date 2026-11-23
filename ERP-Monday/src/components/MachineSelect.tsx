@@ -573,7 +573,7 @@ export const MachineSelect: React.FC<MachineSelectProps> = React.memo(({
                             fontSize: '13.5px',
                             fontWeight: 800,
                             fontFamily: "'Ruda', sans-serif",
-                            color: isSelected ? '#0073EA' : '#1B4565',
+                            color: isSelected ? '#3989B7' : '#1B4565',
                             lineHeight: 1.25,
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',

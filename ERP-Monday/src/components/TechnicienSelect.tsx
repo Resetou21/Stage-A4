@@ -11,7 +11,7 @@ const CUSTOM_TECH_STORAGE_KEY = 'facility_custom_technicians_v2';
 
 // Couleurs par défaut attrayantes pour de nouvelles étiquettes
 const PRESET_NEW_COLORS = [
-  { color: '#0073ea', border: '#0060b9' }, // Bleu Monday
+  { color: '#39A9DC', border: '#3989B7' }, // Bleu Monday
   { color: '#00c875', border: '#00b461' }, // Vert
   { color: '#fdab3d', border: '#e99729' }, // Orange
   { color: '#9d50dd', border: '#9238af' }, // Violet
@@ -140,8 +140,8 @@ export const TechnicienSelect: React.FC<TechnicienSelectProps> = React.memo(({ v
   const currentLabel = useMemo(() => {
     return activeLabels.find((l) => l.name.toLowerCase() === (value || '').toLowerCase()) || {
       name: value || 'Christophe',
-      color: '#0073ea',
-      border: '#0060b9',
+      color: '#39A9DC',
+      border: '#3989B7',
     };
   }, [activeLabels, value]);
 
@@ -232,8 +232,8 @@ export const TechnicienSelect: React.FC<TechnicienSelectProps> = React.memo(({ v
             width: '10px',
             height: '10px',
             borderRadius: '50%',
-            backgroundColor: currentLabel.color || '#0073ea',
-            boxShadow: `0 0 0 2px ${currentLabel.border || '#0060b9'}33`,
+            backgroundColor: currentLabel.color || '#39A9DC',
+            boxShadow: `0 0 0 2px ${currentLabel.border || '#3989B7'}33`,
             flexShrink: 0,
           }}
         />
@@ -406,12 +406,12 @@ export const TechnicienSelect: React.FC<TechnicienSelectProps> = React.memo(({ v
                           alignItems: 'center',
                           padding: '3px 10px',
                           borderRadius: '16px',
-                          backgroundColor: lbl.color || '#0073ea',
+                          backgroundColor: lbl.color || '#39A9DC',
                           color: '#FFFFFF',
                           fontSize: '12px',
                           fontWeight: 700,
                           fontFamily: "'Ruda', sans-serif",
-                          boxShadow: `0 1px 4px ${lbl.color || '#0073ea'}44`,
+                          boxShadow: `0 1px 4px ${lbl.color || '#39A9DC'}44`,
                         }}
                       >
                         {lbl.name}
@@ -419,7 +419,7 @@ export const TechnicienSelect: React.FC<TechnicienSelectProps> = React.memo(({ v
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {isSelected && <Check size={14} color="#0073ea" />}
+                      {isSelected && <Check size={14} color="#39A9DC" />}
                       {/* Bouton Supprimer l'étiquette (poubelle discrète au survol) */}
                       <button
                         type="button"

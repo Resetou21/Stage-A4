@@ -4,7 +4,7 @@ import UsersBadge from '@generated/components/UsersBadge';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@components/ui/dialog';
 import { downloadFile } from '@lib/downloadFile';
-import { getWellborneMois } from '@generated/server/chargemap';
+import { getWellborneMois, invalidateFacturesCache } from '@generated/server/chargemap';
 import { getWellborneNames, getWellborneMonthlyStats, importWellborne, getWellborneMonthCharges, type WellborneChargeItem } from '@generated/server/wellborne';
 import { readSheet, extractHeadersAndRows } from '@generated/components/readSheet';
 
@@ -336,6 +336,7 @@ export default function BornesCard() {
       toast.success(
         `${created} nouvelle(s) charge(s) importée(s) ! (${duplicateCount} doublons et ${skippedBefore15May} lignes avant le 15-05 ignorées)`
       );
+      invalidateFacturesCache();
       load();
     } catch (err) {
       console.error(err);

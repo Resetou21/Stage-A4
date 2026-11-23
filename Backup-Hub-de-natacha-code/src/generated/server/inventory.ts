@@ -306,7 +306,7 @@ export const getInventoryActions = createServerFn({ method: 'GET' })
           .withColumns(actionCols)
           .where(invWhere)
           .orderBy({ column: 'name', direction: 'asc' })
-          .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 })
+          .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
           .execute();
 
         for (const it of res.items) {
@@ -415,7 +415,7 @@ export const getInventoryDue = createServerFn({ method: 'GET' })
           .items().withColumns(['dateInventaireActuel', 'tableauCompletChantier', 'animateur', 'inventaireValidOk', ...keys])
           .where(dueWhere)
           .orderBy({ column: 'name', direction: 'asc' })
-          .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 }).execute();
+          .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
         for (const it of res.items) {
           const d0 = it.dateInventaireActuel ? new Date(it.dateInventaireActuel) : null;
           const d = d0 && !Number.isNaN(d0.getTime()) ? d0 : null;
@@ -467,7 +467,7 @@ export const getSitesCount = createServerFn({ method: 'GET' })
       const res: { items: { id: string }[]; cursor?: string | null } = await new InventairesConsommablesBoard()
         .items().withColumns(['tableauCompletChantier', 'animateur'])
         .where(statsWhere)
-        .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 }).execute();
+        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 }).execute();
       count += res.items.length;
       cur = res.cursor;
     } while (cur);
@@ -858,7 +858,7 @@ export const getEconomies = createServerFn({ method: 'GET' })
         .items()
         .withColumns(ecoKeys)
         .where(ecoWhere)
-        .withPagination(cur ? { limit: 100, cursor: cur } : { limit: 100 })
+        .withPagination(cur ? { limit: 500, cursor: cur } : { limit: 500 })
         .execute() as unknown as { items: Array<Record<string, unknown>>; cursor?: string | null };
       allRealises.push(...res.items);
       cur = res.cursor;

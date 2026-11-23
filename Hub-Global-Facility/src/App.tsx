@@ -53,11 +53,9 @@ export type ViewId =
   | 'atelier_vehicules'
   | 'atelier_fournisseurs'
   | 'comm_lea'
-  | 'comm_terrain'
   | 'comm_alertes'
   | 'direction_vincent'
-  | 'commercial_contrats'
-  | 'commercial_rentabilite';
+  | 'commercial_contrats';
 
 export interface SubMenuItem {
   id: ViewId;
@@ -79,49 +77,101 @@ export interface PoleMenu {
   items: SubMenuItem[];
 }
 
-// Configuration des Pôles et Sous-Menus
-const POLES: PoleMenu[] = [
+// Charte Graphique Officielle Groupe Facility 2026 :
+// Bleu principal #39A9DC | Bleu texte/secondaire #3989B7 | Marine #1B4565 | Jaune #F7AC37 | Orange #D66927
+interface PortalStats {
+  chantiersActifs: number;
+  chantiersParAnim: { Natacha: number; Ketty: number; Emilie: number; Autre: number };
+  visitesTotal: number;
+  visitesBonnes: number;
+  tauxSatisfactionGlobal: number;
+  visitesParAnim: {
+    Natacha: { total: number; bon: number; pct: number };
+    Ketty: { total: number; bon: number; pct: number };
+    Emilie: { total: number; bon: number; pct: number };
+  };
+  etoiles: {
+    Global: { s3: number; s2: number; s1: number; bad: number };
+    Natacha: { s3: number; s2: number; s1: number; bad: number };
+    Ketty: { s3: number; s2: number; s1: number; bad: number };
+    Emilie: { s3: number; s2: number; s1: number; bad: number };
+  };
+  alertes: {
+    insatisfaits3x: number;
+    nonVus11Mois: number;
+    qualitePlus2Mois: number;
+    rdv2Mois: number;
+  };
+  machinesTotal: number;
+  inventairesAFaire: number;
+  inventairesRealises: number;
+}
+
+const DEFAULT_PORTAL_STATS: PortalStats = {
+  chantiersActifs: 371,
+  chantiersParAnim: { Natacha: 161, Ketty: 151, Emilie: 57, Autre: 2 },
+  visitesTotal: 1084,
+  visitesBonnes: 960,
+  tauxSatisfactionGlobal: 89,
+  visitesParAnim: {
+    Natacha: { total: 361, bon: 346, pct: 96 },
+    Ketty: { total: 400, bon: 321, pct: 80 },
+    Emilie: { total: 285, bon: 264, pct: 93 },
+  },
+  etoiles: {
+    Global: { s3: 166, s2: 104, s1: 68, bad: 14 },
+    Natacha: { s3: 78, s2: 48, s1: 26, bad: 3 },
+    Ketty: { s3: 50, s2: 46, s1: 36, bad: 10 },
+    Emilie: { s3: 38, s2: 10, s1: 6, bad: 1 },
+  },
+  alertes: { insatisfaits3x: 1, nonVus11Mois: 0, qualitePlus2Mois: 0, rdv2Mois: 0 },
+  machinesTotal: 133,
+  inventairesAFaire: 60,
+  inventairesRealises: 6,
+};
+
+const buildPoles = (s: PortalStats): PoleMenu[] => [
   {
     id: 'pole_secteurs',
     label: 'Responsables de Secteur',
     poleIcon: Building2,
-    accentColor: '#0073EA',
+    accentColor: '#3989B7',
     bgLight: '#EBF6FC',
     description: 'Pilotage des chantiers, contrôles qualité et inventaires',
     items: [
       {
         id: 'secteur_global',
         title: 'Supervision Globale (Tous Secteurs)',
-        badge: '371 chantiers',
-        badgeColor: '#0073EA',
-        description: 'Vue consolidée des 3 secteurs : chantiers, satisfaction 89% (2026) et étoiles',
+        badge: `${s.chantiersActifs} chantiers`,
+        badgeColor: '#3989B7',
+        description: `Vue consolidée des 3 secteurs : chantiers, satisfaction ${s.tauxSatisfactionGlobal}% (${new Date().getFullYear()}) et étoiles`,
         icon: Building2,
         animatrice: 'Tous',
       },
       {
         id: 'secteur_natacha',
         title: 'Secteur Natacha THOMAS',
-        badge: '161 chantiers',
-        badgeColor: '#6366F1',
-        description: 'Taux de satisfaction : 96% (2026) • 78 clients 3 étoiles 🌟',
+        badge: `${s.chantiersParAnim.Natacha} chantiers`,
+        badgeColor: '#39A9DC',
+        description: `Taux de satisfaction : ${s.visitesParAnim.Natacha.pct}% • ${s.etoiles.Natacha.s3} clients 3 étoiles 🌟`,
         icon: User,
         animatrice: 'Natacha',
       },
       {
         id: 'secteur_ketty',
         title: 'Secteur Ketty PAULIN',
-        badge: '151 chantiers',
-        badgeColor: '#06B6D4',
-        description: 'Taux de satisfaction : 80% (2026) • 50 clients 3 étoiles 🌟',
+        badge: `${s.chantiersParAnim.Ketty} chantiers`,
+        badgeColor: '#3989B7',
+        description: `Taux de satisfaction : ${s.visitesParAnim.Ketty.pct}% • ${s.etoiles.Ketty.s3} clients 3 étoiles 🌟`,
         icon: User,
         animatrice: 'Ketty',
       },
       {
         id: 'secteur_emilie',
         title: 'Secteur Emilie TOBIE',
-        badge: '57 chantiers',
-        badgeColor: '#EC4899',
-        description: 'Taux de satisfaction : 93% (2026) • 38 clients 3 étoiles 🌟',
+        badge: `${s.chantiersParAnim.Emilie} chantiers`,
+        badgeColor: '#D66927',
+        description: `Taux de satisfaction : ${s.visitesParAnim.Emilie.pct}% • ${s.etoiles.Emilie.s3} clients 3 étoiles 🌟`,
         icon: User,
         animatrice: 'Emilie',
       },
@@ -131,15 +181,15 @@ const POLES: PoleMenu[] = [
     id: 'pole_atelier',
     label: 'Atelier & Logistique',
     poleIcon: Wrench,
-    accentColor: '#00C875',
-    bgLight: '#E6F9F1',
+    accentColor: '#39A9DC',
+    bgLight: '#EBF6FC',
     description: 'Parc machines, contrôles techniques et approvisionnements',
     items: [
       {
         id: 'atelier_erp',
         title: 'ERP Parc Matériel & Machines',
-        badge: '133 machines',
-        badgeColor: '#00C875',
+        badge: `${s.machinesTotal} machines`,
+        badgeColor: '#3989B7',
         description: 'Autolaveuses, monobrosses, compteurs d’heures et réparations curatives',
         icon: Wrench,
       },
@@ -147,7 +197,7 @@ const POLES: PoleMenu[] = [
         id: 'atelier_vehicules',
         title: 'Hub Facturation & Flotte (Christine)',
         badge: 'Hub Déployé',
-        badgeColor: '#0284C7',
+        badgeColor: '#39A9DC',
         description: 'Saisie factures véhicules, TotalEnergies, Chargemap, Bornes Wellborne et Réparations',
         icon: Truck,
       },
@@ -155,7 +205,7 @@ const POLES: PoleMenu[] = [
         id: 'atelier_fournisseurs',
         title: 'Hub Fournisseurs & Pièces SAV',
         badge: 'Kalhyge / Nilfisk',
-        badgeColor: '#059669',
+        badgeColor: '#3989B7',
         description: 'Carnet d’adresses partenaires, pièces détachées et délais',
         icon: PackageSearch,
       },
@@ -165,15 +215,15 @@ const POLES: PoleMenu[] = [
     id: 'pole_comm',
     label: 'Communication & Terrain',
     poleIcon: MessageSquare,
-    accentColor: '#8B5CF6',
-    bgLight: '#F3E8FF',
+    accentColor: '#D66927',
+    bgLight: '#FFF4EB',
     description: 'Transmission inter-services, contacts chantiers et alertes',
     items: [
       {
         id: 'comm_lea',
         title: 'Hub de Léa (Communication & Contacts)',
         badge: 'Hub Déployé',
-        badgeColor: '#8B5CF6',
+        badgeColor: '#3989B7',
         description: 'Export des contacts clients (interlocuteurs, adresses mails) du tableau chantiers',
         icon: Users,
       },
@@ -181,7 +231,7 @@ const POLES: PoleMenu[] = [
         id: 'comm_alertes',
         title: 'Centre d’Alertes Centralisé',
         badge: 'Alertes qualité',
-        badgeColor: '#EF4444',
+        badgeColor: '#D66927',
         description: 'Chantiers insatisfaisants, alertes 11 mois et visites des 2 mois',
         icon: AlertTriangle,
       },
@@ -191,15 +241,15 @@ const POLES: PoleMenu[] = [
     id: 'pole_direction',
     label: 'Direction & Exploitation',
     poleIcon: Landmark,
-    accentColor: '#10B981',
-    bgLight: '#ECFDF5',
-    description: 'Pilotage financier, réunion d\'associés et flotte de véhicules',
+    accentColor: '#1B4565',
+    bgLight: '#EBF6FC',
+    description: "Pilotage financier, réunion d'associés et flotte de véhicules",
     items: [
       {
         id: 'direction_vincent',
         title: 'Hub de Vincent (Direction & Flotte)',
         badge: 'Hub Déployé',
-        badgeColor: '#10B981',
+        badgeColor: '#1B4565',
         description: 'Suivi de la flotte, coûts de non-qualité, indicateurs financiers et réunion d’associés',
         icon: Landmark,
       },
@@ -209,15 +259,15 @@ const POLES: PoleMenu[] = [
     id: 'pole_commercial',
     label: 'Commercial & Contrats',
     poleIcon: FileSpreadsheet,
-    accentColor: '#F59E0B',
-    bgLight: '#FEF3C7',
+    accentColor: '#B87414',
+    bgLight: '#FEF6E7',
     description: 'Inventaires 182 jours, contrats et suivi des consommables',
     items: [
       {
         id: 'commercial_contrats',
         title: 'Inventaires & Dotations Consommables',
-        badge: '60 à faire',
-        badgeColor: '#F59E0B',
+        badge: `${s.inventairesAFaire} à faire`,
+        badgeColor: '#D66927',
         description: 'Suivi des inventaires cycliques (182 jours) et historique des validations',
         icon: FileSpreadsheet,
       },
@@ -278,53 +328,60 @@ export default function App() {
   const [roadmapInitialTab, setRoadmapInitialTab] = useState<'form' | 'list'>('list');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
-  // DONNÉES TEMPS RÉEL CONSOLIDÉES DEPUIS MONDAY.COM
-  const [stats, setStats] = useState({
-    chantiersActifs: 371,
-    chantiersParAnim: {
-      Natacha: 161,
-      Ketty: 151,
-      Emilie: 57,
-      Autre: 2,
-    },
-    visitesTotal: 1084,
-    visitesBonnes: 960,
-    tauxSatisfactionGlobal: 89,
-    visitesParAnim: {
-      Natacha: { total: 361, bon: 346, pct: 96 },
-      Ketty: { total: 400, bon: 321, pct: 80 },
-      Emilie: { total: 285, bon: 264, pct: 93 },
-    },
-    etoiles: {
-      Global: { s3: 166, s2: 104, s1: 68, bad: 14 },
-      Natacha: { s3: 78, s2: 48, s1: 26, bad: 3 },
-      Ketty: { s3: 50, s2: 46, s1: 36, bad: 10 },
-      Emilie: { s3: 38, s2: 10, s1: 6, bad: 1 },
-    },
-    alertes: {
-      insatisfaits3x: 1,
-      nonVus11Mois: 0,
-      qualitePlus2Mois: 0,
-      rdv2Mois: 0,
-    },
-    machinesTotal: 133,
-    inventairesAFaire: 60,
-    inventairesRealises: 6,
+  const CACHE_KEY = 'facility_portal_stats_v5';
+  const USER_CACHE_KEY = 'facility_portal_user_v1';
+  const CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutes en localStorage pour limiter les appels API Monday
+
+  // DONNÉES TEMPS RÉEL CONSOLIDÉES DEPUIS MONDAY.COM (hydratation 0ms depuis localStorage)
+  const [stats, setStats] = useState<PortalStats>(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY) || sessionStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.data) return parsed.data as PortalStats;
+      }
+    } catch { }
+    return DEFAULT_PORTAL_STATS;
   });
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeIframeRef = useRef<HTMLIFrameElement>(null);
+  const loadingStatsRef = useRef<boolean>(false);
 
-  const CACHE_KEY = 'facility_portal_stats_v4';
-  const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes de cache pour une parfaite stabilité
+  const poles = useMemo(() => buildPoles(stats), [stats]);
 
-  // Requête en direct vers l'API Monday.com pour charger les stats consolidées (avec pagination complète curseur)
+  // Chargement optimisé de l'identité utilisateur (cache 24h pour éviter 1 appel API par ouverture)
+  const loadUserIdentity = async () => {
+    try {
+      const cachedUser = localStorage.getItem(USER_CACHE_KEY);
+      if (cachedUser) {
+        const parsed = JSON.parse(cachedUser);
+        if (parsed?.name && Date.now() - (parsed.timestamp || 0) < 24 * 60 * 60 * 1000) {
+          setUserName(parsed.name);
+          return;
+        }
+      }
+      const meRes: any = await monday.api(`query { me { id name email } }`);
+      if (meRes?.data?.me?.name) {
+        setUserName(meRes.data.me.name);
+        try {
+          localStorage.setItem(USER_CACHE_KEY, JSON.stringify({ name: meRes.data.me.name, timestamp: Date.now() }));
+        } catch { }
+      }
+    } catch { }
+  };
+
+  // Requête optimisée vers l'API Monday.com :
+  // - Cache persistant localStorage 15 min
+  // - Filtrage natif serveur sur le groupe "topics" (chantiers en cours) et sur l'année en cours (visites)
   const loadLiveStats = async (force: boolean = false) => {
-    // 1. Vérification du cache local pour zéro latence
+    if (loadingStatsRef.current && !force) return;
+
+    // 1. Vérification du cache localStorage persistant (survit aux changements d'onglets / iframes)
     if (!force) {
       try {
-        const cachedRaw = sessionStorage.getItem(CACHE_KEY);
+        const cachedRaw = localStorage.getItem(CACHE_KEY) || sessionStorage.getItem(CACHE_KEY);
         if (cachedRaw) {
           const cached = JSON.parse(cachedRaw);
           if (cached?.timestamp && Date.now() - cached.timestamp < CACHE_DURATION_MS && cached?.data) {
@@ -337,19 +394,14 @@ export default function App() {
       } catch { }
     }
 
+    loadingStatsRef.current = true;
     setLoadingStats(true);
     try {
-      // Identity check
-      try {
-        const meRes: any = await monday.api(`query { me { id name email } }`);
-        if (meRes?.data?.me?.name) {
-          setUserName(meRes.data.me.name);
-        }
-      } catch { }
+      const curYear = new Date().getFullYear().toString(); // "2026"
 
-      // 1. Pagination complète curseur sur les chantiers (Board 1976599627)
+      // 1. Chantiers actifs uniquement (groupe "topics" filtré côté serveur Monday -> 1 seul appel au lieu de 2-4)
       let cCursor: string | null = null;
-      const allChantiers: any[] = [];
+      const chantierItems: any[] = [];
       let cPages = 0;
       do {
         cPages++;
@@ -360,7 +412,6 @@ export default function App() {
                 items {
                   id
                   name
-                  group { id title }
                   c_anim: column_values(ids: ["color_mkrbk3jy"]) { text }
                   c_c1: column_values(ids: ["color_mkzyz3ay"]) { text }
                   c_c2: column_values(ids: ["color_mkzyx621"]) { text }
@@ -373,19 +424,20 @@ export default function App() {
             }`
           : `query {
               boards(ids: [1976599627]) {
-                items_page(limit: 500) {
-                  cursor
-                  items {
-                    id
-                    name
-                    group { id title }
-                    c_anim: column_values(ids: ["color_mkrbk3jy"]) { text }
-                    c_c1: column_values(ids: ["color_mkzyz3ay"]) { text }
-                    c_c2: column_values(ids: ["color_mkzyx621"]) { text }
-                    c_c3: column_values(ids: ["color_mkzycd34"]) { text }
-                    c_last: column_values(ids: ["date_mkzy6s01"]) { text }
-                    c_rdv2: column_values(ids: ["boolean_mkzad1h"]) { text }
-                    c_alertTxt: column_values(ids: ["text_mkzbnbe9"]) { text }
+                groups(ids: ["topics"]) {
+                  items_page(limit: 500) {
+                    cursor
+                    items {
+                      id
+                      name
+                      c_anim: column_values(ids: ["color_mkrbk3jy"]) { text }
+                      c_c1: column_values(ids: ["color_mkzyz3ay"]) { text }
+                      c_c2: column_values(ids: ["color_mkzyx621"]) { text }
+                      c_c3: column_values(ids: ["color_mkzycd34"]) { text }
+                      c_last: column_values(ids: ["date_mkzy6s01"]) { text }
+                      c_rdv2: column_values(ids: ["boolean_mkzad1h"]) { text }
+                      c_alertTxt: column_values(ids: ["text_mkzbnbe9"]) { text }
+                    }
                   }
                 }
               }
@@ -395,14 +447,16 @@ export default function App() {
           ? await monday.api(qC, { variables: { c: cCursor } })
           : await monday.api(qC);
 
-        const chantierPage: any = cCursor ? resC?.data?.next_items_page : resC?.data?.boards?.[0]?.items_page;
+        const chantierPage: any = cCursor
+          ? resC?.data?.next_items_page
+          : resC?.data?.boards?.[0]?.groups?.[0]?.items_page;
         if (chantierPage?.items) {
-          allChantiers.push(...chantierPage.items);
+          chantierItems.push(...chantierPage.items);
         }
         cCursor = chantierPage?.cursor || null;
-      } while (cCursor && cPages < 4);
+      } while (cCursor && cPages < 3);
 
-      // 2. Pagination complète curseur sur les visites clients (Board 1977798116 - tri décroissant)
+      // 2. Visites clients filtrées côté serveur sur l'année en cours (évite de paginer 2024/2025 inutilement)
       let vCursor: string | null = null;
       const allVisites: any[] = [];
       let vPages = 0;
@@ -426,7 +480,9 @@ export default function App() {
           : `query {
               boards(ids: [1977798116]) {
                 items_page(limit: 500, query_params: {
-                  order_by: [{ column_id: "date_mkrcgy18", direction: desc }]
+                  rules: [
+                    { column_id: "date_mkrcgy18", compare_value: ["${curYear}-01-01"], operator: greater_than_or_equals }
+                  ]
                 }) {
                   cursor
                   items {
@@ -451,12 +507,8 @@ export default function App() {
           allVisites.push(...visitePage.items);
         }
         vCursor = visitePage?.cursor || null;
-      } while (vCursor && vPages < 5);
+      } while (vCursor && vPages < 4);
 
-      // Filtrer les chantiers en cours ('topics')
-      const chantierItems = allChantiers.filter(
-        (it: any) => it.group?.id === 'topics'
-      );
       const byAnim = { Natacha: 0, Ketty: 0, Emilie: 0, Autre: 0 };
       const starsMap = {
         Global: { s3: 0, s2: 0, s1: 0, bad: 0 },
@@ -523,10 +575,7 @@ export default function App() {
         Emilie: { total: 0, bon: 0, pct: 0 },
       };
 
-      const curYear = new Date().getFullYear().toString(); // "2026"
-
       allVisites.forEach((v: any) => {
-        // Aligner strictement sur l'année en cours (2026) pour correspondre exactement aux jauges des animatrices
         const dt = v.date?.[0]?.text || '';
         if (dt && !dt.startsWith(curYear)) return;
 
@@ -557,7 +606,7 @@ export default function App() {
 
       const satGlobal = vTotal > 0 ? Math.round((vBon / vTotal) * 100) : 0;
 
-      const newStats = {
+      const newStats: PortalStats = {
         chantiersActifs: chantierItems.length || 371,
         chantiersParAnim: byAnim,
         visitesTotal: vTotal || 1084,
@@ -575,18 +624,20 @@ export default function App() {
       setStats(newStats);
       setLastSyncTime(nowTime);
 
-      try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: newStats, timestamp: Date.now(), lastSyncTime: nowTime }));
-      } catch { }
+      const payload = JSON.stringify({ data: newStats, timestamp: Date.now(), lastSyncTime: nowTime });
+      try { localStorage.setItem(CACHE_KEY, payload); } catch { }
+      try { sessionStorage.setItem(CACHE_KEY, payload); } catch { }
     } catch (e) {
       console.warn('[Hub Global] Erreur de synchronisation temps-réel, utilisation des métriques certifiées :', e);
     } finally {
+      loadingStatsRef.current = false;
       setLoadingStats(false);
     }
   };
 
+  // Listeners globaux montés UNE SEULE FOIS (indépendants de refreshKey)
   useEffect(() => {
-    loadLiveStats();
+    loadUserIdentity();
 
     // Restauration de la vue active via Monday storage
     try {
@@ -600,11 +651,10 @@ export default function App() {
       }
     } catch { }
 
-    // Pont bidirectionnel transparent Monday SDK (reprise exacte du commit 4662344) :
+    // Pont bidirectionnel transparent Monday SDK :
     // Relaye les requêtes postMessage du sous-hub affiché vers Monday parent,
     // et renvoie les réponses de Monday au sous-hub !
     const handleBridgeMessage = (event: MessageEvent) => {
-      // 1. Message venant du sous-hub enfant vers Monday parent
       if (activeIframeRef.current?.contentWindow && event.source === activeIframeRef.current.contentWindow) {
         if (event.data && typeof event.data === 'object') {
           try {
@@ -614,7 +664,6 @@ export default function App() {
         return;
       }
 
-      // 2. Message de réponse venant de Monday parent vers le sous-hub actif
       if (event.source === window.parent && activeIframeRef.current?.contentWindow) {
         if (event.data && typeof event.data === 'object') {
           try {
@@ -625,7 +674,6 @@ export default function App() {
     };
     window.addEventListener('message', handleBridgeMessage);
 
-    // Clic en dehors pour fermer les menus déroulants
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpenDropdown(null);
@@ -633,7 +681,6 @@ export default function App() {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Raccourci clavier Cmd/Ctrl + K pour ouvrir l'omnibar
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -651,7 +698,19 @@ export default function App() {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [refreshKey]);
+  }, []);
+
+  // Chargement paresseux des stats globales : uniquement si on consulte une vue qui les affiche
+  useEffect(() => {
+    const needsGlobalStats =
+      currentView === 'home' ||
+      currentView === 'secteur_global' ||
+      currentView === 'comm_alertes' ||
+      currentView === 'commercial_contrats';
+    if (needsGlobalStats) {
+      loadLiveStats(false);
+    }
+  }, [currentView]);
 
   useEffect(() => {
     if (showSearchModal) {
@@ -660,12 +719,12 @@ export default function App() {
   }, [showSearchModal]);
 
   const activeSubItem = useMemo(() => {
-    for (const pole of POLES) {
+    for (const pole of poles) {
       const found = pole.items.find((item) => item.id === currentView);
       if (found) return { pole, item: found };
     }
     return null;
-  }, [currentView]);
+  }, [currentView, poles]);
 
   // Écouter les changements éventuels de hash dans l'URL
   useEffect(() => {
@@ -712,7 +771,7 @@ export default function App() {
     const q = searchQuery.toLowerCase().trim();
     const results: Array<{ pole: PoleMenu; item: SubMenuItem }> = [];
 
-    POLES.forEach((pole) => {
+    poles.forEach((pole) => {
       pole.items.forEach((item) => {
         if (
           item.title.toLowerCase().includes(q) ||
@@ -725,7 +784,7 @@ export default function App() {
       });
     });
     return results;
-  }, [searchQuery]);
+  }, [searchQuery, poles]);
 
   return (
     <div
@@ -734,9 +793,10 @@ export default function App() {
         flexDirection: 'column',
         height: '100vh',
         width: '100%',
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#F4F9FC',
         overflow: 'hidden',
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        color: '#1B4565',
       }}
     >
       {/* ============================================================== */}
@@ -748,13 +808,13 @@ export default function App() {
         style={{
           height: '64px',
           backgroundColor: '#FFFFFF',
-          borderBottom: '1.5px solid #E2E8F0',
+          borderBottom: '1.5px solid #D7EAF5',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 16px',
           flexShrink: 0,
-          boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
+          boxShadow: '0 2px 10px rgba(27, 69, 101, 0.06)',
           zIndex: 50,
           position: 'relative',
         }}
@@ -783,13 +843,13 @@ export default function App() {
                 objectFit: 'contain',
               }}
             />
-            <div style={{ borderLeft: '1.5px solid #E2E8F0', paddingLeft: '8px' }}>
+            <div style={{ borderLeft: '1.5px solid #D7EAF5', paddingLeft: '8px' }}>
               <div
                 style={{
                   fontFamily: "'Ruda', sans-serif",
                   fontSize: '12px',
                   fontWeight: 900,
-                  color: '#0F172A',
+                  color: '#1B4565',
                   letterSpacing: '0.3px',
                   lineHeight: 1.1,
                   whiteSpace: 'nowrap',
@@ -800,7 +860,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="desktop-nav" style={{ height: '22px', width: '1px', backgroundColor: '#E2E8F0', marginLeft: '6px', marginRight: '6px' }} />
+          <div className="desktop-nav" style={{ height: '22px', width: '1px', backgroundColor: '#D7EAF5', marginLeft: '6px', marginRight: '6px' }} />
 
           {/* Menus Déroulants pour chaque Pôle (Desktop uniquement) */}
           <nav className="desktop-nav">
@@ -818,15 +878,15 @@ export default function App() {
                 border: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                backgroundColor: currentView === 'home' ? '#0F172A' : 'transparent',
-                color: currentView === 'home' ? '#FFFFFF' : '#475569',
+                backgroundColor: currentView === 'home' ? '#39A9DC' : 'transparent',
+                color: currentView === 'home' ? '#FFFFFF' : '#3989B7',
               }}
             >
               <Home size={15} />
               <span>Accueil</span>
             </button>
 
-            {POLES.map((pole) => {
+            {poles.map((pole) => {
               const isPoleActive = pole.items.some((item) => item.id === currentView);
               const isOpen = openDropdown === pole.id;
               const Icon = pole.poleIcon;
@@ -847,26 +907,26 @@ export default function App() {
                       border: isPoleActive
                         ? `1.5px solid ${pole.accentColor}`
                         : isOpen
-                          ? '1px solid #CBD5E1'
+                          ? '1px solid #B7D8EA'
                           : '1px solid transparent',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                       backgroundColor: isPoleActive
                         ? pole.bgLight
                         : isOpen
-                          ? '#F1F5F9'
+                          ? '#EBF6FC'
                           : 'transparent',
-                      color: isPoleActive ? pole.accentColor : '#334155',
+                      color: isPoleActive ? pole.accentColor : '#1B4565',
                     }}
                   >
-                    <Icon size={15} color={isPoleActive ? pole.accentColor : '#64748B'} />
+                    <Icon size={15} color={isPoleActive ? pole.accentColor : '#3989B7'} />
                     <span>{pole.label}</span>
                     <ChevronDown
                       size={13}
                       style={{
                         transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                         transition: 'transform 0.2s ease',
-                        color: isPoleActive ? pole.accentColor : '#94A3B8',
+                        color: isPoleActive ? pole.accentColor : '#3989B7',
                       }}
                     />
                   </button>
@@ -874,6 +934,7 @@ export default function App() {
                   {/* Panneau Déroulant */}
                   {isOpen && (
                     <div
+                      className="hub-dropdown-panel"
                       style={{
                         position: 'absolute',
                         top: '46px',
@@ -881,8 +942,8 @@ export default function App() {
                         width: '380px',
                         backgroundColor: '#FFFFFF',
                         borderRadius: '14px',
-                        border: '1px solid #E2E8F0',
-                        boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
+                        border: '1px solid #D7EAF5',
+                        boxShadow: '0 12px 30px rgba(27, 69, 101, 0.14)',
                         padding: '10px',
                         display: 'flex',
                         flexDirection: 'column',
@@ -1039,18 +1100,18 @@ export default function App() {
               gap: '6px',
               padding: '6px 11px',
               borderRadius: '8px',
-              border: '1.5px solid #FCD34D',
-              backgroundColor: '#FEF3C7',
-              color: '#B45309',
+              border: '1.5px solid #F7AC37',
+              backgroundColor: '#FEF6E7',
+              color: '#D66927',
               fontSize: '12px',
               fontWeight: 800,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              boxShadow: '0 2px 5px rgba(245, 158, 11, 0.12)',
+              boxShadow: '0 2px 5px rgba(247, 172, 55, 0.16)',
               whiteSpace: 'nowrap',
             }}
           >
-            <Lightbulb size={13} color="#D97706" />
+            <Lightbulb size={13} color="#D66927" />
             <span>Idées & Roadmap</span>
           </button>
 
@@ -1159,7 +1220,7 @@ export default function App() {
                   textAlign: 'left',
                 }}
               >
-                <Search size={16} color="#0073EA" />
+                <Search size={16} color="#39A9DC" />
                 <span>Rechercher un module, un pôle...</span>
               </button>
             </div>
@@ -1170,17 +1231,17 @@ export default function App() {
                 handleNavigate('home');
                 setMobileMenuOpen(false);
               }}
-              style={{ backgroundColor: currentView === 'home' ? '#EBF6FC' : undefined, color: currentView === 'home' ? '#0073EA' : undefined }}
+              style={{ backgroundColor: currentView === 'home' ? '#EBF6FC' : undefined, color: currentView === 'home' ? '#3989B7' : undefined }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Home size={18} color="#0073EA" />
+                <Home size={18} color="#39A9DC" />
                 <span>Accueil du Portail</span>
               </div>
               <ChevronRight size={16} color="#94A3B8" />
             </button>
 
             {/* Pôle Responsables de Secteur */}
-            <div style={{ padding: '6px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#0073EA', textTransform: 'uppercase' }}>
+            <div style={{ padding: '6px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#3989B7', textTransform: 'uppercase' }}>
               Responsables de Secteur
             </div>
             <button
@@ -1192,8 +1253,8 @@ export default function App() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Building2 size={16} color="#0073EA" />
-                <span>Supervision Globale (371 chantiers)</span>
+                <Building2 size={16} color="#39A9DC" />
+                <span>Supervision Globale ({stats.chantiersActifs} chantiers)</span>
               </div>
               <ChevronRight size={16} color="#94A3B8" />
             </button>
@@ -1205,7 +1266,7 @@ export default function App() {
                 setMobileMenuOpen(false);
               }}
             >
-              <span>Secteur Natacha THOMAS (161 chantiers)</span>
+              <span>Secteur Natacha THOMAS ({stats.chantiersParAnim.Natacha} chantiers)</span>
               <ChevronRight size={16} color="#94A3B8" />
             </button>
             <button
@@ -1216,7 +1277,7 @@ export default function App() {
                 setMobileMenuOpen(false);
               }}
             >
-              <span>Secteur Ketty PAULIN (151 chantiers)</span>
+              <span>Secteur Ketty PAULIN ({stats.chantiersParAnim.Ketty} chantiers)</span>
               <ChevronRight size={16} color="#94A3B8" />
             </button>
             <button
@@ -1227,12 +1288,12 @@ export default function App() {
                 setMobileMenuOpen(false);
               }}
             >
-              <span>Secteur Émilie TOBIE (57 chantiers)</span>
+              <span>Secteur Émilie TOBIE ({stats.chantiersParAnim.Emilie} chantiers)</span>
               <ChevronRight size={16} color="#94A3B8" />
             </button>
 
             {/* Pôle Atelier & Matériel */}
-            <div style={{ padding: '8px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#00C875', textTransform: 'uppercase' }}>
+            <div style={{ padding: '8px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#39A9DC', textTransform: 'uppercase' }}>
               Atelier &amp; Matériel
             </div>
             <button
@@ -1244,7 +1305,7 @@ export default function App() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Wrench size={16} color="#00C875" />
+                <Wrench size={16} color="#3989B7" />
                 <span>ERP Parc Machines (Christophe)</span>
               </div>
               <ChevronRight size={16} color="#94A3B8" />
@@ -1258,14 +1319,14 @@ export default function App() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Truck size={16} color="#0284C7" />
+                <Truck size={16} color="#39A9DC" />
                 <span>Facturation Véhicules (Christine)</span>
               </div>
               <ChevronRight size={16} color="#94A3B8" />
             </button>
 
             {/* Pôle Communication & Direction */}
-            <div style={{ padding: '8px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#8B5CF6', textTransform: 'uppercase' }}>
+            <div style={{ padding: '8px 4px 2px', fontSize: '11px', fontWeight: 800, color: '#D66927', textTransform: 'uppercase' }}>
               Communication &amp; Direction
             </div>
             <button
@@ -1277,7 +1338,7 @@ export default function App() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Users size={16} color="#8B5CF6" />
+                <Users size={16} color="#3989B7" />
                 <span>Hub de Léa — Contacts Clients</span>
               </div>
               <ChevronRight size={16} color="#94A3B8" />
@@ -1291,7 +1352,7 @@ export default function App() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Landmark size={16} color="#10B981" />
+                <Landmark size={16} color="#1B4565" />
                 <span>Hub de Vincent — Direction</span>
               </div>
               <ChevronRight size={16} color="#94A3B8" />
@@ -1307,7 +1368,7 @@ export default function App() {
                   loadLiveStats(true);
                 }}
                 className="mobile-menu-item"
-                style={{ flex: 1, justifyContent: 'center', gap: '6px', color: '#0073EA' }}
+                style={{ flex: 1, justifyContent: 'center', gap: '6px', color: '#3989B7' }}
               >
                 <RefreshCw size={14} className={loadingStats ? 'animate-spin' : ''} />
                 <span>Actualiser</span>
@@ -1320,7 +1381,7 @@ export default function App() {
                   setShowRoadmapModal(true);
                 }}
                 className="mobile-menu-item"
-                style={{ flex: 1, justifyContent: 'center', gap: '6px', color: '#D97706', backgroundColor: '#FEF3C7' }}
+                style={{ flex: 1, justifyContent: 'center', gap: '6px', color: '#D66927', backgroundColor: '#FEF6E7', borderColor: '#F7AC37' }}
               >
                 <Lightbulb size={14} />
                 <span>Idées &amp; Roadmap</span>
@@ -1433,8 +1494,8 @@ export default function App() {
                       width: '24px',
                       height: '24px',
                       borderRadius: '50%',
-                      backgroundColor: '#E0F2FE',
-                      color: '#0369A1',
+                      backgroundColor: '#EBF6FC',
+                      color: '#3989B7',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1445,7 +1506,7 @@ export default function App() {
                   >
                     {animInitials}
                   </div>
-                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Secteur {animFullName}
                   </span>
                   <span
@@ -1453,7 +1514,7 @@ export default function App() {
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#0073EA',
+                      color: '#3989B7',
                       backgroundColor: '#EBF6FC',
                       padding: '2px 8px',
                       borderRadius: '10px',
@@ -1483,8 +1544,8 @@ export default function App() {
             if (currentView === 'secteur_global') {
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
-                  <Building2 size={15} color="#0073EA" style={{ flexShrink: 0 }} />
-                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Building2 size={15} color="#39A9DC" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Supervision Globale (Tous Secteurs)
                   </span>
                   <span
@@ -1492,7 +1553,7 @@ export default function App() {
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#0073EA',
+                      color: '#3989B7',
                       backgroundColor: '#EBF6FC',
                       padding: '2px 8px',
                       borderRadius: '10px',
@@ -1506,7 +1567,7 @@ export default function App() {
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#00C875',
+                      color: '#0E7042',
                       backgroundColor: '#E6F9F1',
                       padding: '2px 8px',
                       borderRadius: '10px',
@@ -1522,8 +1583,8 @@ export default function App() {
             if (currentView === 'atelier_erp') {
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
-                  <Wrench size={15} color="#00C875" style={{ flexShrink: 0 }} />
-                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Wrench size={15} color="#39A9DC" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     ERP Parc Matériel & Atelier
                   </span>
                   <span
@@ -1531,8 +1592,8 @@ export default function App() {
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#00C875',
-                      backgroundColor: '#E6F9F1',
+                      color: '#3989B7',
+                      backgroundColor: '#EBF6FC',
                       padding: '2px 8px',
                       borderRadius: '10px',
                       whiteSpace: 'nowrap',
@@ -1547,8 +1608,8 @@ export default function App() {
             if (currentView === 'atelier_vehicules') {
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
-                  <Truck size={15} color="#0284C7" style={{ flexShrink: 0 }} />
-                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Truck size={15} color="#39A9DC" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Hub de Christine — Facturation Véhicules & Énergie
                   </span>
                   <span
@@ -1556,8 +1617,8 @@ export default function App() {
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#0284C7',
-                      backgroundColor: '#E0F2FE',
+                      color: '#3989B7',
+                      backgroundColor: '#EBF6FC',
                       padding: '2px 8px',
                       borderRadius: '10px',
                       whiteSpace: 'nowrap',
@@ -1572,8 +1633,8 @@ export default function App() {
             if (currentView === 'comm_lea') {
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
-                  <Users size={15} color="#8B5CF6" style={{ flexShrink: 0 }} />
-                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Users size={15} color="#D66927" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Hub de Léa — Communication & Contacts Clients
                   </span>
                   <span
@@ -1581,8 +1642,8 @@ export default function App() {
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#8B5CF6',
-                      backgroundColor: '#F3E8FF',
+                      color: '#D66927',
+                      backgroundColor: '#FFF4EB',
                       padding: '2px 8px',
                       borderRadius: '10px',
                       whiteSpace: 'nowrap',
@@ -1597,8 +1658,8 @@ export default function App() {
             if (currentView === 'direction_vincent') {
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
-                  <Landmark size={15} color="#10B981" style={{ flexShrink: 0 }} />
-                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Landmark size={15} color="#1B4565" style={{ flexShrink: 0 }} />
+                  <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     Hub de Vincent — Direction & Flotte
                   </span>
                   <span
@@ -1606,8 +1667,8 @@ export default function App() {
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      color: '#10B981',
-                      backgroundColor: '#ECFDF5',
+                      color: '#3989B7',
+                      backgroundColor: '#EBF6FC',
                       padding: '2px 8px',
                       borderRadius: '10px',
                       whiteSpace: 'nowrap',
@@ -1676,20 +1737,20 @@ export default function App() {
                   gap: '6px',
                   padding: '5px 12px',
                   borderRadius: '7px',
-                  backgroundColor: '#0073EA',
+                  backgroundColor: '#39A9DC',
                   color: '#FFFFFF',
                   border: 'none',
                   fontSize: '11px',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0, 115, 234, 0.25)',
+                  boxShadow: '0 1px 3px rgba(57, 169, 220, 0.3)',
                   transition: 'background-color 0.15s ease',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#0060C0';
+                  e.currentTarget.style.backgroundColor = '#3989B7';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#0073EA';
+                  e.currentTarget.style.backgroundColor = '#39A9DC';
                 }}
               >
                 <Maximize2 size={12} />
@@ -1890,12 +1951,12 @@ export default function App() {
             <div
               className="hub-banner-box"
               style={{
-                backgroundColor: '#0F172A',
+                backgroundColor: '#1B4565',
                 borderRadius: '18px',
                 padding: '30px 36px',
                 color: '#FFFFFF',
-                backgroundImage: 'radial-gradient(circle at top right, #1E3A8A 0%, #0F172A 70%)',
-                boxShadow: '0 10px 25px rgba(15, 23, 42, 0.15)',
+                backgroundImage: 'linear-gradient(135deg, #1B4565 0%, #3989B7 68%, #39A9DC 100%)',
+                boxShadow: '0 10px 25px rgba(27, 69, 101, 0.18)',
                 marginBottom: '30px',
                 display: 'flex',
                 alignItems: 'center',
@@ -1912,8 +1973,9 @@ export default function App() {
                     gap: '8px',
                     padding: '4px 12px',
                     borderRadius: '20px',
-                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                    color: '#38BDF8',
+                    backgroundColor: 'rgba(247, 172, 55, 0.2)',
+                    border: '1px solid rgba(247, 172, 55, 0.45)',
+                    color: '#F7AC37',
                     fontSize: '12px',
                     fontWeight: 700,
                     marginBottom: '12px',
@@ -1922,10 +1984,10 @@ export default function App() {
                   <Sparkles size={14} />
                   <span>Portail Centralisé d’Entreprise • Données Certifiées Monday</span>
                 </div>
-                <h1 className="hub-banner-title" style={{ fontSize: '26px', fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>
+                <h1 className="hub-banner-title" style={{ fontFamily: "'Ruda', sans-serif", fontSize: '26px', fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.5px', color: '#FFFFFF' }}>
                   Intranet Groupe Facility
                 </h1>
-                <p style={{ margin: 0, fontSize: '14px', color: '#94A3B8', maxWidth: '620px', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: '14px', color: 'rgba(255, 255, 255, 0.88)', maxWidth: '620px', lineHeight: 1.5 }}>
                   Supervision en direct des 3 secteurs chantiers (Natacha, Ketty, Emilie), du parc machines atelier et des consommables.
                 </p>
               </div>
@@ -1940,17 +2002,17 @@ export default function App() {
                 gap: '8px',
                 padding: '10px 18px',
                 borderRadius: '10px',
-                backgroundColor: '#0073EA',
-                color: '#FFFFFF',
+                backgroundColor: '#F7AC37',
+                color: '#1B4565',
                 border: 'none',
                 fontSize: '13px',
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(0, 115, 234, 0.35)',
+                boxShadow: '0 4px 12px rgba(247, 172, 55, 0.35)',
               }}
             >
               <Building2 size={16} />
-              <span>Supervision Globale (371 chantiers)</span>
+              <span>Supervision Globale ({stats.chantiersActifs} chantiers)</span>
             </button>
             <button
               type="button"
@@ -1961,17 +2023,17 @@ export default function App() {
                 gap: '8px',
                 padding: '10px 18px',
                 borderRadius: '10px',
-                backgroundColor: '#00C875',
+                backgroundColor: 'rgba(255, 255, 255, 0.16)',
                 color: '#FFFFFF',
-                border: 'none',
+                border: '1.5px solid rgba(255, 255, 255, 0.5)',
                 fontSize: '13px',
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(0, 200, 117, 0.35)',
+                backdropFilter: 'blur(4px)',
               }}
             >
               <Wrench size={16} />
-              <span>ERP Atelier (133 machines)</span>
+              <span>ERP Atelier ({stats.machinesTotal} machines)</span>
             </button>
           </div>
         </div>
@@ -1981,7 +2043,7 @@ export default function App() {
           className="hub-kpis-grid"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
             gap: '18px',
             marginBottom: '35px',
           }}
@@ -1992,21 +2054,22 @@ export default function App() {
               backgroundColor: '#FFFFFF',
               padding: '22px',
               borderRadius: '14px',
-              border: '1.5px solid #E2E8F0',
+              border: '1.5px solid #D7EAF5',
+              borderLeft: '4px solid #39A9DC',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Chantiers en Contrat</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#3989B7' }}>Chantiers en Contrat</span>
               <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#EBF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Building2 size={18} color="#0073EA" />
+                <Building2 size={18} color="#39A9DC" />
               </div>
             </div>
-            <div style={{ fontSize: '32px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '32px', fontWeight: 900, color: '#1B4565', marginTop: '10px' }}>
               {stats.chantiersActifs}
             </div>
-            <div style={{ fontSize: '12px', color: '#0073EA', fontWeight: 700, marginTop: '4px' }}>
+            <div style={{ fontSize: '12px', color: '#3989B7', fontWeight: 700, marginTop: '4px' }}>
               ● Natacha: {stats.chantiersParAnim.Natacha} • Ketty: {stats.chantiersParAnim.Ketty} • Emilie: {stats.chantiersParAnim.Emilie}
             </div>
           </div>
@@ -2017,18 +2080,19 @@ export default function App() {
               backgroundColor: '#FFFFFF',
               padding: '22px',
               borderRadius: '14px',
-              border: '1.5px solid #E2E8F0',
+              border: '1.5px solid #D7EAF5',
+              borderLeft: '4px solid #00C875',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Satisfaction Clients</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#3989B7' }}>Satisfaction Clients</span>
               <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#E6F9F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Award size={18} color="#00C875" />
               </div>
             </div>
-            <div style={{ fontSize: '32px', fontWeight: 900, color: '#00C875', marginTop: '10px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '32px', fontWeight: 900, color: '#0E7042', marginTop: '10px' }}>
               {stats.tauxSatisfactionGlobal}%
             </div>
             <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>
@@ -2042,21 +2106,22 @@ export default function App() {
               backgroundColor: '#FFFFFF',
               padding: '22px',
               borderRadius: '14px',
-              border: '1.5px solid #E2E8F0',
+              border: '1.5px solid #D7EAF5',
+              borderLeft: '4px solid #F7AC37',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Clients 3 Étoiles 🌟</span>
-              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Sparkles size={18} color="#D97706" />
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#3989B7' }}>Clients 3 Étoiles 🌟</span>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FEF6E7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={18} color="#F7AC37" />
               </div>
             </div>
-            <div style={{ fontSize: '32px', fontWeight: 900, color: '#D97706', marginTop: '10px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '32px', fontWeight: 900, color: '#B87414', marginTop: '10px' }}>
               {stats.etoiles.Global.s3}
             </div>
-            <div style={{ fontSize: '12px', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>
+            <div style={{ fontSize: '12px', color: '#B87414', fontWeight: 700, marginTop: '4px' }}>
               ● 3 derniers contrôles satisfaisants
             </div>
           </div>
@@ -2067,33 +2132,34 @@ export default function App() {
               backgroundColor: '#FFFFFF',
               padding: '22px',
               borderRadius: '14px',
-              border: '1.5px solid #E2E8F0',
+              border: '1.5px solid #D7EAF5',
+              borderLeft: '4px solid #D66927',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Parc Machines Atelier</span>
-              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#F3E8FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Wrench size={18} color="#8B5CF6" />
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#3989B7' }}>Parc Machines Atelier</span>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FFF4EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Wrench size={18} color="#D66927" />
               </div>
             </div>
-            <div style={{ fontSize: '32px', fontWeight: 900, color: '#0F172A', marginTop: '10px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '32px', fontWeight: 900, color: '#1B4565', marginTop: '10px' }}>
               {stats.machinesTotal}
             </div>
-            <div style={{ fontSize: '12px', color: '#8B5CF6', fontWeight: 700, marginTop: '4px' }}>
-              ● Suivi des heures & maintenance
+            <div style={{ fontSize: '12px', color: '#D66927', fontWeight: 700, marginTop: '4px' }}>
+              ● Suivi des heures &amp; maintenance
             </div>
           </div>
         </div>
 
         {/* Pôles d'Activités */}
-        <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: '0 0 16px 0' }}>
+        <h2 style={{ fontFamily: "'Ruda', sans-serif", fontSize: '19px', fontWeight: 800, color: '#1B4565', margin: '0 0 16px 0' }}>
           Accès aux Pôles Métiers
         </h2>
 
-        <div className="hub-poles-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-          {POLES.map((pole) => {
+        <div className="hub-poles-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px' }}>
+          {poles.map((pole) => {
             const PoleIcon = pole.poleIcon;
             return (
               <div
@@ -2191,15 +2257,15 @@ export default function App() {
             marginTop: '35px',
             backgroundColor: '#FFFFFF',
             borderRadius: '18px',
-            border: '1.5px solid #E2E8F0',
+            border: '1.5px solid #F7AC37',
             padding: '28px 32px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: '24px',
-            boxShadow: '0 4px 18px rgba(15, 23, 42, 0.05)',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #FFFBEB 100%)',
+            boxShadow: '0 4px 18px rgba(27, 69, 101, 0.05)',
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #FEF6E7 100%)',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -2212,25 +2278,25 @@ export default function App() {
               width: 140,
               height: 140,
               borderRadius: '50%',
-              background: 'rgba(245, 158, 11, 0.08)',
+              background: 'rgba(247, 172, 55, 0.12)',
               pointerEvents: 'none',
             }}
           />
 
-          <div className="hub-roadmap-header" style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: '280px' }}>
+          <div className="hub-roadmap-header" style={{ display: 'flex', alignItems: 'center', gap: '20px', zIndex: 1, flex: 1, minWidth: 'min(100%, 280px)' }}>
             <div
               style={{
                 width: '56px',
                 height: '56px',
                 borderRadius: '16px',
-                backgroundColor: '#FEF3C7',
-                border: '1.5px solid #FDE68A',
-                color: '#D97706',
+                backgroundColor: '#FEF6E7',
+                border: '1.5px solid #F7AC37',
+                color: '#D66927',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)',
+                boxShadow: '0 4px 12px rgba(247, 172, 55, 0.25)',
               }}
             >
               <Lightbulb size={28} />
@@ -2243,8 +2309,8 @@ export default function App() {
                   gap: '6px',
                   padding: '3px 10px',
                   borderRadius: '12px',
-                  backgroundColor: '#FEF3C7',
-                  color: '#B45309',
+                  backgroundColor: '#FEF6E7',
+                  color: '#D66927',
                   fontSize: '11px',
                   fontWeight: 800,
                   marginBottom: '6px',
@@ -2252,10 +2318,10 @@ export default function App() {
               >
                 <span>NOUVEAUTÉ • BOÎTE À IDÉES DU GROUPE</span>
               </div>
-              <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#0F172A' }}>
+              <h3 style={{ margin: '0 0 6px 0', fontFamily: "'Ruda', sans-serif", fontSize: '18px', fontWeight: 800, color: '#1B4565' }}>
                 Une idée, un besoin ou une suggestion pour vos outils ?
               </h3>
-              <p style={{ margin: 0, fontSize: '13px', color: '#64748B', maxWidth: '640px', lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#475569', maxWidth: '640px', lineHeight: 1.5 }}>
                 Chaque pôle (Animatrices, Atelier, Flotte Véhicules, Commercial) peut formuler ses demandes. Vos suggestions alimentent directement la feuille de route collaborative du Groupe Facility.
               </p>
             </div>
@@ -2274,13 +2340,13 @@ export default function App() {
                 gap: '8px',
                 padding: '11px 20px',
                 borderRadius: '10px',
-                backgroundColor: '#D97706',
+                backgroundColor: '#D66927',
                 color: '#FFFFFF',
                 border: 'none',
                 fontSize: '13px',
                 fontWeight: 800,
                 cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
+                boxShadow: '0 4px 14px rgba(214, 105, 39, 0.35)',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -2301,8 +2367,8 @@ export default function App() {
                 padding: '11px 18px',
                 borderRadius: '10px',
                 backgroundColor: '#FFFFFF',
-                color: '#1E293B',
-                border: '1.5px solid #CBD5E1',
+                color: '#1B4565',
+                border: '1.5px solid #B7D8EA',
                 fontSize: '13px',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -2310,7 +2376,7 @@ export default function App() {
               }}
             >
               <span>Voir la Roadmap en direct</span>
-              <ArrowRight size={15} color="#64748B" />
+              <ArrowRight size={15} color="#3989B7" />
             </button>
           </div>
         </div>
@@ -2369,14 +2435,14 @@ export default function App() {
         </div>
 
         {/* Cartes Synthèse Supervision (100% Dynamiques & Typo Ruda) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px', marginBottom: '28px' }}>
           {/* 1. Chantiers en cours */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #39A9DC', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #39A9DC', boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#3989B7', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Chantiers en cours</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#0369A1', backgroundColor: '#E0F2FE', padding: '2px 8px', borderRadius: '12px' }}>100% assignés</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#3989B7', backgroundColor: '#EBF6FC', padding: '2px 8px', borderRadius: '12px' }}>100% assignés</span>
             </div>
-            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#0F172A', marginTop: '6px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#1B4565', marginTop: '6px' }}>
               {stats.chantiersActifs}
             </div>
             <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>
@@ -2385,12 +2451,12 @@ export default function App() {
           </div>
 
           {/* 2. Satisfaction Globale */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #00C875', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #00C875', boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Satisfaction Visites</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', backgroundColor: '#D1FAE5', padding: '2px 8px', borderRadius: '12px' }}>Année 2026</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#0E7042', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Satisfaction Visites</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#0E7042', backgroundColor: '#E6F9F1', padding: '2px 8px', borderRadius: '12px' }}>Année 2026</span>
             </div>
-            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#00C875', marginTop: '6px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#0E7042', marginTop: '6px' }}>
               {stats.tauxSatisfactionGlobal}%
             </div>
             <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
@@ -2399,24 +2465,24 @@ export default function App() {
           </div>
 
           {/* 3. Clients 3 Étoiles */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #F7AC37', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #F7AC37', boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#B45309', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Clients 3 Étoiles 🌟</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#B45309', backgroundColor: '#FEF3C7', padding: '2px 8px', borderRadius: '12px' }}>Niveau Max</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#B87414', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Clients 3 Étoiles 🌟</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#B87414', backgroundColor: '#FEF6E7', padding: '2px 8px', borderRadius: '12px' }}>Niveau Max</span>
             </div>
-            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#F7AC37', marginTop: '6px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#B87414', marginTop: '6px' }}>
               {stats.etoiles.Global.s3}
             </div>
-            <div style={{ fontSize: '11px', color: '#B45309', fontWeight: 600, marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', color: '#B87414', fontWeight: 600, marginTop: '4px' }}>
               {stats.chantiersActifs > 0 ? Math.round((stats.etoiles.Global.s3 / stats.chantiersActifs) * 100) : 45}% du parc au niveau maximal
             </div>
           </div>
 
           {/* 4. Clients Insatisfaits */}
-          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #E2E8F0', borderLeft: '4px solid #D66927', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #D66927', boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#D66927', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Clients Insatisfaits 🙁</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#D66927', backgroundColor: 'rgba(214, 105, 39, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>Priorité Qualité</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#D66927', backgroundColor: '#FFF4EB', padding: '2px 8px', borderRadius: '12px' }}>Priorité Qualité</span>
             </div>
             <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#D66927', marginTop: '6px' }}>
               {stats.etoiles.Global.bad}
@@ -2428,10 +2494,10 @@ export default function App() {
         </div>
 
         {/* TABLEAU COMPARATIF DÉTAILLÉ DES 3 ANIMATRICES (100% Dynamique) */}
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px', marginBottom: '28px', boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #D7EAF5', padding: '24px', marginBottom: '28px', boxShadow: '0 2px 10px rgba(27, 69, 101, 0.03)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+              <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#1B4565' }}>
                 Comparatif Opérationnel par Responsable de Secteur
               </h3>
               <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748B' }}>
@@ -2439,7 +2505,7 @@ export default function App() {
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', color: '#3989B7', backgroundColor: '#F0F9FF', padding: '3px 10px', borderRadius: '12px', fontWeight: 700 }}>
+              <span style={{ fontSize: '11px', color: '#3989B7', backgroundColor: '#EBF6FC', padding: '3px 10px', borderRadius: '12px', fontWeight: 700 }}>
                 ● En direct Monday.com
               </span>
             </div>
@@ -2449,7 +2515,7 @@ export default function App() {
           <div className="desktop-table-container" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
-                <tr style={{ borderBottom: '2px solid #E2E8F0', backgroundColor: '#F8FAFC', color: '#3989B7', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <tr style={{ borderBottom: '2px solid #D7EAF5', backgroundColor: '#F4F9FC', color: '#3989B7', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   <th style={{ padding: '12px 16px' }}>Responsable de Secteur</th>
                   <th style={{ padding: '12px 14px' }}>Chantiers</th>
                   <th style={{ padding: '12px 14px' }}>Part du Parc</th>
@@ -2463,39 +2529,39 @@ export default function App() {
               </thead>
               <tbody>
                 {/* Natacha THOMAS */}
-                <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                  <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
+                <tr style={{ borderBottom: '1px solid #EBF6FC' }}>
+                  <td style={{ padding: '14px 16px', fontWeight: 800, color: '#1B4565' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0369A1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#EBF6FC', color: '#3989B7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
                         NT
                       </div>
                       <div>
-                        <div style={{ fontWeight: 800, color: '#0F172A' }}>Natacha THOMAS</div>
+                        <div style={{ fontWeight: 800, color: '#1B4565' }}>Natacha THOMAS</div>
                         <div style={{ fontSize: '10px', color: '#64748B' }}>Secteur Nord / Est</div>
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px', color: '#1B4565' }}>
                     {stats.chantiersParAnim.Natacha}
                   </td>
                   <td style={{ padding: '14px', color: '#64748B', fontWeight: 600 }}>
                     {stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Natacha / stats.chantiersActifs) * 100).toFixed(1) : '43.4'}%
                   </td>
                   <td style={{ padding: '14px' }}>
-                    <span style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                    <span style={{ fontWeight: 800, color: '#0E7042', backgroundColor: '#E6F9F1', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
                       {stats.visitesParAnim.Natacha.pct}% ({stats.visitesParAnim.Natacha.bon} / {stats.visitesParAnim.Natacha.total})
                     </span>
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, color: '#B87414' }}>
                     {stats.etoiles.Natacha.s3}
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>
+                  <td style={{ padding: '14px', fontWeight: 700, color: '#1B4565' }}>
                     {stats.etoiles.Natacha.s2}
                   </td>
                   <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>
                     {stats.etoiles.Natacha.s1}
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Natacha.bad > 0 ? '#D66927' : '#059669' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Natacha.bad > 0 ? '#D66927' : '#0E7042' }}>
                     {stats.etoiles.Natacha.bad}
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -2505,9 +2571,9 @@ export default function App() {
                       style={{
                         padding: '6px 14px',
                         borderRadius: '7px',
-                        backgroundColor: '#F0F9FF',
-                        color: '#0369A1',
-                        border: '1px solid #BAE6FD',
+                        backgroundColor: '#EBF6FC',
+                        color: '#3989B7',
+                        border: '1px solid #B7D8EA',
                         fontWeight: 700,
                         fontSize: '11px',
                         cursor: 'pointer',
@@ -2520,39 +2586,39 @@ export default function App() {
                 </tr>
 
                 {/* Ketty PAULIN */}
-                <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                  <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
+                <tr style={{ borderBottom: '1px solid #EBF6FC' }}>
+                  <td style={{ padding: '14px 16px', fontWeight: 800, color: '#1B4565' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#EBF6FC', color: '#39A9DC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
                         KP
                       </div>
                       <div>
-                        <div style={{ fontWeight: 800, color: '#0F172A' }}>Ketty PAULIN</div>
+                        <div style={{ fontWeight: 800, color: '#1B4565' }}>Ketty PAULIN</div>
                         <div style={{ fontSize: '10px', color: '#64748B' }}>Secteur Ouest / Littoral</div>
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px', color: '#1B4565' }}>
                     {stats.chantiersParAnim.Ketty}
                   </td>
                   <td style={{ padding: '14px', color: '#64748B', fontWeight: 600 }}>
                     {stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Ketty / stats.chantiersActifs) * 100).toFixed(1) : '40.7'}%
                   </td>
                   <td style={{ padding: '14px' }}>
-                    <span style={{ fontWeight: 800, color: '#0284C7', backgroundColor: '#E0F2FE', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                    <span style={{ fontWeight: 800, color: '#3989B7', backgroundColor: '#EBF6FC', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
                       {stats.visitesParAnim.Ketty.pct}% ({stats.visitesParAnim.Ketty.bon} / {stats.visitesParAnim.Ketty.total})
                     </span>
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, color: '#B87414' }}>
                     {stats.etoiles.Ketty.s3}
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>
+                  <td style={{ padding: '14px', fontWeight: 700, color: '#1B4565' }}>
                     {stats.etoiles.Ketty.s2}
                   </td>
                   <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>
                     {stats.etoiles.Ketty.s1}
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Ketty.bad > 0 ? '#D66927' : '#059669' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Ketty.bad > 0 ? '#D66927' : '#0E7042' }}>
                     {stats.etoiles.Ketty.bad}
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -2562,9 +2628,9 @@ export default function App() {
                       style={{
                         padding: '6px 14px',
                         borderRadius: '7px',
-                        backgroundColor: '#ECFEFF',
-                        color: '#0891B2',
-                        border: '1px solid #A5F3FC',
+                        backgroundColor: '#EBF6FC',
+                        color: '#3989B7',
+                        border: '1px solid #39A9DC',
                         fontWeight: 700,
                         fontSize: '11px',
                         cursor: 'pointer',
@@ -2577,39 +2643,39 @@ export default function App() {
                 </tr>
 
                 {/* Emilie TOBIE */}
-                <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
-                  <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
+                <tr style={{ borderBottom: '2px solid #D7EAF5' }}>
+                  <td style={{ padding: '14px 16px', fontWeight: 800, color: '#1B4565' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#FDF2F8', color: '#DB2777', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#FFF4EB', color: '#D66927', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
                         ET
                       </div>
                       <div>
-                        <div style={{ fontWeight: 800, color: '#0F172A' }}>Emilie TOBIE</div>
+                        <div style={{ fontWeight: 800, color: '#1B4565' }}>Emilie TOBIE</div>
                         <div style={{ fontSize: '10px', color: '#64748B' }}>Secteur Sud / Métropole</div>
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, fontSize: '14px', color: '#1B4565' }}>
                     {stats.chantiersParAnim.Emilie}
                   </td>
                   <td style={{ padding: '14px', color: '#64748B', fontWeight: 600 }}>
                     {stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Emilie / stats.chantiersActifs) * 100).toFixed(1) : '15.4'}%
                   </td>
                   <td style={{ padding: '14px' }}>
-                    <span style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                    <span style={{ fontWeight: 800, color: '#0E7042', backgroundColor: '#E6F9F1', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
                       {stats.visitesParAnim.Emilie.pct}% ({stats.visitesParAnim.Emilie.bon} / {stats.visitesParAnim.Emilie.total})
                     </span>
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, color: '#D97706' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, color: '#B87414' }}>
                     {stats.etoiles.Emilie.s3}
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 700, color: '#334155' }}>
+                  <td style={{ padding: '14px', fontWeight: 700, color: '#1B4565' }}>
                     {stats.etoiles.Emilie.s2}
                   </td>
                   <td style={{ padding: '14px', fontWeight: 700, color: '#64748B' }}>
                     {stats.etoiles.Emilie.s1}
                   </td>
-                  <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Emilie.bad > 0 ? '#D66927' : '#059669' }}>
+                  <td style={{ padding: '14px', fontWeight: 800, color: stats.etoiles.Emilie.bad > 0 ? '#D66927' : '#0E7042' }}>
                     {stats.etoiles.Emilie.bad}
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -2619,9 +2685,9 @@ export default function App() {
                       style={{
                         padding: '6px 14px',
                         borderRadius: '7px',
-                        backgroundColor: '#FDF2F8',
-                        color: '#DB2777',
-                        border: '1px solid #FBCFE8',
+                        backgroundColor: '#FFF4EB',
+                        color: '#D66927',
+                        border: '1px solid #F7AC37',
                         fontWeight: 700,
                         fontSize: '11px',
                         cursor: 'pointer',
@@ -2636,25 +2702,25 @@ export default function App() {
 
               {/* Ligne Total Consolidé */}
               <tfoot>
-                <tr style={{ backgroundColor: '#F8FAFC', fontWeight: 900 }}>
-                  <td style={{ padding: '14px 16px', color: '#0F172A', fontFamily: "'Ruda', sans-serif" }}>
+                <tr style={{ backgroundColor: '#F4F9FC', fontWeight: 900 }}>
+                  <td style={{ padding: '14px 16px', color: '#1B4565', fontFamily: "'Ruda', sans-serif" }}>
                     TOTAL CONSOLIDÉ
                   </td>
-                  <td style={{ padding: '14px', color: '#0F172A', fontSize: '14px' }}>
+                  <td style={{ padding: '14px', color: '#1B4565', fontSize: '14px' }}>
                     {stats.chantiersActifs}
                   </td>
                   <td style={{ padding: '14px', color: '#64748B' }}>
                     100%
                   </td>
                   <td style={{ padding: '14px' }}>
-                    <span style={{ fontWeight: 800, color: '#0073EA', backgroundColor: '#EBF6FC', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                    <span style={{ fontWeight: 800, color: '#3989B7', backgroundColor: '#EBF6FC', padding: '4px 10px', borderRadius: '6px', fontSize: '12px' }}>
                       {stats.tauxSatisfactionGlobal}% ({stats.visitesBonnes} / {stats.visitesTotal})
                     </span>
                   </td>
-                  <td style={{ padding: '14px', color: '#D97706', fontSize: '14px' }}>
+                  <td style={{ padding: '14px', color: '#B87414', fontSize: '14px' }}>
                     {stats.etoiles.Global.s3}
                   </td>
-                  <td style={{ padding: '14px', color: '#334155', fontSize: '14px' }}>
+                  <td style={{ padding: '14px', color: '#1B4565', fontSize: '14px' }}>
                     {stats.etoiles.Global.s2}
                   </td>
                   <td style={{ padding: '14px', color: '#64748B', fontSize: '14px' }}>
@@ -2679,11 +2745,11 @@ export default function App() {
                 initials: 'NT',
                 name: 'Natacha THOMAS',
                 sector: 'Nord / Est',
-                avatarBg: '#E0F2FE',
-                avatarColor: '#0369A1',
-                btnBg: '#F0F9FF',
-                btnBorder: '#BAE6FD',
-                btnColor: '#0369A1',
+                avatarBg: '#EBF6FC',
+                avatarColor: '#3989B7',
+                btnBg: '#EBF6FC',
+                btnBorder: '#B7D8EA',
+                btnColor: '#3989B7',
                 count: stats.chantiersParAnim.Natacha,
                 share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Natacha / stats.chantiersActifs) * 100).toFixed(0) : '43',
                 visites: stats.visitesParAnim.Natacha,
@@ -2694,11 +2760,11 @@ export default function App() {
                 initials: 'KP',
                 name: 'Ketty PAULIN',
                 sector: 'Ouest / Littoral',
-                avatarBg: '#E0F2FE',
-                avatarColor: '#0284C7',
-                btnBg: '#ECFEFF',
-                btnBorder: '#A5F3FC',
-                btnColor: '#0891B2',
+                avatarBg: '#EBF6FC',
+                avatarColor: '#39A9DC',
+                btnBg: '#EBF6FC',
+                btnBorder: '#39A9DC',
+                btnColor: '#3989B7',
                 count: stats.chantiersParAnim.Ketty,
                 share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Ketty / stats.chantiersActifs) * 100).toFixed(0) : '41',
                 visites: stats.visitesParAnim.Ketty,
@@ -2709,11 +2775,11 @@ export default function App() {
                 initials: 'ET',
                 name: 'Emilie TOBIE',
                 sector: 'Sud / Métropole',
-                avatarBg: '#FDF2F8',
-                avatarColor: '#DB2777',
-                btnBg: '#FDF2F8',
-                btnBorder: '#FBCFE8',
-                btnColor: '#DB2777',
+                avatarBg: '#FFF4EB',
+                avatarColor: '#D66927',
+                btnBg: '#FFF4EB',
+                btnBorder: '#F7AC37',
+                btnColor: '#D66927',
                 count: stats.chantiersParAnim.Emilie,
                 share: stats.chantiersActifs > 0 ? ((stats.chantiersParAnim.Emilie / stats.chantiersActifs) * 100).toFixed(0) : '15',
                 visites: stats.visitesParAnim.Emilie,
@@ -2725,12 +2791,12 @@ export default function App() {
                 style={{
                   backgroundColor: '#FFFFFF',
                   borderRadius: '12px',
-                  border: '1px solid #E2E8F0',
+                  border: '1px solid #D7EAF5',
                   padding: '9px 12px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '6px',
-                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
+                  boxShadow: '0 1px 2px rgba(27, 69, 101, 0.04)',
                 }}
               >
                 {/* Ligne 1 : Nom, Secteur & Bouton d'accès */}
@@ -2740,7 +2806,7 @@ export default function App() {
                       {anim.initials}
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '12.5px' }}>{anim.name}</span>
+                      <span style={{ fontWeight: 800, color: '#1B4565', fontSize: '12.5px' }}>{anim.name}</span>
                       <span style={{ fontSize: '10px', color: '#64748B', marginLeft: '6px' }}>• {anim.sector}</span>
                     </div>
                   </div>
@@ -2764,22 +2830,22 @@ export default function App() {
                 </div>
 
                 {/* Ligne 2 : Données condensées en 1 seule rangée propre */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', backgroundColor: '#F8FAFC', padding: '5px 8px', borderRadius: '8px', fontSize: '11px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', backgroundColor: '#F4F9FC', padding: '5px 8px', borderRadius: '8px', fontSize: '11px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                    <span style={{ fontWeight: 900, color: '#0F172A', fontSize: '13px' }}>{anim.count}</span>
+                    <span style={{ fontWeight: 900, color: '#1B4565', fontSize: '13px' }}>{anim.count}</span>
                     <span style={{ fontSize: '10px', color: '#64748B' }}>ch. ({anim.share}%)</span>
                   </div>
 
-                  <div style={{ fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
+                  <div style={{ fontWeight: 800, color: '#0E7042', backgroundColor: '#E6F9F1', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
                     {anim.visites.pct}%
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10.5px' }}>
-                    <span style={{ color: '#D97706', fontWeight: 800 }}>3🌟 {anim.etoiles.s3}</span>
-                    <span style={{ color: '#475569', fontWeight: 700 }}>2🌟 {anim.etoiles.s2}</span>
+                    <span style={{ color: '#B87414', fontWeight: 800 }}>3🌟 {anim.etoiles.s3}</span>
+                    <span style={{ color: '#3989B7', fontWeight: 700 }}>2🌟 {anim.etoiles.s2}</span>
                     <span style={{ color: '#64748B', fontWeight: 600 }}>1🌟 {anim.etoiles.s1}</span>
                     {anim.etoiles.bad > 0 && (
-                      <span style={{ color: '#D66927', fontWeight: 800, backgroundColor: '#FFEDD5', padding: '1px 5px', borderRadius: '4px' }}>
+                      <span style={{ color: '#D66927', fontWeight: 800, backgroundColor: '#FFF4EB', padding: '1px 5px', borderRadius: '4px' }}>
                         🙁 {anim.etoiles.bad}
                       </span>
                     )}
@@ -2791,7 +2857,7 @@ export default function App() {
             {/* Ligne Total Consolidé Ultra-Compacte */}
             <div
               style={{
-                backgroundColor: '#0F172A',
+                backgroundColor: '#1B4565',
                 borderRadius: '12px',
                 padding: '9px 12px',
                 color: '#FFFFFF',
@@ -2803,26 +2869,26 @@ export default function App() {
               }}
             >
               <div>
-                <span style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>TOTAL : </span>
+                <span style={{ fontSize: '10px', color: '#B7D8EA', fontWeight: 800, textTransform: 'uppercase' }}>TOTAL : </span>
                 <span style={{ fontWeight: 900, color: '#FFFFFF', fontSize: '13px' }}>{stats.chantiersActifs} ch.</span>
               </div>
-              <div style={{ fontWeight: 800, color: '#38BDF8', backgroundColor: 'rgba(56, 189, 248, 0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+              <div style={{ fontWeight: 800, color: '#39A9DC', backgroundColor: 'rgba(57, 169, 220, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>
                 {stats.tauxSatisfactionGlobal}% sat.
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10.5px' }}>
-                <span style={{ color: '#FBBF24', fontWeight: 800 }}>3🌟 {stats.etoiles.Global.s3}</span>
-                <span style={{ color: '#CBD5E1', fontWeight: 700 }}>2🌟 {stats.etoiles.Global.s2}</span>
-                <span style={{ color: '#94A3B8', fontWeight: 600 }}>1🌟 {stats.etoiles.Global.s1}</span>
-                <span style={{ color: '#F87171', fontWeight: 800 }}>🙁 {stats.etoiles.Global.bad}</span>
+                <span style={{ color: '#F7AC37', fontWeight: 800 }}>3🌟 {stats.etoiles.Global.s3}</span>
+                <span style={{ color: '#D7EAF5', fontWeight: 700 }}>2🌟 {stats.etoiles.Global.s2}</span>
+                <span style={{ color: '#94B8CE', fontWeight: 600 }}>1🌟 {stats.etoiles.Global.s1}</span>
+                <span style={{ color: '#FDBA74', fontWeight: 800 }}>🙁 {stats.etoiles.Global.bad}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* ÉTOILES QUALITÉ DU GROUPE (JAUGE DE SYNTHÈSE CHARTE 2026) */}
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #E2E8F0', padding: '24px', boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #D7EAF5', padding: '24px', boxShadow: '0 2px 10px rgba(27, 69, 101, 0.03)' }}>
           <div style={{ marginBottom: '18px' }}>
-            <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+            <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#1B4565' }}>
               Répartition Qualité Globale des Chantiers (Contrôles C1, C2, C3)
             </h3>
             <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748B' }}>
@@ -2830,7 +2896,7 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px' }}>
             {/* 3 Étoiles - Jaune Charte #F7AC37 */}
             <div style={{ backgroundColor: '#FEF9C3', padding: '18px', borderRadius: '14px', border: '1.5px solid #F7AC37' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2909,8 +2975,6 @@ export default function App() {
               : currentView === 'secteur_ketty'
                 ? 'Ketty PAULIN'
                 : 'Emilie TOBIE';
-          const chantiersCount = stats.chantiersParAnim[animKey];
-          const satPct = stats.visitesParAnim[animKey]?.pct || 0;
           const iframeSrc = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}&ts=${refreshKey}`;
 
               return (
@@ -2996,39 +3060,39 @@ export default function App() {
     {/* VUE 6 : HUB FOURNISSEURS & SAV                               */}
     {/* ------------------------------------------------------------ */}
     {currentView === 'atelier_fournisseurs' && (
-      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
         <div style={{ marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-            Hub Fournisseurs & Pièces SAV
+          <h1 style={{ fontFamily: "'Ruda', sans-serif", fontSize: '22px', fontWeight: 800, color: '#1B4565', margin: 0 }}>
+            Hub Fournisseurs &amp; Pièces SAV
           </h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#3989B7' }}>
             Répertoire centralisé des partenaires consommables et fabricants de machines
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 270px), 1fr))', gap: '20px' }}>
           {[
             { name: 'Kalhyge Hygiène', role: 'Fournisseur principal consommables (chimie, sacs, papier)', tel: '02 40 92 11 00', mail: 'commandes.nantes@kalhyge.fr', ref: 'Compte N° FAC-4402', delai: '48h ouvrées' },
             { name: 'Nilfisk France SAV', role: 'Constructeur autolaveuses & balayeuses industrielles', tel: '01 69 59 87 00', mail: 'sav.france@nilfisk.com', ref: 'Contrat Privilège Atelier', delai: 'Pièces sous 24h' },
             { name: 'Taski / Diversey', role: 'Monobrosses & aspirateurs professionnels', tel: '01 45 14 76 76', mail: 'taski.support@diversey.com', ref: 'Compte Pro Facility', delai: '72h ouvrées' },
             { name: 'Kärcher Professionnel', role: 'Nettoyeurs haute pression & injecteurs', tel: '01 43 99 67 70', mail: 'pro@karcher.fr', ref: 'Code Partenaire K-8812', delai: '48h ouvrées' },
           ].map((f) => (
-            <div key={f.name} style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
-              <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>{f.name}</div>
+            <div key={f.name} style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #D7EAF5' }}>
+              <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '16px', fontWeight: 800, color: '#1B4565' }}>{f.name}</div>
               <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 14px 0' }}>{f.role}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#334155' }}>
-                  <Phone size={14} color="#0073EA" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1B4565' }}>
+                  <Phone size={14} color="#39A9DC" />
                   <span>{f.tel}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#334155' }}>
-                  <Mail size={14} color="#0073EA" />
-                  <span>{f.mail}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1B4565' }}>
+                  <Mail size={14} color="#39A9DC" />
+                  <span style={{ wordBreak: 'break-all' }}>{f.mail}</span>
                 </div>
               </div>
-              <div style={{ marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94A3B8' }}>
+              <div style={{ marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #EBF6FC', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B' }}>
                 <span>{f.ref}</span>
-                <span style={{ fontWeight: 700, color: '#00C875' }}>{f.delai}</span>
+                <span style={{ fontWeight: 700, color: '#0E7042' }}>{f.delai}</span>
               </div>
             </div>
           ))}
@@ -3040,23 +3104,23 @@ export default function App() {
     {/* VUE 7 : COMMUNICATION & CENTRE D'ALERTES                     */}
     {/* ------------------------------------------------------------ */}
     {currentView === 'comm_alertes' && (
-      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
         <div style={{ marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+          <h1 style={{ fontFamily: "'Ruda', sans-serif", fontSize: '22px', fontWeight: 800, color: '#1B4565', margin: 0 }}>
             Centre d’Alertes Transversal • Tous Secteurs
           </h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#3989B7' }}>
             Surveillance continue des chantiers sensibles du Tableau Complet Chantier (1976599627)
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #FEE2E2', borderLeft: '5px solid #EF4444' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#EF4444', fontWeight: 800, fontSize: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 270px), 1fr))', gap: '20px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #FDE2D2', borderLeft: '5px solid #D66927' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#D66927', fontWeight: 800, fontSize: '14px' }}>
               <AlertTriangle size={18} />
               <span>Clients Insatisfaits (3 contrôles consécutifs)</span>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#1B4565', marginTop: '8px' }}>
               {stats.alertes.insatisfaits3x} chantier
             </div>
             <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>
@@ -3064,12 +3128,12 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #FEF3C7', borderLeft: '5px solid #F59E0B' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#D97706', fontWeight: 800, fontSize: '14px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #FDECC8', borderLeft: '5px solid #F7AC37' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#B87414', fontWeight: 800, fontSize: '14px' }}>
               <Clock size={18} />
               <span>Contrôles Insatisfaisants &gt; 2 mois sans contrôle</span>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#1B4565', marginTop: '8px' }}>
               {stats.alertes.qualitePlus2Mois} chantier
             </div>
             <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>
@@ -3077,12 +3141,12 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #EBF6FC', borderLeft: '5px solid #0073EA' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0073EA', fontWeight: 800, fontSize: '14px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #D7EAF5', borderLeft: '5px solid #39A9DC' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#3989B7', fontWeight: 800, fontSize: '14px' }}>
               <ShieldCheck size={18} />
               <span>Chantiers non vus depuis 11 mois</span>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#1B4565', marginTop: '8px' }}>
               {stats.alertes.nonVus11Mois} chantier
             </div>
             <p style={{ fontSize: '12px', color: '#64748B', margin: '6px 0 0 0' }}>
@@ -3097,36 +3161,36 @@ export default function App() {
     {/* VUE 8 : INVENTAIRES CONSOMMABLES (5105902205)               */}
     {/* ------------------------------------------------------------ */}
     {currentView === 'commercial_contrats' && (
-      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div className="hub-view-container" style={{ padding: '30px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
           <div>
-            <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-              Inventaires Consommables & Dotations Chantiers
+            <h1 style={{ fontFamily: "'Ruda', sans-serif", fontSize: '22px', fontWeight: 800, color: '#1B4565', margin: 0 }}>
+              Inventaires Consommables &amp; Dotations Chantiers
             </h1>
-            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#3989B7' }}>
               Suivi des inventaires cycliques (182 jours) du Tableau Monday 5105902205
             </p>
           </div>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#0073EA', backgroundColor: '#EBF6FC', padding: '6px 14px', borderRadius: '20px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#3989B7', backgroundColor: '#EBF6FC', padding: '6px 14px', borderRadius: '20px' }}>
             ● Tableau Monday Actif
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '28px' }}>
-          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Inventaires Planifiés (à faire)</span>
-            <div style={{ fontSize: '32px', fontWeight: 900, color: '#0F172A', marginTop: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '20px', marginBottom: '28px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #F7AC37' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#3989B7' }}>Inventaires Planifiés (à faire)</span>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '32px', fontWeight: 900, color: '#1B4565', marginTop: '8px' }}>
               {stats.inventairesAFaire}
             </div>
             <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0 0' }}>Chantiers avec contrat consommables actifs (cycle 182 jours).</p>
           </div>
 
-          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #E2E8F0' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>Inventaires Validés (réalisés)</span>
-            <div style={{ fontSize: '32px', fontWeight: 900, color: '#00C875', marginTop: '8px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '22px', borderRadius: '14px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #00C875' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#3989B7' }}>Inventaires Validés (réalisés)</span>
+            <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '32px', fontWeight: 900, color: '#0E7042', marginTop: '8px' }}>
               {stats.inventairesRealises}
             </div>
-            <p style={{ fontSize: '12px', color: '#00C875', fontWeight: 700, margin: '4px 0 0 0' }}>Historisés dans le groupe "inventaires réalisés".</p>
+            <p style={{ fontSize: '12px', color: '#0E7042', fontWeight: 700, margin: '4px 0 0 0' }}>Historisés dans le groupe "inventaires réalisés".</p>
           </div>
         </div>
       </div>

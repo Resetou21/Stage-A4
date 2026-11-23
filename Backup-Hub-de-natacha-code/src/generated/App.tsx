@@ -151,29 +151,36 @@ export default function App() {
       }
     });
 
-    // Requête contextuelle immédiate
+    // Requête contextuelle immédiate ; requête GraphQL `me` uniquement en secours si le contexte SDK ne suffit pas
+    const runMeFallback = () => {
+      if (resolved) return;
+      callMondayApi('query { me { id name email } }')
+        .then((apiRes) => {
+          const me = apiRes?.data?.me || apiRes?.me;
+          if (me) {
+            identifyUser(String(me.id || ''), me.name || '', me.email || '');
+          } else {
+            setUserDetected(true);
+          }
+        })
+        .catch((err) => {
+          console.warn('[App] Erreur me query fallback:', err);
+          setUserDetected(true);
+        });
+    };
+
     monday.get('context').then((res: any) => {
       const user = res?.data?.user;
       const uid = String(user?.id || res?.data?.userId || '');
       if (uid) {
         identifyUser(uid, user?.name || '', user?.email || '');
       }
-    }).catch(() => {});
-
-    // Requête GraphQL de secours pour identifier le profil connecté
-    callMondayApi('query { me { id name email } }')
-      .then((apiRes) => {
-        const me = apiRes?.data?.me || apiRes?.me;
-        if (me) {
-          identifyUser(String(me.id || ''), me.name || '', me.email || '');
-        } else {
-          setUserDetected(true);
-        }
-      })
-      .catch((err) => {
-        console.warn('[App] Erreur me query fallback:', err);
-        setUserDetected(true);
-      });
+      if (!resolved) {
+        runMeFallback();
+      }
+    }).catch(() => {
+      runMeFallback();
+    });
 
     // Sécurité anti-blocage immédiate : si après 1.5s le profil n'a pas répondu (ex: iframe imbriquée ou latence)
     const fallbackTimer = setTimeout(() => {
@@ -233,19 +240,19 @@ export default function App() {
       <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-72 w-72 rounded-full border-2 border-[hsl(var(--brand-orange))]/40" />
 
       <header className="relative border-b border-border bg-card/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:px-8 sm:py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground shadow-sm">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:px-8 sm:py-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground shadow-sm">
               {initials}
             </div>
-            <div className="leading-tight">
-              <p className="font-[family-name:var(--font-heading)] text-sm font-bold">{fullName}</p>
-              <p className="text-xs font-semibold text-primary/80">Hub Responsable de secteur</p>
+            <div className="leading-tight min-w-0">
+              <p className="font-[family-name:var(--font-heading)] text-sm font-bold truncate">{fullName}</p>
+              <p className="text-xs font-semibold text-primary/80 truncate">Hub Responsable de secteur</p>
             </div>
 
             {/* Sélecteur de profil et règles : visible STRICTEMENT ET UNIQUEMENT pour l'administrateur */}
             {isAdmin && (
-              <div className="flex items-center gap-1 ml-2 border-l border-border pl-2 sm:pl-3">
+              <div className="flex flex-wrap items-center gap-1 sm:ml-2 sm:border-l sm:border-border sm:pl-3">
                 {(['Natacha', 'Emilie', 'Ketty'] as const).map((p) => (
                   <button
                     key={p}
@@ -293,7 +300,7 @@ export default function App() {
       </header>
       <AlertsCenter firstName={hubName} />
 
-      <main className="relative mx-auto max-w-6xl px-3 py-6 sm:px-8 sm:py-12">
+      <main className="relative mx-auto max-w-6xl px-3 py-6 pb-28 sm:px-8 sm:py-12">
         <h1 className="text-2xl sm:text-4xl font-extrabold uppercase tracking-tight">Hub de {hubName}</h1>
         <div className="mt-2 h-1 w-20 rounded-full bg-[hsl(var(--brand-blue))]" />
         <p className="mt-2 sm:mt-4 max-w-xl text-sm sm:text-base font-semibold italic text-primary">

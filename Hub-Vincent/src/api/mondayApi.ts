@@ -9,11 +9,53 @@ const waitQueue: Array<() => void> = [];
 
 const inFlightRequests = new Map<string, Promise<any>>();
 const queryCache = new Map<string, { expires: number; data: any }>();
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const SESSION_PREFIX = 'hv_mcache_v1_';
+
+function hashKey(str: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+function getSessionCached(cacheKey: string): any | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_PREFIX + hashKey(cacheKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.k === cacheKey && typeof parsed.expires === 'number' && Date.now() < parsed.expires) {
+      return parsed.data;
+    }
+  } catch {
+    // ignore storage quota / privacy errors
+  }
+  return null;
+}
+
+function setSessionCached(cacheKey: string, data: any, expires: number) {
+  try {
+    const payload = JSON.stringify({ k: cacheKey, expires, data });
+    if (payload.length < 400_000) {
+      sessionStorage.setItem(SESSION_PREFIX + hashKey(cacheKey), payload);
+    }
+  } catch {
+    // ignore
+  }
+}
 
 export function clearBoardCache(boardId?: string | number) {
   if (!boardId) {
     queryCache.clear();
     inFlightRequests.clear();
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(SESSION_PREFIX)) sessionStorage.removeItem(k);
+      }
+    } catch {}
     return;
   }
   const bStr = String(boardId);
@@ -22,6 +64,15 @@ export function clearBoardCache(boardId?: string | number) {
       queryCache.delete(key);
     }
   }
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(SESSION_PREFIX)) {
+        const raw = sessionStorage.getItem(k);
+        if (raw && raw.includes(bStr)) sessionStorage.removeItem(k);
+      }
+    }
+  } catch {}
 }
 
 function acquireSlot(): Promise<void> {
@@ -53,6 +104,11 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
     const cached = queryCache.get(cacheKey);
     if (cached && Date.now() < cached.expires) {
       return cached.data;
+    }
+    const sess = getSessionCached(cacheKey);
+    if (sess !== null) {
+      queryCache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, data: sess });
+      return sess;
     }
     const inFlight = inFlightRequests.get(cacheKey);
     if (inFlight) {
@@ -113,7 +169,9 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
     inFlightRequests.set(cacheKey, p);
     p.then((data) => {
       if (data && !data.errors) {
-        queryCache.set(cacheKey, { expires: Date.now() + 60_000, data });
+        const expires = Date.now() + CACHE_TTL_MS;
+        queryCache.set(cacheKey, { expires, data });
+        setSessionCached(cacheKey, data, expires);
       }
     }).catch(() => {});
   }

@@ -54,18 +54,22 @@ const GROUP_TODO_ID = 'group_mm7y5mjp'; // Tache à faire
 const GROUP_DONE_ID = 'group_mm7y1vv8'; // Tâches effectuées
 
 const POLE_OPTIONS = [
-  { id: 'Animatrices', label: 'Animatrices & Chantiers', icon: Building2, color: '#0073EA', bg: '#EBF6FC' },
-  { id: 'Gros Matos', label: 'Atelier & Gros Matériel', icon: Wrench, color: '#00C875', bg: '#E6F9F1' },
-  { id: 'Suivi Vehicules', label: 'Facturation & Véhicules', icon: Truck, color: '#0284C7', bg: '#E0F2FE' },
-  { id: 'Enchantement client', label: 'Commercial & Contrats', icon: FileSpreadsheet, color: '#F59E0B', bg: '#FEF3C7' },
+  { id: 'Animatrices', label: 'Animatrices & Chantiers', icon: Building2, color: '#3989B7', bg: '#EBF6FC' },
+  { id: 'Gros Matos', label: 'Atelier & Gros Matériel', icon: Wrench, color: '#39A9DC', bg: '#EBF6FC' },
+  { id: 'Suivi Vehicules', label: 'Facturation & Véhicules', icon: Truck, color: '#1B4565', bg: '#EBF6FC' },
+  { id: 'Enchantement client', label: 'Commercial & Contrats', icon: FileSpreadsheet, color: '#D66927', bg: '#FEF6E7' },
 ];
 
 const TYPE_OPTIONS = [
-  { id: 'feat', label: 'Nouvelle idée / Fonction', icon: Sparkles, color: '#8B5CF6' },
-  { id: 'adjust', label: 'Ajustement / Amélioration', icon: TrendingUp, color: '#0073EA' },
-  { id: 'remove', label: 'À retirer / Simplifier', icon: Trash2, color: '#EF4444' },
-  { id: 'bug', label: 'Signalement de bug', icon: AlertTriangle, color: '#F97316' },
+  { id: 'feat', label: 'Nouvelle idée / Fonction', icon: Sparkles, color: '#39A9DC' },
+  { id: 'adjust', label: 'Ajustement / Amélioration', icon: TrendingUp, color: '#3989B7' },
+  { id: 'remove', label: 'À retirer / Simplifier', icon: Trash2, color: '#E2445C' },
+  { id: 'bug', label: 'Signalement de bug', icon: AlertTriangle, color: '#D66927' },
 ];
+
+// Cache mémoire court (2 min) pour éviter de recharger la Roadmap à chaque ouverture/fermeture de modale
+let roadmapCache: { ts: number; data: RoadmapItem[] } | null = null;
+const ROADMAP_CACHE_TTL_MS = 2 * 60 * 1000;
 
 export default function RoadmapModal({
   isOpen,
@@ -181,8 +185,12 @@ export default function RoadmapModal({
     }
   }, [isOpen, initialTab]);
 
-  // Charger les données du tableau Roadmap Monday
-  const loadRoadmap = async () => {
+  // Charger les données du tableau Roadmap Monday (avec cache 2 min sauf si forceRefresh)
+  const loadRoadmap = async (forceRefresh = false) => {
+    if (!forceRefresh && roadmapCache && Date.now() - roadmapCache.ts < ROADMAP_CACHE_TTL_MS) {
+      setItems(roadmapCache.data);
+      return;
+    }
     setLoading(true);
     try {
       const q = `query {
@@ -271,6 +279,7 @@ export default function RoadmapModal({
         };
       });
 
+      roadmapCache = { ts: Date.now(), data: parsed };
       setItems(parsed);
     } catch (err) {
       console.error('Erreur chargement Roadmap:', err);
@@ -323,10 +332,11 @@ export default function RoadmapModal({
       }`;
 
       await monday.api(mutation, { variables: { itemId: item.id } });
+      roadmapCache = null;
     } catch (err) {
       console.error('Erreur mise à jour statut Monday:', err);
       // Restaurer les données en cas d'erreur
-      await loadRoadmap();
+      await loadRoadmap(true);
     } finally {
       setUpdatingId(null);
     }
@@ -405,8 +415,9 @@ export default function RoadmapModal({
       setDateDebut(new Date().toISOString().slice(0, 10));
       setDateFin(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
 
-      // Recharger la liste
-      await loadRoadmap();
+      // Recharger la liste (invalidation cache)
+      roadmapCache = null;
+      await loadRoadmap(true);
 
       setTimeout(() => {
         setSuccessSent(false);
@@ -514,8 +525,8 @@ export default function RoadmapModal({
           to { opacity: 1; transform: scale(1); }
         }
         @media (max-width: 640px) {
-          .roadmap-modal-overlay { padding: 4px !important; }
-          .roadmap-modal-container { max-height: 98vh !important; border-radius: 14px !important; }
+          .roadmap-modal-overlay { padding: 8px 8px 96px !important; align-items: flex-start !important; }
+          .roadmap-modal-container { max-height: calc(100dvh - 104px) !important; border-radius: 14px !important; }
           .roadmap-header { padding: 10px 14px 8px !important; }
           .roadmap-header-icon { width: 28px !important; height: 28px !important; border-radius: 8px !important; }
           .roadmap-header-icon svg { width: 16px !important; height: 16px !important; }
@@ -579,8 +590,8 @@ export default function RoadmapModal({
           className="roadmap-header"
           style={{
             padding: '22px 28px',
-            backgroundColor: '#0F172A',
-            backgroundImage: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+            backgroundColor: '#1B4565',
+            backgroundImage: 'linear-gradient(135deg, #1B4565 0%, #3989B7 100%)',
             color: '#FFFFFF',
             position: 'relative',
           }}
@@ -743,8 +754,8 @@ export default function RoadmapModal({
               border: 'none',
               background: 'none',
               cursor: 'pointer',
-              color: activeTab === 'list' ? '#0073EA' : '#64748B',
-              borderBottom: activeTab === 'list' ? '2.5px solid #0073EA' : '2.5px solid transparent',
+              color: activeTab === 'list' ? '#39A9DC' : '#64748B',
+              borderBottom: activeTab === 'list' ? '2.5px solid #39A9DC' : '2.5px solid transparent',
               transition: 'all 0.15s ease',
             }}
           >
@@ -766,8 +777,8 @@ export default function RoadmapModal({
               border: 'none',
               background: 'none',
               cursor: 'pointer',
-              color: activeTab === 'form' ? '#0073EA' : '#64748B',
-              borderBottom: activeTab === 'form' ? '2.5px solid #0073EA' : '2.5px solid transparent',
+              color: activeTab === 'form' ? '#39A9DC' : '#64748B',
+              borderBottom: activeTab === 'form' ? '2.5px solid #39A9DC' : '2.5px solid transparent',
               transition: 'all 0.15s ease',
             }}
           >
@@ -956,7 +967,7 @@ export default function RoadmapModal({
                         boxSizing: 'border-box',
                         transition: 'border-color 0.15s',
                       }}
-                      onFocus={(e) => (e.target.style.borderColor = '#0073EA')}
+                      onFocus={(e) => (e.target.style.borderColor = '#39A9DC')}
                       onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
                     />
                   </div>
@@ -983,7 +994,7 @@ export default function RoadmapModal({
                         transition: 'border-color 0.15s',
                         lineHeight: 1.4,
                       }}
-                      onFocus={(e) => (e.target.style.borderColor = '#0073EA')}
+                      onFocus={(e) => (e.target.style.borderColor = '#39A9DC')}
                       onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
                     />
                   </div>
@@ -1123,7 +1134,7 @@ export default function RoadmapModal({
                       }}
                     >
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                        <Paperclip size={13} color="#0073EA" />
+                        <Paperclip size={13} color="#39A9DC" />
                         Pièce jointe / Document explicatif (optionnel)
                       </span>
                       <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 600, textTransform: 'none' }}>
@@ -1159,7 +1170,7 @@ export default function RoadmapModal({
                           }
                         }}
                         style={{
-                          border: isDragging ? '2px dashed #0073EA' : '1.5px dashed #CBD5E1',
+                          border: isDragging ? '2px dashed #39A9DC' : '1.5px dashed #CBD5E1',
                           backgroundColor: isDragging ? '#EBF6FC' : '#F8FAFC',
                           borderRadius: '12px',
                           padding: '16px 20px',
@@ -1284,7 +1295,7 @@ export default function RoadmapModal({
                       style={{
                         width: '100%',
                         height: '46px',
-                        backgroundColor: '#0073EA',
+                        backgroundColor: '#39A9DC',
                         color: '#FFFFFF',
                         border: 'none',
                         borderRadius: '12px',
@@ -1296,7 +1307,7 @@ export default function RoadmapModal({
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 115, 234, 0.25)',
+                        boxShadow: '0 4px 12px rgba(57, 169, 220, 0.25)',
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -1449,13 +1460,13 @@ export default function RoadmapModal({
                     gap: '6px',
                     padding: '7px 12px',
                     borderRadius: '8px',
-                    backgroundColor: '#0073EA',
+                    backgroundColor: '#39A9DC',
                     color: '#FFFFFF',
                     border: 'none',
                     fontSize: '12px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(0, 115, 234, 0.2)',
+                    boxShadow: '0 2px 6px rgba(57, 169, 220, 0.2)',
                   }}
                 >
                   <PlusCircle size={14} />
@@ -1471,7 +1482,7 @@ export default function RoadmapModal({
                       width: '28px',
                       height: '28px',
                       border: '3px solid #CBD5E1',
-                      borderTopColor: '#0073EA',
+                      borderTopColor: '#39A9DC',
                       borderRadius: '50%',
                       animation: 'spin 1s linear infinite',
                       margin: '0 auto 10px auto',
@@ -1495,13 +1506,13 @@ export default function RoadmapModal({
                       style={{
                         padding: '8px 16px',
                         borderRadius: '8px',
-                        backgroundColor: '#0073EA',
+                        backgroundColor: '#39A9DC',
                         color: '#FFFFFF',
                         border: 'none',
                         fontSize: '12px',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        boxShadow: '0 2px 8px rgba(0, 115, 234, 0.25)',
+                        boxShadow: '0 2px 8px rgba(57, 169, 220, 0.25)',
                       }}
                     >
                       + Formuler une demande
@@ -1710,7 +1721,7 @@ export default function RoadmapModal({
                           }}
                         >
                           {item.author && (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#0073EA', fontWeight: 600 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#39A9DC', fontWeight: 600 }}>
                               <User size={11} /> {item.author}
                             </span>
                           )}
@@ -1747,7 +1758,7 @@ export default function RoadmapModal({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                color: '#0073EA',
+                                color: '#39A9DC',
                                 backgroundColor: '#EBF6FC',
                                 border: '1px solid #BFDBFE',
                                 padding: '2px 8px',
@@ -1758,11 +1769,11 @@ export default function RoadmapModal({
                               }}
                               title="Ouvrir la pièce jointe associée sur Monday"
                             >
-                              <Paperclip size={11} color="#0073EA" />
+                              <Paperclip size={11} color="#39A9DC" />
                               <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.fileName || 'Document joint'}
                               </span>
-                              <ExternalLink size={10} color="#0073EA" />
+                              <ExternalLink size={10} color="#39A9DC" />
                             </a>
                           )}
                         </div>

@@ -34,8 +34,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-6xl px-4 py-10 sm:px-8 sm:py-14">
-        <h1 className="text-4xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub de Léa</h1>
+      <main className="relative mx-auto max-w-6xl px-4 py-8 pb-28 sm:px-8 sm:py-14">
+        <h1 className="text-3xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub de Léa</h1>
         <div className="mt-3 h-1 w-24 rounded-full bg-[hsl(var(--brand-blue))]" />
         <p className="mt-4 max-w-xl text-base font-semibold italic text-primary">
           Vos informations chantiers, à portée de main.

@@ -19,7 +19,6 @@ import {
   sendMaintenanceAlert,
   markMaintenanceAlertSeen,
   archiveMaintenanceAlert,
-  fetchMachineBoardColumnsMeta,
   setCachedMachineBoardColumnsMeta,
   extractMachineAffectations,
   reschedulePlanningEvent,
@@ -234,8 +233,28 @@ export const App = () => {
   const [selectedEvent, setSelectedEvent] = useState<PlanningEventDetail | null>(null);
 
   // 1. Chargement des machines depuis Monday (+ colonnes meta en 1 seule requête combinée)
-  const fetchMachines = useCallback(async () => {
+  const fetchMachines = useCallback(async (force: unknown = true) => {
     const boardId = '5106585240';
+    const CACHE_TTL_MS = 5 * 60 * 1000;
+    if (force === false) {
+      try {
+        const ts = Number(localStorage.getItem('parc_machines_cache_ts_v1') || '0');
+        const raw = localStorage.getItem('parc_machines_cache_v1');
+        const rawCols = localStorage.getItem('parc_machines_cols_v1');
+        if (ts && Date.now() - ts < CACHE_TTL_MS && raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMachines(parsed);
+            if (rawCols) {
+              const colsMap = JSON.parse(rawCols);
+              setMachineColsMeta(colsMap);
+              setCachedMachineBoardColumnsMeta(colsMap);
+            }
+            return;
+          }
+        }
+      } catch {}
+    }
 
     try {
       const query = `
@@ -275,6 +294,7 @@ export const App = () => {
         setMachines(board.items_page.items);
         try {
           localStorage.setItem('parc_machines_cache_v1', JSON.stringify(board.items_page.items));
+          localStorage.setItem('parc_machines_cache_ts_v1', String(Date.now()));
         } catch {}
       }
       if (board?.columns && board.columns.length > 0) {
@@ -282,6 +302,9 @@ export const App = () => {
         for (const c of board.columns) map[c.id] = c.title;
         setMachineColsMeta(map);
         setCachedMachineBoardColumnsMeta(map);
+        try {
+          localStorage.setItem('parc_machines_cols_v1', JSON.stringify(map));
+        } catch {}
       }
       if (response?.errors) {
         console.error('Erreur GraphQL machines:', response.errors[0]?.message);
@@ -292,7 +315,18 @@ export const App = () => {
   }, []);
 
   // 3. Chargement de l'agenda et planning existant
-  const fetchPlanning = useCallback(async () => {
+  const fetchPlanning = useCallback(async (force: unknown = true) => {
+    const CACHE_TTL_MS = 5 * 60 * 1000;
+    if (force === false) {
+      try {
+        const ts = Number(localStorage.getItem('parc_planning_cache_ts_v1') || '0');
+        const raw = localStorage.getItem('parc_planning_cache_v1');
+        if (ts && Date.now() - ts < CACHE_TTL_MS && raw) {
+          setPlanningItems(JSON.parse(raw));
+          return;
+        }
+      } catch {}
+    }
     try {
       const query = `
         query GetPlanning($boardId: [ID!]) {
@@ -320,33 +354,88 @@ export const App = () => {
       const response = await (monday as any).api(query, { variables: { boardId: ['5106585296'] } });
       if (response?.data?.boards?.[0]?.items_page?.items) {
         setPlanningItems(response.data.boards[0].items_page.items);
+        try {
+          localStorage.setItem('parc_planning_cache_v1', JSON.stringify(response.data.boards[0].items_page.items));
+          localStorage.setItem('parc_planning_cache_ts_v1', String(Date.now()));
+        } catch {}
       }
     } catch (err) {
       console.error('Erreur chargement planning:', err);
     }
   }, []);
 
-  // 4. Chargement des contrôles réalisés, du référentiel et des réparations
-  const loadMaintenanceData = useCallback(async () => {
-    try {
-      const [pts, ctrls, repairs, alerts, colsMeta] = await Promise.all([
-        fetchReferentielPoints(),
-        fetchRealisedControles(),
-        fetchRepairTickets(),
-        fetchMaintenanceAlerts(),
-        fetchMachineBoardColumnsMeta(),
-      ]);
-      setReferentielPoints(pts);
-      setRealisedControles(ctrls);
-      setRepairTickets(repairs);
-      setMaintenanceAlerts(alerts);
+  // 4. Chargement des contrôles réalisés, du référentiel et des réparations (avec cache TTL intelligent)
+  const loadMaintenanceData = useCallback(async (force: unknown = true) => {
+    const DATA_TTL_MS = 5 * 60 * 1000; // 5 min pour contrôles & réparations
+    const REF_TTL_MS = 24 * 60 * 60 * 1000; // 24h pour le référentiel statique des points de contrôle
+    const ALERTS_TTL_MS = 60 * 1000; // 60s pour les alertes terrain temps réel
+    const now = Date.now();
+    const isForced = force !== false;
+
+    let needRef = isForced;
+    let needData = isForced;
+    let needAlerts = isForced;
+
+    if (!isForced) {
       try {
-        localStorage.setItem('parc_referentiel_cache_v1', JSON.stringify(pts));
-        localStorage.setItem('parc_controles_cache_v1', JSON.stringify(ctrls));
-        localStorage.setItem('parc_repairs_cache_v1', JSON.stringify(repairs));
-      } catch {}
-      if (colsMeta && Object.keys(colsMeta).length > 0) {
-        setMachineColsMeta((prev) => (Object.keys(prev).length > 0 ? prev : colsMeta));
+        const refTs = Number(localStorage.getItem('parc_referentiel_ts_v1') || '0');
+        const rawRef = localStorage.getItem('parc_referentiel_cache_v1');
+        needRef = !(refTs && now - refTs < REF_TTL_MS && rawRef && JSON.parse(rawRef).length > 0);
+
+        const dataTs = Number(localStorage.getItem('parc_maintenance_ts_v1') || '0');
+        const rawCtrls = localStorage.getItem('parc_controles_cache_v1');
+        const rawRepairs = localStorage.getItem('parc_repairs_cache_v1');
+        needData = !(dataTs && now - dataTs < DATA_TTL_MS && rawCtrls && rawRepairs);
+
+        const alertsTs = Number(localStorage.getItem('parc_alerts_ts_v1') || '0');
+        const rawAlerts = localStorage.getItem('parc_alerts_cache_v1');
+        if (alertsTs && now - alertsTs < ALERTS_TTL_MS && rawAlerts) {
+          setMaintenanceAlerts(JSON.parse(rawAlerts));
+          needAlerts = false;
+        } else {
+          needAlerts = true;
+        }
+      } catch {
+        needRef = true;
+        needData = true;
+        needAlerts = true;
+      }
+    }
+
+    try {
+      const [pts, ctrls, repairs, alerts] = await Promise.all([
+        needRef ? fetchReferentielPoints() : Promise.resolve(null),
+        needData ? fetchRealisedControles() : Promise.resolve(null),
+        needData ? fetchRepairTickets() : Promise.resolve(null),
+        needAlerts ? fetchMaintenanceAlerts() : Promise.resolve(null),
+      ]);
+      if (pts !== null) {
+        setReferentielPoints(pts);
+        try {
+          localStorage.setItem('parc_referentiel_cache_v1', JSON.stringify(pts));
+          localStorage.setItem('parc_referentiel_ts_v1', String(Date.now()));
+        } catch {}
+      }
+      if (ctrls !== null) {
+        setRealisedControles(ctrls);
+        try {
+          localStorage.setItem('parc_controles_cache_v1', JSON.stringify(ctrls));
+          localStorage.setItem('parc_maintenance_ts_v1', String(Date.now()));
+        } catch {}
+      }
+      if (repairs !== null) {
+        setRepairTickets(repairs);
+        try {
+          localStorage.setItem('parc_repairs_cache_v1', JSON.stringify(repairs));
+          localStorage.setItem('parc_maintenance_ts_v1', String(Date.now()));
+        } catch {}
+      }
+      if (alerts !== null) {
+        setMaintenanceAlerts(alerts);
+        try {
+          localStorage.setItem('parc_alerts_cache_v1', JSON.stringify(alerts));
+          localStorage.setItem('parc_alerts_ts_v1', String(Date.now()));
+        } catch {}
       }
     } catch (err) {
       console.error('Erreur chargement données maintenance:', err);
@@ -354,13 +443,33 @@ export const App = () => {
   }, []);
 
   useEffect(() => {
-    // Parallélisation immédiate de l'ensemble des requêtes Monday sans waterfall
-    Promise.allSettled([
-      fetchMachines(),
-      fetchPlanning(),
-      loadMaintenanceData(),
-      syncAllHubColumns(),
-    ]);
+    // Synchronisation des schémas de colonnes : 1 seule fois par 24h (évite 3-4 appels API à chaque ouverture)
+    const SCHEMA_TTL_MS = 24 * 60 * 60 * 1000;
+    let shouldSyncSchema = false;
+    try {
+      const schemaTs = Number(localStorage.getItem('parc_schema_synced_v1') || '0');
+      if (!schemaTs || Date.now() - schemaTs > SCHEMA_TTL_MS) {
+        shouldSyncSchema = true;
+      }
+    } catch {
+      shouldSyncSchema = true;
+    }
+
+    const tasks: Array<Promise<unknown>> = [
+      fetchMachines(false),
+      fetchPlanning(false),
+      loadMaintenanceData(false),
+    ];
+    if (shouldSyncSchema) {
+      tasks.push(
+        syncAllHubColumns().then(() => {
+          try {
+            localStorage.setItem('parc_schema_synced_v1', String(Date.now()));
+          } catch {}
+        })
+      );
+    }
+    Promise.allSettled(tasks);
   }, [fetchMachines, fetchPlanning, loadMaintenanceData]);
 
   // Matériel réel de nettoyage uniquement (exclusion automatique des chargeurs, batteries, accessoires et "bis")
@@ -2167,6 +2276,7 @@ export const App = () => {
       {/* Modal Détail du passage / événement (Interactif) */}
       {selectedEvent && (
         <div
+          className="erp-modal-overlay"
           style={{
             position: 'fixed',
             inset: 0,
@@ -2181,12 +2291,15 @@ export const App = () => {
           onClick={() => setSelectedEvent(null)}
         >
           <div
+            className="erp-modal-sheet"
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '16px',
               padding: '24px',
               maxWidth: '520px',
               width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               boxShadow: '0 10px 30px rgba(27, 69, 101, 0.2)',
               border: '1px solid #E2EEF5',
             }}
@@ -2396,16 +2509,17 @@ export const App = () => {
       {/* ================= MODALE OVERLAY : FICHE DE CONTRÔLE TECHNIQUE COMPLETE ================= */}
       {inspectionModalMachineId !== null && (
         <div
+          className="erp-modal-overlay"
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backgroundColor: 'rgba(27, 69, 101, 0.65)',
             backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'center',
             zIndex: 10000,
-            padding: '24px 16px',
+            padding: '24px 16px 110px',
             overflowY: 'auto',
           }}
           onClick={(e) => {

@@ -1018,7 +1018,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                 padding: '7px 14px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: '#0073EA',
+                backgroundColor: '#39A9DC',
                 color: '#FFFFFF',
                 fontSize: '12px',
                 fontWeight: 800,
@@ -2234,7 +2234,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                           style={{
                             backgroundColor: '#FFFFFF',
                             border: '1px solid #DDE7F0',
-                            borderLeft: '4px solid #0073EA',
+                            borderLeft: '4px solid #39A9DC',
                             borderRadius: '10px',
                             padding: '10px 13px',
                           }}

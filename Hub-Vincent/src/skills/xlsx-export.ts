@@ -96,11 +96,28 @@ export function useXlsxExport() {
       to: { row: rows.length + 1, column: columns.length },
     };
 
-    // Génération du fichier binaire et déclenchement du téléchargement navigateur
+    // Génération du fichier binaire et déclenchement du téléchargement (compatible mobile Monday WebView)
     const buffer = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
+    const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const blob = new Blob([buffer], { type: mimeType });
+
+    const isMobileOrTouch =
+      typeof navigator !== 'undefined' &&
+      (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024));
+
+    if (isMobileOrTouch && typeof navigator.share === 'function') {
+      try {
+        const file = new File([blob], filename, { type: mimeType });
+        if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: filename });
+          return;
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -108,7 +125,7 @@ export function useXlsxExport() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
   return { exportToXlsx };

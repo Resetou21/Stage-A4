@@ -94,12 +94,12 @@ export default function EnergyComparisonChart() {
       {/* KPI Énergie */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 shadow-xs">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF4EB] text-[#D66927]">
             <Fuel className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Total Carburant {data.year}</p>
-            <p className="font-[family-name:var(--font-heading)] text-lg font-extrabold text-rose-600">
+            <p className="font-[family-name:var(--font-heading)] text-lg font-extrabold text-[#D66927]">
               {eur(data.totCarb)}
               <span className="ml-1 text-xs font-normal text-muted-foreground">
                 ({data.totGlobal > 0 ? Math.round((data.totCarb / data.totGlobal) * 100) : 0}%)
@@ -109,12 +109,12 @@ export default function EnergyComparisonChart() {
         </div>
 
         <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 shadow-xs">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EBF6FC] text-[#39A9DC]">
             <Zap className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Total Électricité {data.year}</p>
-            <p className="font-[family-name:var(--font-heading)] text-lg font-extrabold text-amber-600">
+            <p className="font-[family-name:var(--font-heading)] text-lg font-extrabold text-[#3989B7]">
               {eur(data.totElec)}
               <span className="ml-1 text-xs font-normal text-muted-foreground">
                 ({data.totGlobal > 0 ? Math.round((data.totElec / data.totGlobal) * 100) : 0}%)
@@ -124,12 +124,12 @@ export default function EnergyComparisonChart() {
         </div>
 
         <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 shadow-xs">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FEF6E7] text-[#F7AC37]">
             <DollarSign className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Budget Énergie Global</p>
-            <p className="font-[family-name:var(--font-heading)] text-lg font-extrabold text-sky-600">
+            <p className="font-[family-name:var(--font-heading)] text-lg font-extrabold text-[#1B4565]">
               {eur(data.totGlobal)}
             </p>
           </div>
@@ -179,8 +179,8 @@ export default function EnergyComparisonChart() {
                   value === 'carburant' ? 'Carburant (Essence/Diesel)' : 'Électricité (Chargemap & Wellborne)'
                 }
               />
-              <Bar dataKey="carburant" name="carburant" stackId="energy" fill="#991B1B" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="electricite" name="electricite" stackId="energy" fill="#EAB308" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="carburant" name="carburant" stackId="energy" fill="#D66927" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="electricite" name="electricite" stackId="energy" fill="#39A9DC" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { normalize } from '@generated/lib/normalize';
 import { toast } from 'sonner';
 import { getInventoryDue, updateInventoryValue, validateInventory } from '@generated/server/inventory';

@@ -3,7 +3,9 @@ import BornesCard from "@generated/components/BornesCard";
 import ChargemapCard from "@generated/components/ChargemapCard";
 import SaisieVehiculeButton from "@generated/components/SaisieVehiculeButton";
 import ReparationsCard from "@generated/components/ReparationsCard";
+import { invalidateFacturesCache } from "@generated/server/chargemap";
 import { Toaster } from "@components/ui/sonner";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@components/ui/dialog";
 import {
   ShieldCheck,
@@ -11,18 +13,27 @@ import {
   Fuel,
   Wrench,
   Sparkles,
-  Eye,
   CheckCircle2,
   Database,
-  Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  RotateCw,
 } from "lucide-react";
 
 const LOGO = 'https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg';
 
 export default function App() {
   const [antiDoublonOpen, setAntiDoublonOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    invalidateFacturesCache();
+    setRefreshKey((k) => k + 1);
+    toast.success("Actualisation des témoins Monday en cours…");
+    setTimeout(() => setRefreshing(false), 600);
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground font-[family-name:var(--font-body)]">
@@ -46,16 +57,28 @@ export default function App() {
               </p>
             </div>
           </div>
-          <img
-            src={LOGO}
-            alt="Groupe Facility"
-            className="h-8 w-auto max-w-[40%] object-contain sm:h-10 lg:h-12"
-          />
+          <div className="flex items-center gap-2.5 sm:gap-4">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-bold text-foreground transition hover:bg-muted shadow-xs disabled:opacity-60 cursor-pointer"
+              title="Actualiser les témoins en direct depuis Monday.com"
+            >
+              <RotateCw className={`h-3.5 w-3.5 text-primary ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Actualiser</span>
+            </button>
+            <img
+              src={LOGO}
+              alt="Groupe Facility"
+              className="h-8 w-auto max-w-[38vw] object-contain sm:h-10 lg:h-12"
+            />
+          </div>
         </div>
       </header>
 
       {/* Contenu principal */}
-      <main className="relative mx-auto max-w-7xl px-3.5 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <main className="relative mx-auto max-w-7xl px-3.5 py-5 pb-28 sm:px-6 sm:py-8 sm:pb-10 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-bold text-primary mb-1.5">
@@ -196,17 +219,17 @@ export default function App() {
 
             {/* 2. Factures Chargemap (validation Vincent) */}
             <div className="flex w-full">
-              <ChargemapCard variant="chargemap" />
+              <ChargemapCard key={`cm-${refreshKey}`} variant="chargemap" />
             </div>
 
             {/* 3. Factures Total (2 quinzaines par mois : 15 et 30) */}
             <div className="flex w-full">
-              <ChargemapCard variant="total" />
+              <ChargemapCard key={`tot-${refreshKey}`} variant="total" />
             </div>
 
             {/* 4. Montant Wellborne (filtre < 15-05, compteur mensuel et 4000+ lignes) */}
             <div className="flex w-full">
-              <BornesCard />
+              <BornesCard key={`wb-${refreshKey}`} />
             </div>
 
             {/* 5. Nouvel onglet Réparations Matériel (alerte Hub de Christophe) */}

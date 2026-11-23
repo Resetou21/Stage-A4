@@ -366,7 +366,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                 height: '40px',
                 borderRadius: '10px',
                 backgroundColor: '#E0F2FE',
-                color: '#0073EA',
+                color: '#39A9DC',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -467,7 +467,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '7px',
-                    backgroundColor: '#0073EA',
+                    backgroundColor: '#39A9DC',
                     color: '#FFFFFF',
                     border: 'none',
                     borderRadius: '8px',
@@ -547,7 +547,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 style={{
-                  border: `2px dashed ${isDragging ? '#0073EA' : order ? '#A7F3D0' : '#94C5E8'}`,
+                  border: `2px dashed ${isDragging ? '#39A9DC' : order ? '#A7F3D0' : '#94C5E8'}`,
                   backgroundColor: isDragging ? '#EFF6FF' : order ? '#F0FDF4' : '#F7FBFE',
                   borderRadius: '12px',
                   padding: order ? '12px 16px' : '26px 20px',
@@ -562,7 +562,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                 }}
               >
                 {isParsing ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#0073EA', fontWeight: 700, fontSize: '13.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#39A9DC', fontWeight: 700, fontSize: '13.5px' }}>
                     <Loader2 size={18} className="animate-spin" />
                     Lecture intelligente du bon d&apos;intervention PDF en cours...
                   </div>
@@ -601,7 +601,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                         height: '46px',
                         borderRadius: '12px',
                         backgroundColor: '#E0F2FE',
-                        color: '#0073EA',
+                        color: '#39A9DC',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -627,7 +627,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                         marginTop: '4px',
                         backgroundColor: 'transparent',
                         border: 'none',
-                        color: '#0073EA',
+                        color: '#39A9DC',
                         fontSize: '12px',
                         fontWeight: 700,
                         textDecoration: 'underline',
@@ -697,7 +697,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                       <span style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Wrench size={15} color="#0073EA" />
+                        <Wrench size={15} color="#39A9DC" />
                         1. Rattacher à une machine du parc Monday
                       </span>
                       {order.serialNumber && (
@@ -721,9 +721,9 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                               type="button"
                               onClick={() => handleSelectMachine(cand.machine.id)}
                               style={{
-                                backgroundColor: active ? '#0073EA' : '#FFFFFF',
+                                backgroundColor: active ? '#39A9DC' : '#FFFFFF',
                                 color: active ? '#FFFFFF' : '#1B4565',
-                                border: `1px solid ${active ? '#0073EA' : '#BFDBFE'}`,
+                                border: `1px solid ${active ? '#39A9DC' : '#BFDBFE'}`,
                                 borderRadius: '8px',
                                 padding: '5px 10px',
                                 fontSize: '11.5px',
@@ -769,7 +769,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                     {/* Rattacher à un ticket existant (optionnel) */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
                       <label style={{ fontSize: '11.5px', fontWeight: 800, color: '#1B4565', display: 'flex', alignItems: 'center', gap: '5px', fontFamily: "'Ruda', sans-serif" }}>
-                        <Link2 size={13} color="#0073EA" />
+                        <Link2 size={13} color="#39A9DC" />
                         Action dans « Réparation machines » (5106693291) :
                       </label>
                       <RepairTicketSelect
@@ -1105,7 +1105,7 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                 disabled={isSubmitting}
                 onClick={handleSubmit}
                 style={{
-                  backgroundColor: isSubmitting ? '#94A3B8' : '#0073EA',
+                  backgroundColor: isSubmitting ? '#94A3B8' : '#39A9DC',
                   color: '#FFFFFF',
                   border: 'none',
                   borderRadius: '8px',

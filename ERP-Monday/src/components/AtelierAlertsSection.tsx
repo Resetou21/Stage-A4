@@ -394,7 +394,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#0073EA',
+                color: '#39A9DC',
                 border: '1px solid #BFDBFE',
               }}
             >
@@ -448,7 +448,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
             <ResponsableSelect
               value={recipient}
               onChange={setRecipient}
-              accentColor="#0073EA"
+              accentColor="#39A9DC"
               fullWidth={true}
             />
           </div>
@@ -463,7 +463,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
               onChange={setMachineContext}
               getCol={getCol}
               placeholder="Sélectionner une machine ou un chantier..."
-              accentColor="#0073EA"
+              accentColor="#39A9DC"
             />
           </div>
         </div>
@@ -537,7 +537,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                 backgroundColor: '#FFFFFF',
                 transition: 'border-color 0.15s',
               }}
-              onFocus={(e) => (e.target.style.borderColor = '#0073EA')}
+              onFocus={(e) => (e.target.style.borderColor = '#39A9DC')}
               onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
             />
 
@@ -553,7 +553,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                 padding: '0 24px',
                 borderRadius: '10px',
                 border: 'none',
-                backgroundColor: '#0073EA',
+                backgroundColor: '#39A9DC',
                 color: '#FFFFFF',
                 fontSize: '13px',
                 fontWeight: 700,
@@ -832,7 +832,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                 height: '48px',
                 borderRadius: '50%',
                 backgroundColor: '#EFF6FF',
-                color: '#0073EA',
+                color: '#39A9DC',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -871,7 +871,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                     borderLeft: isUnread
                       ? '5px solid #E11D48'
                       : isIncoming
-                      ? '5px solid #0073EA'
+                      ? '5px solid #39A9DC'
                       : '5px solid #00C875',
                     backgroundColor: isUnread ? '#FFFDF8' : '#FFFFFF',
                     boxShadow: isUnread
@@ -886,7 +886,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                   }}
                 >
                   {/* Partie gauche : Avatar + Contenu */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '300px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
                     {/* Avatar Initiale Dynamique */}
                     <div
                       style={{
@@ -958,7 +958,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                             }}
                             title={`Chantier / Machine: ${al.context}`}
                           >
-                            <Wrench size={11} color="#0073EA" /> {al.context}
+                            <Wrench size={11} color="#39A9DC" /> {al.context}
                           </span>
                         )}
 
@@ -1073,9 +1073,9 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                                   />
                                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                                     <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <ImageIcon size={12} color="#0073EA" /> {file.name}
+                                      <ImageIcon size={12} color="#39A9DC" /> {file.name}
                                     </span>
-                                    <span style={{ fontSize: '10.5px', color: '#0073EA', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                    <span style={{ fontSize: '10.5px', color: '#39A9DC', display: 'flex', alignItems: 'center', gap: '3px' }}>
                                       <Maximize2 size={10} /> Agrandir
                                     </span>
                                   </div>
@@ -1100,7 +1100,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                                     textDecoration: 'none',
                                   }}
                                 >
-                                  <Paperclip size={13} color="#0073EA" />
+                                  <Paperclip size={13} color="#39A9DC" />
                                   <span>{file.name}</span>
                                   <ExternalLink size={11} color="#64748B" />
                                 </a>
@@ -1136,7 +1136,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
                       >
-                        <Reply size={13} color="#0073EA" />
+                        <Reply size={13} color="#39A9DC" />
                         <span>Répondre</span>
                       </button>
                     )}

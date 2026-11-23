@@ -4,8 +4,8 @@ import { countPlans, countRecentControls } from '@generated/server/vehicles';
 import OpenPlansList from '@generated/components/OpenPlansList';
 import { cn } from '@lib/utils';
 import EnergyTile, { ENERGY_MENUS, type EnergyMenu } from '@generated/components/EnergyTile';
-import ChargemapCost, { loadCost } from '@generated/components/ChargemapCost';
-import TopVehicles, { loadTop } from '@generated/components/TopVehicles';
+import ChargemapCost from '@generated/components/ChargemapCost';
+import TopVehicles from '@generated/components/TopVehicles';
 import FleetCharts from '@generated/components/FleetCharts';
 import EnergyComparisonChart from '@generated/components/EnergyComparisonChart';
 import SyncFixedChargesModal from '@generated/components/SyncFixedChargesModal';
@@ -99,17 +99,10 @@ export default function VehiclesCard() {
   const doneCount = useCount(() => countPlans({ data: { kind: 'done' } }));
   const [shown, setShown] = useState<Kind | null>(null);
   const [energy, setEnergy] = useState<{ src: 'chargemap' | 'total'; menu: EnergyMenu } | null>(null);
-  // Précharge les graphiques Coût en arrière-plan pour un affichage instantané au clic.
-  useEffect(() => {
-    loadCost('chargemap').catch((e) => console.error(e));
-    loadCost('carburant').catch((e) => console.error(e));
-    loadTop('chargemap').catch((e) => console.error(e));
-    loadTop('carburant').catch((e) => console.error(e));
-  }, []);
   const toggle = (k: Kind) => { setEnergy(null); setShown((s) => (s === k ? null : k)); };
 
   return (
-    <div className="relative rounded-[var(--radius-lg)] border border-border bg-card p-6 pt-8 sm:p-8">
+    <div className="relative rounded-[var(--radius-lg)] border border-border bg-card p-4 pt-8 sm:p-8">
       <div className="absolute -top-4 left-6 flex items-center gap-3 bg-background pr-3">
         <span className="inline-flex h-8 min-w-10 items-center justify-center rounded-[var(--radius-sm)] rounded-br-none bg-primary px-2 text-sm font-bold text-primary-foreground">01</span>
         <h2 className="text-xl font-bold">Suivi des véhicules</h2>

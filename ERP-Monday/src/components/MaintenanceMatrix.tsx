@@ -1083,8 +1083,8 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                         minHeight: '22px',
                         flexShrink: 0,
                         borderRadius: '6px',
-                        border: `1.5px solid ${isPrev ? '#0073EA' : '#94A3B8'}`,
-                        backgroundColor: isPrev ? '#0073EA' : '#FFFFFF',
+                        border: `1.5px solid ${isPrev ? '#39A9DC' : '#94A3B8'}`,
+                        backgroundColor: isPrev ? '#39A9DC' : '#FFFFFF',
                         color: '#FFFFFF',
                         display: 'flex',
                         alignItems: 'center',
@@ -1095,7 +1095,7 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                     >
                       {isPrev && <Check size={14} strokeWidth={3} />}
                     </div>
-                    <span style={{ fontSize: '12.5px', fontWeight: 800, color: isPrev ? '#0073EA' : '#475569', fontFamily: "'Ruda', sans-serif" }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: 800, color: isPrev ? '#39A9DC' : '#475569', fontFamily: "'Ruda', sans-serif" }}>
                       {isPrev ? 'Maintenance Préventive Active' : 'Activer la maintenance préventive'}
                     </span>
                   </div>

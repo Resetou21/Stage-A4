@@ -38,7 +38,7 @@ const BUSINESS_USERS_MAP: Record<number, {
         hub: 'Hub Facturation (Christine)',
         tag: 'Gestionnaire',
         initials: 'CG',
-        color: '#0284C7',
+        color: '#3989B7',
       },
       {
         name: 'Vincent',
@@ -75,7 +75,7 @@ const BUSINESS_USERS_MAP: Record<number, {
         hub: 'Hub Facturation (Christine)',
         tag: 'Gestionnaire',
         initials: 'CG',
-        color: '#0284C7',
+        color: '#3989B7',
       },
     ],
   },
@@ -94,7 +94,7 @@ const BUSINESS_USERS_MAP: Record<number, {
         hub: 'Hub Facturation (Christine)',
         tag: 'Gestionnaire',
         initials: 'CG',
-        color: '#0284C7',
+        color: '#3989B7',
       },
       {
         name: 'Laurent GUILLOU',
@@ -103,7 +103,7 @@ const BUSINESS_USERS_MAP: Record<number, {
         hub: 'Tableau Factures TOTAL Laurent GUILLOU',
         tag: 'Destinataire',
         initials: 'LG',
-        color: '#F59E0B',
+        color: '#F7AC37',
       },
     ],
   },
@@ -122,7 +122,7 @@ const BUSINESS_USERS_MAP: Record<number, {
         hub: 'Hub Facturation (Christine)',
         tag: 'Gestionnaire',
         initials: 'CG',
-        color: '#0284C7',
+        color: '#3989B7',
       },
       {
         name: 'Vincent',
@@ -150,7 +150,7 @@ const BUSINESS_USERS_MAP: Record<number, {
         hub: 'Hub ERP Parc Matériel (Atelier)',
         tag: 'Destinataire',
         initials: 'CH',
-        color: '#E11D48',
+        color: '#D66927',
       },
       {
         name: 'Christine GUILLOU',
@@ -159,7 +159,7 @@ const BUSINESS_USERS_MAP: Record<number, {
         hub: 'Hub Facturation (Christine)',
         tag: 'Gestionnaire',
         initials: 'CG',
-        color: '#0284C7',
+        color: '#3989B7',
       },
     ],
   },
@@ -181,10 +181,7 @@ export default function UsersBadge({ boardId }: Props) {
         <span className="font-bold text-foreground">{info.users.length}</span>
       </DialogTrigger>
 
-      <DialogContent
-        className="w-[94vw] sm:w-[560px] max-w-[560px] p-6 rounded-2xl border border-border bg-card shadow-2xl max-h-[90vh] overflow-y-auto"
-        style={{ width: 'min(94vw, 560px)', maxWidth: '560px', boxSizing: 'border-box' }}
-      >
+      <DialogContent className="sm:max-w-[560px] rounded-2xl border border-border bg-card shadow-2xl">
         {/* En-tête de la modale */}
         <DialogHeader className="pr-8 space-y-1">
           <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-foreground">

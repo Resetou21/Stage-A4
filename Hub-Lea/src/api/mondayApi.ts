@@ -114,7 +114,7 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
     inFlightRequests.set(cacheKey, p);
     p.then((data) => {
       if (data && !data.errors) {
-        queryCache.set(cacheKey, { expires: Date.now() + 120_000, data }); // Cache de 2 minutes
+        queryCache.set(cacheKey, { expires: Date.now() + 600_000, data }); // Cache de 10 minutes
       }
     }).catch(() => {});
   }

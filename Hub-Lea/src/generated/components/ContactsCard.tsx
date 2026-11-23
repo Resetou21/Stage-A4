@@ -186,25 +186,25 @@ export default function ContactsCard() {
     });
 
   return (
-    <div className="relative rounded-[var(--radius-lg)] border border-border bg-card p-6 pt-8 sm:p-8 shadow-sm">
-      <div className="absolute -top-4 left-6 flex items-center gap-3 bg-background pr-3">
+    <div className="relative rounded-[var(--radius-lg)] border border-border bg-card p-4 pt-8 sm:p-8 shadow-sm">
+      <div className="absolute -top-4 left-4 sm:left-6 flex items-center gap-3 bg-background pr-3">
         <span className="inline-flex h-8 min-w-10 items-center justify-center rounded-[var(--radius-sm)] rounded-br-none bg-primary px-2 text-sm font-bold text-primary-foreground">
           01
         </span>
-        <h2 className="text-xl font-bold">Contacts clients & Chantiers</h2>
+        <h2 className="text-lg sm:text-xl font-bold">Contacts clients &amp; Chantiers</h2>
       </div>
 
       {/* Barre de sélection de périmètre */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-md)] bg-muted/50 p-3 sm:px-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] bg-muted/50 p-3 sm:px-4">
         <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           <Filter className="h-4 w-4 text-primary" />
           <span>Périmètre des chantiers :</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <button
             type="button"
             onClick={() => setScope('en_cours')}
-            className={`rounded-[var(--radius-sm)] px-3 py-1.5 text-xs font-bold transition ${
+            className={`flex-1 sm:flex-none rounded-[var(--radius-sm)] px-3 py-2 text-xs font-bold transition cursor-pointer ${
               scope === 'en_cours'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'bg-background text-foreground hover:bg-muted'
@@ -215,13 +215,13 @@ export default function ContactsCard() {
           <button
             type="button"
             onClick={() => setScope('all')}
-            className={`rounded-[var(--radius-sm)] px-3 py-1.5 text-xs font-bold transition ${
+            className={`flex-1 sm:flex-none rounded-[var(--radius-sm)] px-3 py-2 text-xs font-bold transition cursor-pointer ${
               scope === 'all'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'bg-background text-foreground hover:bg-muted'
             }`}
           >
-            Tous les chantiers (avec archives & perdus)
+            Tous les chantiers (avec archives &amp; perdus)
           </button>
         </div>
       </div>

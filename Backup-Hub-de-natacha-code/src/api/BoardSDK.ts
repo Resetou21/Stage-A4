@@ -10,11 +10,49 @@ const waitQueue: Array<() => void> = [];
 
 const inFlightRequests = new Map<string, Promise<any>>();
 const queryCache = new Map<string, { expires: number; data: any }>();
+const SESSION_PREFIX = 'hn_mcache_v1_';
+const CACHE_TTL_MS = 300_000; // 5 minutes
+
+function hashCacheKey(str: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+function getSessionCached(cacheKey: string): any | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_PREFIX + hashCacheKey(cacheKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.k === cacheKey && typeof parsed.expires === 'number' && Date.now() < parsed.expires) {
+      return parsed.data;
+    }
+  } catch {}
+  return null;
+}
+
+function setSessionCached(cacheKey: string, data: any, expires: number) {
+  try {
+    const payload = JSON.stringify({ k: cacheKey, expires, data });
+    if (payload.length < 400_000) {
+      sessionStorage.setItem(SESSION_PREFIX + hashCacheKey(cacheKey), payload);
+    }
+  } catch {}
+}
 
 export function clearBoardCache(boardId?: string) {
   if (!boardId) {
     queryCache.clear();
     inFlightRequests.clear();
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(SESSION_PREFIX)) sessionStorage.removeItem(k);
+      }
+    } catch {}
     return;
   }
   for (const key of Array.from(queryCache.keys())) {
@@ -22,6 +60,15 @@ export function clearBoardCache(boardId?: string) {
       queryCache.delete(key);
     }
   }
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(SESSION_PREFIX)) {
+        const raw = sessionStorage.getItem(k);
+        if (raw && raw.includes(boardId)) sessionStorage.removeItem(k);
+      }
+    }
+  } catch {}
 }
 
 function acquireSlot(): Promise<void> {
@@ -51,9 +98,17 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
   const cacheKey = isRead && !bypassCache ? `${query}::${JSON.stringify(options ?? {})}` : null;
 
   if (cacheKey) {
-    const cached = queryCache.get(cacheKey);
-    if (cached && Date.now() < cached.expires) {
-      return cached.data;
+    const isLiveComm = cacheKey.includes('5044808167') || cacheKey.includes(BOARD_IDS.COMMUNICATION_ANIMATRICES);
+    if (!isLiveComm) {
+      const cached = queryCache.get(cacheKey);
+      if (cached && Date.now() < cached.expires) {
+        return cached.data;
+      }
+      const sess = getSessionCached(cacheKey);
+      if (sess !== null) {
+        queryCache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, data: sess });
+        return sess;
+      }
     }
     const inFlight = inFlightRequests.get(cacheKey);
     if (inFlight) {
@@ -113,7 +168,9 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
               // Ne pas mettre en cache un résultat vide pour éviter d'empoisonner les sessions
               const pageData = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
               if (!pageData || (pageData.items && pageData.items.length > 0)) {
-                queryCache.set(cacheKey, { expires: Date.now() + 300000, data: res });
+                const expires = Date.now() + CACHE_TTL_MS;
+                queryCache.set(cacheKey, { expires, data: res });
+                setSessionCached(cacheKey, res, expires);
               }
             }
           }

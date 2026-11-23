@@ -5,24 +5,61 @@ type Data = Awaited<ReturnType<typeof getTopVehicles>>;
 const eur = (n: number) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 
 type Source = 'chargemap' | 'carburant';
+const TOP_STORAGE_PREFIX = 'hub_vincent_top_';
+const TOP_TTL_MS = 30 * 60 * 1000;
 const cache = new Map<Source, Promise<Data>>();
-export function loadTop(source: Source) {
+
+function getStoredTop(source: Source): Data | null {
+  try {
+    const raw = localStorage.getItem(TOP_STORAGE_PREFIX + source);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.ts === 'number' && Date.now() - parsed.ts < TOP_TTL_MS && parsed.data) {
+      return parsed.data as Data;
+    }
+  } catch {}
+  return null;
+}
+
+export function clearTopCache() {
+  cache.clear();
+  try {
+    localStorage.removeItem(TOP_STORAGE_PREFIX + 'chargemap');
+    localStorage.removeItem(TOP_STORAGE_PREFIX + 'carburant');
+  } catch {}
+}
+
+export function loadTop(source: Source, force = false): Promise<Data> {
+  if (!force) {
+    const stored = getStoredTop(source);
+    if (stored) return Promise.resolve(stored);
+  }
   let p = cache.get(source);
   if (!p) {
-    p = getTopVehicles({ data: { source } });
-    p.catch(() => cache.delete(source));
+    p = getTopVehicles({ data: { source } })
+      .then((res) => {
+        if (res) {
+          try {
+            localStorage.setItem(TOP_STORAGE_PREFIX + source, JSON.stringify({ ts: Date.now(), data: res }));
+          } catch {}
+        }
+        return res;
+      })
+      .finally(() => {
+        cache.delete(source);
+      });
     cache.set(source, p);
   }
   return p;
 }
 
 export default function TopVehicles({ source }: { source: 'chargemap' | 'carburant' }) {
-  const [data, setData] = useState<Data | null>(null);
+  const [data, setData] = useState<Data | null>(() => getStoredTop(source));
   const [error, setError] = useState(false);
   useEffect(() => {
     loadTop(source)
       .then((r) => setData(r ?? null))
-      .catch((e) => { console.error(e); setError(true); });
+      .catch((e) => { console.error(e); if (!data) setError(true); });
   }, [source]);
 
   if (error) return <p className="text-sm text-destructive">Impossible de charger les consommations.</p>;

@@ -1,32 +1,73 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { DataSurVehiculeBoard, DataWellborneBoard, FactureTotalBoard, FactureChargemapBoard } from '@api/BoardSDK';
+import { clearBoardCache } from '@api/mondayApi';
 
 const GROUP_CHARGEMAP = 'group_mm0xf5pd';
 const GROUP_CARBURANT = 'group_mm0xzegn';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-// Cache mémoire ultra-court (5s) pour synchronisation quasi-instantanée
+// Cache mémoire + localStorage (15 min), invalidé systématiquement après chaque import / actualisation
+const WITNESS_TTL_MS = 15 * 60 * 1000;
+const KEY_CM = 'hub_christine_cm_v1';
+const KEY_TOTAL = 'hub_christine_total_v1';
+const KEY_WB = 'hub_christine_wb_v1';
+
 let _cachedChargemapMois: any = null;
 let _cachedChargemapTime = 0;
 
 let _cachedTotalBimonthly: any = null;
 let _cachedTotalTime = 0;
 
+let _cachedWellborneMois: any = null;
+let _cachedWellborneTime = 0;
+
+function readStorageCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.ts === 'number' && Date.now() - parsed.ts < WITNESS_TTL_MS && parsed.data) {
+      return parsed.data as T;
+    }
+  } catch {}
+  return null;
+}
+
+function writeStorageCache(key: string, data: any) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+  } catch {}
+}
+
 export const invalidateFacturesCache = () => {
   _cachedChargemapMois = null;
   _cachedChargemapTime = 0;
   _cachedTotalBimonthly = null;
   _cachedTotalTime = 0;
+  _cachedWellborneMois = null;
+  _cachedWellborneTime = 0;
+  clearBoardCache();
+  try {
+    localStorage.removeItem(KEY_CM);
+    localStorage.removeItem(KEY_TOTAL);
+    localStorage.removeItem(KEY_WB);
+  } catch {}
 };
 
 // Témoin Chargemap : Y a-t-il au moins une facture pour chacun des 6 derniers mois ?
 export const getChargemapMois = createServerFn({ method: 'GET' })
   .validator(z.object({}).optional())
   .handler(async () => {
-    if (_cachedChargemapMois && Date.now() - _cachedChargemapTime < 5_000) {
+    if (_cachedChargemapMois && Date.now() - _cachedChargemapTime < WITNESS_TTL_MS) {
       return _cachedChargemapMois;
+    }
+    const stored = readStorageCache<any>(KEY_CM);
+    if (stored) {
+      _cachedChargemapMois = stored;
+      _cachedChargemapTime = Date.now();
+      return stored;
     }
 
     const board = new DataSurVehiculeBoard();
@@ -68,6 +109,7 @@ export const getChargemapMois = createServerFn({ method: 'GET' })
 
     _cachedChargemapMois = { mois: result };
     _cachedChargemapTime = Date.now();
+    writeStorageCache(KEY_CM, _cachedChargemapMois);
     return _cachedChargemapMois;
   });
 
@@ -82,8 +124,14 @@ export interface TotalPeriodMonth {
 export const getTotalBimonthlyStatus = createServerFn({ method: 'GET' })
   .validator(z.object({}).optional())
   .handler(async () => {
-    if (_cachedTotalBimonthly && Date.now() - _cachedTotalTime < 5_000) {
+    if (_cachedTotalBimonthly && Date.now() - _cachedTotalTime < WITNESS_TTL_MS) {
       return _cachedTotalBimonthly;
+    }
+    const stored = readStorageCache<any>(KEY_TOTAL);
+    if (stored) {
+      _cachedTotalBimonthly = stored;
+      _cachedTotalTime = Date.now();
+      return stored;
     }
 
     const board = new DataSurVehiculeBoard();
@@ -137,13 +185,23 @@ export const getTotalBimonthlyStatus = createServerFn({ method: 'GET' })
 
     _cachedTotalBimonthly = { periods: result };
     _cachedTotalTime = Date.now();
+    writeStorageCache(KEY_TOTAL, _cachedTotalBimonthly);
     return _cachedTotalBimonthly;
   });
 
-// Témoin Wellborne avec comptage des recharges
+// Témoin Wellborne avec comptage des recharges (cache 15 min, invalidé après import)
 export const getWellborneMois = createServerFn({ method: 'GET' })
   .validator(z.object({}).optional())
   .handler(async () => {
+    if (_cachedWellborneMois && Date.now() - _cachedWellborneTime < WITNESS_TTL_MS) {
+      return _cachedWellborneMois;
+    }
+    const stored = readStorageCache<any>(KEY_WB);
+    if (stored) {
+      _cachedWellborneMois = stored;
+      _cachedWellborneTime = Date.now();
+      return stored;
+    }
     const board = new DataWellborneBoard();
     const counts: Record<string, number> = {};
     const foundMonths = new Set<string>();
@@ -189,7 +247,10 @@ export const getWellborneMois = createServerFn({ method: 'GET' })
       };
     });
 
-    return { mois, counts };
+    _cachedWellborneMois = { mois, counts };
+    _cachedWellborneTime = Date.now();
+    writeStorageCache(KEY_WB, _cachedWellborneMois);
+    return _cachedWellborneMois;
   });
 
 export interface PeriodTransactionItem {

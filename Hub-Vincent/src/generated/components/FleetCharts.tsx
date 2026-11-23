@@ -7,16 +7,16 @@ import { cn } from '@lib/utils';
 type FleetData = Awaited<ReturnType<typeof getFleetStats>>;
 
 const BRAND_COLORS: Record<string, string> = {
-  TOYOTA: '#0073EA',
-  OPEL: '#FFB100',
-  'CITROËN': '#A25DDC',
-  FIAT: '#E2445C',
-  MG: '#9B1B30',
-  HYUNDAI: '#FF642E',
-  AIXAM: '#579BFC',
+  TOYOTA: '#39A9DC',
+  OPEL: '#F7AC37',
+  'CITROËN': '#3989B7',
+  FIAT: '#D66927',
+  MG: '#1B4565',
+  HYUNDAI: '#E07A38',
+  AIXAM: '#5EC2EC',
   FUSO: '#00C875',
-  ALFA: '#037F4C',
-  'JOHN DEERE': '#333333',
+  ALFA: '#0E7042',
+  'JOHN DEERE': '#475569',
 };
 
 export default function FleetCharts() {
@@ -53,52 +53,52 @@ export default function FleetCharts() {
       {/* KPI Flotte */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 shadow-xs">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EBF6FC] text-[#39A9DC]">
             <Zap className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Électriques</p>
-            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-blue-600">
+            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-[#3989B7]">
               {data.elec} <span className="text-xs font-normal text-muted-foreground">({Math.round((data.elec / data.total) * 100)}%)</span>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 shadow-xs">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF4EB] text-[#D66927]">
             <Fuel className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Thermiques</p>
-            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-amber-600">
+            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-[#D66927]">
               {data.therm} <span className="text-xs font-normal text-muted-foreground">({Math.round((data.therm / data.total) * 100)}%)</span>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 shadow-xs">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E6F9F1] text-[#00C875]">
             <ShoppingCart className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Achat</p>
-            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-emerald-600">{data.achat}</p>
+            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-[#0E7042]">{data.achat}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3 shadow-xs">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-50 text-purple-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FEF6E7] text-[#F7AC37]">
             <FileText className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">LLD</p>
-            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-purple-600">{data.lld}</p>
+            <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-[#B87414]">{data.lld}</p>
           </div>
         </div>
       </div>
 
       {/* Onglets Graphiques */}
-      <div className="flex items-center justify-between border-b border-border pb-2 pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 pt-2">
         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           {tab === 'brand' ? 'Répartition par marque de véhicule' : 'Évolution des acquisitions par année'}
         </p>
@@ -141,7 +141,7 @@ export default function FleetCharts() {
               />
               <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                 {data.brands.map((entry) => (
-                  <Cell key={entry.brand} fill={BRAND_COLORS[entry.brand] || '#0073EA'} />
+                  <Cell key={entry.brand} fill={BRAND_COLORS[entry.brand] || '#39A9DC'} />
                 ))}
               </Bar>
             </BarChart>
@@ -155,7 +155,7 @@ export default function FleetCharts() {
                 formatter={(v) => [`${v} véhicule${Number(v) > 1 ? 's' : ''}`, 'Acquisitions']}
                 contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
               />
-              <Bar dataKey="count" fill="#0073EA" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="count" fill="#39A9DC" radius={[6, 6, 0, 0]} />
             </BarChart>
           )}
         </ResponsiveContainer>

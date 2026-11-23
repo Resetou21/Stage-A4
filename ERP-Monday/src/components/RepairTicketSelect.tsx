@@ -129,7 +129,7 @@ export const RepairTicketSelect: React.FC<RepairTicketSelectProps> = React.memo(
           justifyContent: 'space-between',
           padding: '9px 13px',
           borderRadius: '10px',
-          border: isOpen ? '1.5px solid #0073EA' : '1.5px solid #CBD5E1',
+          border: isOpen ? '1.5px solid #39A9DC' : '1.5px solid #CBD5E1',
           backgroundColor: '#FFFFFF',
           cursor: 'pointer',
           boxShadow: isOpen ? '0 0 0 3px rgba(0, 115, 234, 0.15)' : '0 1px 3px rgba(27, 69, 101, 0.05)',

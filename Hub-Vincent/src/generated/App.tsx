@@ -4,8 +4,7 @@ import { Toaster, toast } from 'sonner';
 import { RotateCw } from 'lucide-react';
 import VehiclesCard from '@generated/components/VehiclesCard';
 import DirectionCard from '@generated/components/DirectionCard';
-import { loadCost } from '@generated/components/ChargemapCost';
-import { getFleetStats } from '@generated/server/fleet';
+import { clearTopCache } from '@generated/components/TopVehicles';
 import { clearBoardCache } from '@api/mondayApi';
 
 const monday = mondaySdk();
@@ -25,24 +24,18 @@ export default function App() {
     } catch {
       // ignore
     }
-    // Pré-chargement silencieux en arrière-plan dès l'ouverture du Hub
-    getFleetStats({}).catch(() => {});
-    loadCost('carburant').catch(() => {});
-    loadCost('chargemap').catch(() => {});
   }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       clearBoardCache();
-      localStorage.removeItem('hub_vincent_cost_chargemap');
-      localStorage.removeItem('hub_vincent_cost_carburant');
-
-      await Promise.all([
-        getFleetStats({}),
-        loadCost('carburant'),
-        loadCost('chargemap'),
-      ]);
+      clearTopCache();
+      try {
+        localStorage.removeItem('hub_vincent_cost_chargemap');
+        localStorage.removeItem('hub_vincent_cost_carburant');
+        localStorage.removeItem('hub_vincent_fixed_charges_status_v1');
+      } catch {}
 
       setRefreshKey((k) => k + 1);
       setLastSync(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
@@ -90,17 +83,17 @@ export default function App() {
                 title="Actualiser les données en direct depuis Monday.com"
               >
                 <RotateCw className={`h-3.5 w-3.5 text-primary ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden xs:inline">Actualiser</span>
+                <span className="hidden sm:inline">Actualiser</span>
               </button>
             </div>
 
-            <img src={LOGO} alt="Groupe Facility" className="h-10 w-auto max-w-[35%] object-contain sm:h-12" />
+            <img src={LOGO} alt="Groupe Facility" className="h-9 w-auto max-w-[35%] object-contain sm:h-12" />
           </div>
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-6xl px-4 py-10 sm:px-8 sm:py-14">
-        <h1 className="text-4xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub de Vincent</h1>
+      <main className="relative mx-auto max-w-6xl px-4 py-8 pb-28 sm:px-8 sm:py-14">
+        <h1 className="text-3xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub de Vincent</h1>
         <div className="mt-3 h-1 w-24 rounded-full bg-[hsl(var(--brand-blue))]" />
         <p className="mt-4 max-w-xl text-base font-semibold italic text-primary">
           Vos informations chantiers, à portée de main.

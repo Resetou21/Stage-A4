@@ -33,7 +33,7 @@ export interface SearchableSelectProps {
 }
 
 const PRESET_COLORS = [
-  '#0073ea', // Bleu Monday
+  '#39A9DC', // Bleu Monday
   '#00c875', // Vert
   '#fdab3d', // Orange
   '#9d50dd', // Violet
@@ -245,7 +245,7 @@ export default function SearchableSelect({
         <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
           <span
             className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
-            style={{ backgroundColor: isRestitue ? '#fdab3d' : (item.badgeColor || '#0073ea') }}
+            style={{ backgroundColor: isRestitue ? '#fdab3d' : (item.badgeColor || '#39A9DC') }}
           />
           <span className="truncate block">{item.label}</span>
           {isRestitue ? (
@@ -303,7 +303,7 @@ export default function SearchableSelect({
             <span
               className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
               style={{
-                backgroundColor: selectedOption.badgeColor || '#0073ea',
+                backgroundColor: selectedOption.badgeColor || '#39A9DC',
               }}
             />
           ) : null}

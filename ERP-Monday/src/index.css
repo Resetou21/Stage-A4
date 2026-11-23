@@ -416,7 +416,7 @@ h1, h2, h3, h4, h5, h6, .font-title {
     gap: 6px !important;
   }
 
-  /* Sélecteur de machine : Modal Sheet pleine vue sur Mobile */
+  /* Sélecteur de machine : Modal Sheet pleine vue sur Mobile (avec dégagement barre Monday) */
   .machine-select-overlay {
     position: fixed !important;
     top: 0 !important;
@@ -424,9 +424,9 @@ h1, h2, h3, h4, h5, h6, .font-title {
     right: 0 !important;
     bottom: 0 !important;
     z-index: 99999 !important;
-    background-color: rgba(15, 23, 42, 0.7) !important;
+    background-color: rgba(27, 69, 101, 0.7) !important;
     backdrop-filter: blur(4px) !important;
-    padding: 10px !important;
+    padding: 10px 10px 104px !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: flex-start !important;
@@ -437,10 +437,20 @@ h1, h2, h3, h4, h5, h6, .font-title {
     padding: 12px !important;
     display: flex !important;
     flex-direction: column !important;
-    max-height: 88vh !important;
+    max-height: calc(100dvh - 114px) !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
     border: 1.5px solid #39A9DC !important;
     overflow: hidden !important;
+  }
+  .erp-modal-overlay {
+    padding: 10px 10px 104px !important;
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+  }
+  .erp-modal-sheet {
+    max-height: calc(100dvh - 114px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
   .machine-select-mobile-header {
     display: flex !important;

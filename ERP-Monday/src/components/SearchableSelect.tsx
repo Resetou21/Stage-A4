@@ -25,7 +25,7 @@ export interface SearchableSelectProps {
 }
 
 const PRESET_DOT_COLORS = [
-  '#0073EA', // Bleu Monday
+  '#39A9DC', // Bleu Monday
   '#00C875', // Vert
   '#FDAB3D', // Orange
   '#9D50DD', // Violet
