@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Loader2, Search, FileSpreadsheet } from 'lucide-react';
 import { getLosses } from '@generated/server/direction';
-import { useXlsxExport } from '../../skills/xlsx-export';
+import { useXlsxExport, isAndroidMondayWebView } from '../../skills/xlsx-export';
 import { toast } from 'sonner';
 
 type Loss = Awaited<ReturnType<typeof getLosses>>['items'][number];
@@ -47,6 +47,10 @@ export default function LossesList({ categories, kind = 'loss' }: { categories: 
   }, [items, query]);
 
   const handleExport = async () => {
+    if (isAndroidMondayWebView()) {
+      toast.info('Export Excel disponible depuis un navigateur PC ou Chrome.');
+      return;
+    }
     if (items.length === 0) return;
     setExporting(true);
     try {
@@ -58,7 +62,7 @@ export default function LossesList({ categories, kind = 'loss' }: { categories: 
         l.montant || 0,
       ]);
 
-      await exportToXlsx(
+      const ok = await exportToXlsx(
         {
           sheetName: kind === 'gain' ? 'Gains financiers' : 'Pertes financières',
           columns: ['Date', 'Intitulé', 'Fournisseur', 'Catégorie', 'Montant HT (€)'],
@@ -67,7 +71,11 @@ export default function LossesList({ categories, kind = 'loss' }: { categories: 
         },
         `${kind === 'gain' ? 'Gains_financiers' : 'Cout_non_qualite'}_${new Date().toISOString().slice(0, 10)}.xlsx`
       );
-      toast.success('Bilan financier exporté avec succès en Excel !');
+      if (ok) {
+        toast.success('Bilan financier exporté avec succès en Excel !');
+      } else {
+        toast.info('Export Excel disponible depuis un navigateur PC ou Chrome.');
+      }
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors de l’export Excel.');

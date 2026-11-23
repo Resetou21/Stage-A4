@@ -24,8 +24,18 @@ export function createSpreadsheet(config: SpreadsheetConfig): SpreadsheetConfig 
   return config;
 }
 
+export function isAndroidMondayWebView(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (!/Android/i.test(ua)) return false;
+  return /;\s*wv\b/i.test(ua) || (/Version\/\d+\.\d+/i.test(ua) && !/SamsungBrowser|OPR|EdgA/i.test(ua));
+}
+
 export function useXlsxExport() {
-  const exportToXlsx = async (config: SpreadsheetConfig, filename: string) => {
+  const exportToXlsx = async (config: SpreadsheetConfig, filename: string): Promise<boolean> => {
+    if (isAndroidMondayWebView()) {
+      return false;
+    }
     const { sheetName, columns, rows, columnWidths, theme } = config;
 
     const wb = new ExcelJS.Workbook();
@@ -111,10 +121,10 @@ export function useXlsxExport() {
         const file = new File([blob], filename, { type: mimeType });
         if (!navigator.canShare || navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], title: filename });
-          return;
+          return true;
         }
       } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+        if (err?.name === 'AbortError') return false;
       }
     }
 
@@ -126,6 +136,7 @@ export function useXlsxExport() {
     link.click();
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return true;
   };
 
   return { exportToXlsx };

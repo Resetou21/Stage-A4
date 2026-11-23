@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Loader2, Search, FileSpreadsheet } from 'lucide-react';
 import { getPlans } from '@generated/server/vehicles';
-import { useXlsxExport } from '../../skills/xlsx-export';
+import { useXlsxExport, isAndroidMondayWebView } from '../../skills/xlsx-export';
 import { toast } from 'sonner';
 
 type Plan = Awaited<ReturnType<typeof getPlans>>['items'][number];
@@ -53,6 +53,10 @@ export default function OpenPlansList({ kind }: { kind: 'open' | 'done' }) {
   }, [items, query]);
 
   const handleExport = async () => {
+    if (isAndroidMondayWebView()) {
+      toast.info('Export Excel disponible depuis un navigateur PC ou Chrome.');
+      return;
+    }
     if (items.length === 0) return;
     setExporting(true);
     try {
@@ -65,7 +69,7 @@ export default function OpenPlansList({ kind }: { kind: 'open' | 'done' }) {
         p.statut || '—',
       ]);
 
-      await exportToXlsx(
+      const ok = await exportToXlsx(
         {
           sheetName: kind === 'open' ? 'Plans en cours' : 'Plans réalisés',
           columns: ['Immatriculation', 'Motif / Titre', 'Zone / Organe', 'Action à mener', 'Date', 'Statut'],
@@ -74,7 +78,11 @@ export default function OpenPlansList({ kind }: { kind: 'open' | 'done' }) {
         },
         `Plans_action_${kind === 'open' ? 'en_cours' : 'faits'}_${new Date().toISOString().slice(0, 10)}.xlsx`
       );
-      toast.success('Export Excel téléchargé avec succès !');
+      if (ok) {
+        toast.success('Export Excel téléchargé avec succès !');
+      } else {
+        toast.info('Export Excel disponible depuis un navigateur PC ou Chrome.');
+      }
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors de l’export Excel.');

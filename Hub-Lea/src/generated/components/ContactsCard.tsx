@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, Users, Loader2, Building2, CheckCircle2, Filter } from 'lucide-react';
 import { toast } from 'sonner';
-import { useXlsxExport, createSpreadsheet, createTheme } from '@skills/xlsx-export';
+import { useXlsxExport, createSpreadsheet, createTheme, isAndroidMondayWebView } from '@skills/xlsx-export';
 import { getAllContacts, type RawChantierItem } from '@generated/server/contacts';
 
 type ExportType = 'dedup' | 'full';
@@ -40,6 +40,10 @@ export default function ContactsCard() {
   };
 
   const handleDownload = async (type: ExportType) => {
+    if (isAndroidMondayWebView()) {
+      toast.info('Export Excel disponible depuis un navigateur PC ou Chrome.');
+      return;
+    }
     setBusyType(type);
     try {
       const res = await getAllContacts({ data: {} });
@@ -121,7 +125,11 @@ export default function ContactsCard() {
         });
 
         const filename = `contacts-clients-uniques-${scope}-${stamp}.xlsx`;
-        await exportToXlsx(wb, filename);
+        const ok = await exportToXlsx(wb, filename);
+        if (!ok) {
+          toast.info('Export Excel disponible depuis un navigateur PC ou Chrome.');
+          return;
+        }
 
         save({ ok: true, date: d.toISOString(), count: dedupList.length, type: 'dedup' });
         toast.success(`Export réussi : ${dedupList.length} contacts uniques téléchargés !`);
@@ -155,7 +163,11 @@ export default function ContactsCard() {
         });
 
         const filename = `contacts-clients-par-chantier-${scope}-${stamp}.xlsx`;
-        await exportToXlsx(wb, filename);
+        const ok = await exportToXlsx(wb, filename);
+        if (!ok) {
+          toast.info('Export Excel disponible depuis un navigateur PC ou Chrome.');
+          return;
+        }
 
         save({ ok: true, date: d.toISOString(), count: sortedItems.length, type: 'full' });
         toast.success(`Export réussi : ${sortedItems.length} chantiers exportés !`);
@@ -304,6 +316,11 @@ export default function ContactsCard() {
           <p className="text-[11px] text-muted-foreground italic">
             Les fichiers Excel générés respectent la charte Groupe Facility (en-têtes bleus, filtres automatiques, volet
             figé et lignes zébrées).
+            {isAndroidMondayWebView() && (
+              <span className="mt-1 block not-italic font-semibold text-primary">
+                ℹ️ Sur téléphone/tablette Android, ouvrez le Hub dans Chrome ou sur PC pour exporter les fichiers Excel.
+              </span>
+            )}
           </p>
         </div>
 
