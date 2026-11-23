@@ -5,6 +5,7 @@ import { RotateCw } from 'lucide-react';
 import VehiclesCard from '@generated/components/VehiclesCard';
 import DirectionCard from '@generated/components/DirectionCard';
 import { clearTopCache } from '@generated/components/TopVehicles';
+import { clearVehicleDashboardCache } from '@generated/server/vehicleDashboard';
 import { clearBoardCache } from '@api/mondayApi';
 
 const monday = mondaySdk();
@@ -31,6 +32,7 @@ export default function App() {
     try {
       clearBoardCache();
       clearTopCache();
+      clearVehicleDashboardCache();
       try {
         localStorage.removeItem('hub_vincent_cost_chargemap');
         localStorage.removeItem('hub_vincent_cost_carburant');
@@ -54,7 +56,7 @@ export default function App() {
       <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-72 w-72 rounded-full border-2 border-[hsl(var(--brand-orange))]/40" />
 
       <header className="relative border-b border-border bg-card/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
               VR
@@ -92,7 +94,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-6xl px-4 py-8 pb-28 sm:px-8 sm:py-14">
+      <main className="relative mx-auto max-w-7xl px-4 py-8 pb-28 sm:px-8 sm:py-14">
         <h1 className="text-3xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub de Vincent</h1>
         <div className="mt-3 h-1 w-24 rounded-full bg-[hsl(var(--brand-blue))]" />
         <p className="mt-4 max-w-xl text-base font-semibold italic text-primary">

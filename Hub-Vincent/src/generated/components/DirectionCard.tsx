@@ -53,7 +53,7 @@ export default function DirectionCard() {
         <p className="min-w-0 text-sm">Coût de non-qualité et gains financiers de l’année, indicateurs financiers et réunion d’associés.</p>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-4">
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className={cn(tile, panel === 'losses' && 'border-primary ring-2 ring-primary/20')}>
           <p className={head}><span className={badge}><TrendingDown className="h-4 w-4" aria-hidden /></span>
             <span className="pt-1">Coût de non-qualité {year}</span></p>

@@ -19,13 +19,13 @@ export default function NewTopic() {
       await addMeetingTopic({ data: { topic } });
       setText('');
       setOpen(false);
-      setMsg({ ok: true, text: '✓ Sujet ajouté avec succès !' });
-      toast.success('Sujet ajouté avec succès !', {
-        description: `« ${topic} » a été ajouté pour la réunion d'associés.`,
+      setMsg({ ok: true, text: '✓ Ajouté dans « A faire » (En cours) !' });
+      toast.success('Nouvelle ligne ajoutée !', {
+        description: `« ${topic} » a été créé dans « A faire » avec le statut En cours.`,
       });
       setTimeout(() => {
         setMsg(null);
-      }, 4000);
+      }, 4500);
     } catch (err) {
       console.error(err);
       setMsg({ ok: false, text: 'Impossible d’ajouter le sujet. Réessayez.' });
@@ -35,38 +35,72 @@ export default function NewTopic() {
     }
   };
 
-  if (!open) return (
-    <div className="flex flex-col items-center gap-1.5">
-      <button type="button" onClick={() => { setOpen(true); setMsg(null); }} aria-label="Ajouter un nouveau sujet"
-        className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-primary text-primary transition hover:bg-primary hover:text-primary-foreground shadow-xs">
-        <Plus className="h-5 w-5" />
-      </button>
-      <span className="text-xs text-muted-foreground font-medium">Nouveau sujet</span>
-      {msg && (
-        <output className={`text-center text-xs font-bold px-2 py-1 rounded-md transition-all ${msg.ok ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-destructive border border-red-200'
-          }`}>
-          {msg.text}
-        </output>
-      )}
-    </div>
-  );
+  if (!open)
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(true);
+            setMsg(null);
+          }}
+          aria-label="Ajouter un nouveau sujet dans A faire (En cours)"
+          className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-primary text-primary transition hover:bg-primary hover:text-primary-foreground shadow-xs cursor-pointer"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+        <span className="text-xs text-muted-foreground font-medium">Nouveau sujet (En cours)</span>
+        {msg && (
+          <output
+            className={`text-center text-xs font-bold px-2 py-1 rounded-md transition-all ${
+              msg.ok
+                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                : 'bg-red-50 text-destructive border border-red-200'
+            }`}
+          >
+            {msg.text}
+          </output>
+        )}
+      </div>
+    );
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
-      <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={255} rows={2}
-        placeholder="Nouveau sujet…" aria-label="Nouveau sujet"
-        className="w-full resize-none rounded-[var(--radius-md)] border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        maxLength={255}
+        rows={2}
+        placeholder="Nouvelle action à ajouter en cours…"
+        aria-label="Nouveau sujet"
+        className="w-full resize-none rounded-[var(--radius-md)] border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      />
       <div className="flex gap-2">
-        <button type="submit" disabled={busy || !text.trim()}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-[var(--radius-md)] bg-primary px-3 text-sm font-bold text-primary-foreground disabled:opacity-60">
+        <button
+          type="submit"
+          disabled={busy || !text.trim()}
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-[var(--radius-md)] bg-primary px-3 text-sm font-bold text-primary-foreground disabled:opacity-60 cursor-pointer"
+        >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Valider
         </button>
-        <button type="button" onClick={() => { setOpen(false); setText(''); }} disabled={busy} aria-label="Annuler"
-          className="inline-flex min-h-11 w-11 items-center justify-center rounded-[var(--radius-md)] border border-border hover:bg-muted">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setText('');
+          }}
+          disabled={busy}
+          aria-label="Annuler"
+          className="inline-flex min-h-11 w-11 items-center justify-center rounded-[var(--radius-md)] border border-border hover:bg-muted cursor-pointer"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
-      {msg && !msg.ok && <span role="alert" className="text-xs text-destructive">{msg.text}</span>}
+      {msg && !msg.ok && (
+        <span role="alert" className="text-xs text-destructive">
+          {msg.text}
+        </span>
+      )}
     </form>
   );
 }
