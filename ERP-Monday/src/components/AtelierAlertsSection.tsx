@@ -20,10 +20,19 @@ import {
   X,
   Maximize2,
   Download,
+  FileText,
+  Link2,
 } from 'lucide-react';
 import type { Machine } from '../types';
-import type { MaintenanceAlertMessage, MaintenanceAlertFile } from '../services/maintenanceApi';
-import { AlertContextSelect } from './MachineSelect';
+import {
+  type MaintenanceAlertMessage,
+  type MaintenanceAlertFile,
+  type RepairTicket,
+  isChristineInvoiceTicket,
+  isTicketRepaired,
+  assignMachineToRepairTicket,
+} from '../services/maintenanceApi';
+import { AlertContextSelect, MachineSelect } from './MachineSelect';
 import { ResponsableSelect } from './ResponsableSelect';
 
 interface SelectedFile {
@@ -36,6 +45,7 @@ interface SelectedFile {
 interface AtelierAlertsSectionProps {
   alerts: MaintenanceAlertMessage[];
   machines: Machine[];
+  repairTickets?: RepairTicket[];
   onRefresh: () => Promise<void>;
   onMarkSeen: (alertId: string) => Promise<void>;
   onArchive: (alertId: string) => Promise<void>;
@@ -77,12 +87,37 @@ const getPersonAvatar = (personName: string) => {
 export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
   alerts,
   machines,
+  repairTickets = [],
   onRefresh,
   onMarkSeen,
   onArchive,
   onSendAlert,
   getCol,
 }) => {
+  const [selectedMachineByInvoice, setSelectedMachineByInvoice] = useState<Record<string, string>>({});
+  const [assigningInvoiceId, setAssigningInvoiceId] = useState<string | null>(null);
+
+  const christinePendingInvoices = useMemo(() => {
+    return repairTickets
+      .filter((t) => isChristineInvoiceTicket(t) && !isTicketRepaired(t) && !t.machineId)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  }, [repairTickets]);
+
+  const handleAssignChristineInvoice = async (ticket: RepairTicket) => {
+    const mId = selectedMachineByInvoice[ticket.id];
+    if (!mId) return;
+    const machine = machines.find((m) => String(m.id) === String(mId));
+    if (!machine) return;
+    setAssigningInvoiceId(ticket.id);
+    const ok = await assignMachineToRepairTicket(ticket.id, String(machine.id), machine.name);
+    setAssigningInvoiceId(null);
+    if (ok) {
+      showFeedback(`Facture affectée à « ${machine.name} » !`);
+      await onRefresh();
+    } else {
+      showFeedback("Erreur lors de l'affectation à la machine.");
+    }
+  };
   const [recipient, setRecipient] = useState<string>('Natacha THOMAS');
   const [machineContext, setMachineContext] = useState<string>('');
   const [messageText, setMessageText] = useState<string>('');
@@ -225,6 +260,206 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
         >
           <CheckCircle2 size={18} color="#00C875" />
           <span>{actionFeedback}</span>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 0. FACTURES REÇUES DE CHRISTINE (À AFFECTER À UNE MACHINE)     */}
+      {/* ============================================================== */}
+      {christinePendingInvoices.length > 0 && (
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '18px',
+            padding: '22px 26px',
+            border: '2px solid #F59E0B',
+            boxShadow: '0 4px 18px rgba(245, 158, 11, 0.12)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FEF3C7',
+                  color: '#D97706',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <FileText size={22} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
+                    Factures reçues de Christine (à affecter)
+                  </h3>
+                  <span
+                    style={{
+                      backgroundColor: '#F59E0B',
+                      color: '#FFFFFF',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      padding: '2px 9px',
+                      borderRadius: '999px',
+                    }}
+                  >
+                    {christinePendingInvoices.length} en attente
+                  </span>
+                </div>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#57778E' }}>
+                  Déposées depuis le Hub de Christine • Recherchez et sélectionnez la machine concernée pour rattacher chaque facture au parc.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {christinePendingInvoices.map((inv) => {
+              const supplierLabel =
+                inv.fournisseur ||
+                (inv.name.match(/Facture Réparation\s*:\s*([^(]+)/i)?.[1]?.trim()) ||
+                inv.name;
+              const pdfMatch = (inv.description || '').match(/\(PDF\s*:\s*([^)]+)\)/i);
+              const pdfLabel = inv.photoName || pdfMatch?.[1]?.trim() || null;
+              const dateDisplay = inv.date && /^\d{4}-\d{2}-\d{2}/.test(inv.date)
+                ? `${inv.date.slice(8, 10)}/${inv.date.slice(5, 7)}/${inv.date.slice(0, 4)}`
+                : inv.date || 'Date non renseignée';
+              const selectedMId = selectedMachineByInvoice[inv.id] || '';
+              const isBusy = assigningInvoiceId === inv.id;
+
+              return (
+                <div
+                  key={inv.id}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    padding: '14px 16px',
+                    borderRadius: '14px',
+                    backgroundColor: '#FFFBEB',
+                    border: '1px solid #FDE68A',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, fontSize: '14.5px', color: '#1B4565' }}>
+                        🔧 {supplierLabel}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: '#92400E',
+                          backgroundColor: '#FEF3C7',
+                          border: '1px solid #FCD34D',
+                          borderRadius: '6px',
+                          padding: '2px 8px',
+                        }}
+                      >
+                        Déposé le {dateDisplay}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      {inv.photoUrl ? (
+                        <a
+                          href={inv.photoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: '#1D4ED8',
+                            backgroundColor: '#EFF6FF',
+                            border: '1px solid #BFDBFE',
+                            borderRadius: '8px',
+                            padding: '4px 10px',
+                            textDecoration: 'none',
+                          }}
+                        >
+                          <FileText size={13} />
+                          <span>Ouvrir le PDF{pdfLabel ? ` (${pdfLabel})` : ''}</span>
+                          <ExternalLink size={12} />
+                        </a>
+                      ) : (
+                        <>
+                          {pdfLabel && (
+                            <span style={{ fontSize: '11.5px', color: '#475569', fontFamily: 'monospace' }}>
+                              📄 {pdfLabel}
+                            </span>
+                          )}
+                          <a
+                            href={`https://groupefacility.monday.com/boards/5106693291/pulses/${inv.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              color: '#3989B7',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <span>Voir la fiche Monday</span>
+                            <ExternalLink size={12} />
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sélecteur Machine ultra-clean avec recherche + Bouton Affecter */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 320px', minWidth: '240px' }}>
+                      <MachineSelect
+                        machines={machines}
+                        selectedMachineId={selectedMId}
+                        onSelectMachine={(mId) =>
+                          setSelectedMachineByInvoice((prev) => ({ ...prev, [inv.id]: mId }))
+                        }
+                        getCol={getCol}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!selectedMId || isBusy}
+                      onClick={() => void handleAssignChristineInvoice(inv)}
+                      style={{
+                        height: '44px',
+                        padding: '0 18px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        backgroundColor: !selectedMId || isBusy ? '#CBD5E1' : '#00A389',
+                        color: '#FFFFFF',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        fontFamily: "'Ruda', sans-serif",
+                        cursor: !selectedMId || isBusy ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '7px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Link2 size={15} />
+                      <span>{isBusy ? 'Affectation...' : 'Affecter à cette machine'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

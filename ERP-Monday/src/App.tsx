@@ -29,6 +29,7 @@ import {
   RepairTicket,
   MaintenanceAlertMessage,
   isTicketRepaired,
+  isChristineInvoiceTicket,
   findMachineForTicket,
   reassignMachineNumber,
 } from './services/maintenanceApi';
@@ -1256,9 +1257,13 @@ export const App = () => {
             )}
           </button>
 
-          {/* Onglet 5 : Échanges & Alertes Secteur (Animatrices) */}
+          {/* Onglet 5 : Échanges, Alertes Secteur & Factures Christine */}
           {(() => {
             const unreadCount = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
+            const pendingChristineCount = repairTickets.filter(
+              (t) => isChristineInvoiceTicket(t) && !isTicketRepaired(t) && !t.machineId
+            ).length;
+            const totalBadge = unreadCount + pendingChristineCount;
             return (
               <button
                 type="button"
@@ -1272,9 +1277,9 @@ export const App = () => {
                 }}
               >
                 <Bell size={19} />
-                <span className="desktop-tab-label">Alertes Secteur</span>
+                <span className="desktop-tab-label">Alertes &amp; Factures</span>
                 <span className="mobile-tab-label">Alertes</span>
-                {unreadCount > 0 && (
+                {totalBadge > 0 && (
                   <span
                     style={{
                       backgroundColor: activeTab === 'alerts' ? '#FFFFFF' : '#E2445C',
@@ -1286,7 +1291,7 @@ export const App = () => {
                       marginLeft: '4px',
                     }}
                   >
-                    {unreadCount}
+                    {totalBadge}
                   </span>
                 )}
               </button>
@@ -2255,6 +2260,7 @@ export const App = () => {
         <AtelierAlertsSection
           alerts={maintenanceAlerts}
           machines={activeParcMachines}
+          repairTickets={repairTickets}
           onRefresh={loadMaintenanceData}
           onMarkSeen={async (id) => {
             await markMaintenanceAlertSeen(id);
