@@ -211,7 +211,7 @@ const buildPoles = (s: PortalStats): PoleMenu[] => [
   },
   {
     id: 'pole_comm',
-    label: 'Communication & Terrain',
+    label: 'Com. Interne & Externe',
     poleIcon: MessageSquare,
     accentColor: '#D66927',
     bgLight: '#FFF4EB',
