@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Info, Building2, Check, CheckCircle2, Package, FileEdit, Loader2, LayoutGrid, Table, ExternalLink, X } from 'lucide-react';
+import { Info, Check, Clock, Package, FileEdit, Loader2, LayoutGrid, Table, ExternalLink, X } from 'lucide-react';
 import { normalize } from '@generated/lib/normalize';
 import { toast } from 'sonner';
-import { getInventoryActions, markActionDone } from '@generated/server/inventory';
+import { getInventoryActions, markActionDone, markAvenantDemande } from '@generated/server/inventory';
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@components/ui/dialog';
 
 type Actions = Awaited<ReturnType<typeof getInventoryActions>>;
@@ -21,12 +21,51 @@ export default function InventoryActions({
 }) {
   const [data, setData] = useState<Actions | null>(preloaded);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const [busyDemandeIds, setBusyDemandeIds] = useState<Set<string>>(new Set());
+  const [demandeOverrides, setDemandeOverrides] = useState<Record<string, boolean>>({});
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(!preloaded);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
+
+  const isAvenantDemande = (r: ActionRow) =>
+    demandeOverrides[r.id] !== undefined ? demandeOverrides[r.id] : Boolean(r.avenantDemande);
+
+  const toggleAvenantDemande = async (r: ActionRow) => {
+    if (busyDemandeIds.has(r.id)) return;
+    const nextVal = !isAvenantDemande(r);
+    setBusyDemandeIds((s) => new Set(s).add(r.id));
+    setDemandeOverrides((prev) => ({ ...prev, [r.id]: nextVal }));
+
+    try {
+      await markAvenantDemande({ data: { itemId: r.itemId, itemIds: r.itemIds, demande: nextVal } });
+      setData((d) =>
+        d
+          ? {
+              ...d,
+              rows: d.rows.map((x) => (x.id === r.id ? { ...x, avenantDemande: nextVal } : x)),
+            }
+          : d
+      );
+      toast.success(
+        nextVal
+          ? `Avenant marqué comme demandé (en cours) pour ${r.chantier}`
+          : `Statut « Avenant demandé » retiré pour ${r.chantier}`
+      );
+    } catch (e) {
+      console.error(e);
+      setDemandeOverrides((prev) => ({ ...prev, [r.id]: !nextVal }));
+      toast.error("Échec de la mise à jour « Avenant demandé »");
+    } finally {
+      setBusyDemandeIds((s) => {
+        const next = new Set(s);
+        next.delete(r.id);
+        return next;
+      });
+    }
+  };
 
   const markDone = async (r: ActionRow): Promise<boolean> => {
     if (busyIds.has(r.id)) return false;
@@ -181,7 +220,9 @@ export default function InventoryActions({
           {filteredRows.map((r) => {
             const isRecup = r.type === 'À récupérer';
             const isBusy = busyIds.has(r.id);
+            const isBusyDemande = busyDemandeIds.has(r.id);
             const isChecked = checkedIds.has(r.id);
+            const demande = !isRecup && isAvenantDemande(r);
 
             return (
               <div
@@ -190,7 +231,9 @@ export default function InventoryActions({
                 className={`group rounded-2xl border-2 transition-all p-4 sm:p-4.5 bg-card hover:bg-muted/20 cursor-pointer shadow-xs flex flex-col justify-between gap-3 ${
                   isRecup
                     ? 'border-emerald-500/30 hover:border-emerald-500/70'
-                    : 'border-blue-500/30 hover:border-blue-500/70'
+                    : demande
+                      ? 'border-amber-500/50 hover:border-amber-500/80'
+                      : 'border-blue-500/30 hover:border-blue-500/70'
                 }`}
               >
                 {/* Ligne 1 : Nom du site, Badge de type d'action et Badge de nombre */}
@@ -200,7 +243,9 @@ export default function InventoryActions({
                       className={`flex h-11 w-11 items-center justify-center rounded-xl font-bold shrink-0 shadow-xs ${
                         isRecup
                           ? 'bg-emerald-500/15 text-emerald-600'
-                          : 'bg-blue-500/15 text-blue-600'
+                          : demande
+                            ? 'bg-amber-500/15 text-amber-600'
+                            : 'bg-blue-500/15 text-blue-600'
                       }`}
                     >
                       {isRecup ? <Package className="h-5 w-5" /> : <FileEdit className="h-5 w-5" />}
@@ -219,6 +264,12 @@ export default function InventoryActions({
                         >
                           <span>{isRecup ? 'À récupérer sur site' : 'Avenant de diminution'}</span>
                         </span>
+                        {demande && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300 border border-amber-300/70">
+                            <Clock className="h-2.5 w-2.5" />
+                            <span>Avenant demandé • En cours</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -245,43 +296,70 @@ export default function InventoryActions({
                   ))}
                 </div>
 
-                {/* Ligne 3 : Barre d'action rapide (Cocher comme fait OU ouvrir la fiche pop-up) */}
-                <div className="flex items-center justify-between pt-2.5 border-t border-border/60 text-xs">
+                {/* Ligne 3 : Barre d'action rapide (Avenant demandé + Cocher comme fait OU ouvrir la fiche pop-up) */}
+                <div className="flex items-center justify-between gap-2 flex-wrap pt-2.5 border-t border-border/60 text-xs">
                   <span className="text-muted-foreground text-[11px] flex items-center gap-1 group-hover:text-foreground transition-colors">
                     <span>Ouvrir la fiche détaillée</span>
                     <span>→</span>
                   </span>
 
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void markDone(r);
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-2xs cursor-pointer ${
-                      isChecked
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-primary/10 hover:bg-primary/20 text-primary'
-                    }`}
-                  >
-                    {isBusy ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>En cours...</span>
-                      </>
-                    ) : isChecked ? (
-                      <>
-                        <Check className="h-3.5 w-3.5 stroke-[3]" />
-                        <span>Fait !</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Marquer fait</span>
-                      </>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {!isRecup && (
+                      <label
+                        onClick={(e) => e.stopPropagation()}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-bold text-xs transition-all border cursor-pointer select-none ${
+                          demande
+                            ? 'bg-amber-100 border-amber-400 text-amber-900 dark:bg-amber-900/40 dark:border-amber-600 dark:text-amber-200'
+                            : 'bg-muted/50 hover:bg-muted border-border text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Cocher lorsque la demande d'avenant est envoyée et en cours de traitement"
+                      >
+                        {isBusyDemande ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600" />
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={demande}
+                            disabled={isBusyDemande}
+                            onChange={() => void toggleAvenantDemande(r)}
+                            className="h-3.5 w-3.5 rounded accent-amber-600 cursor-pointer"
+                          />
+                        )}
+                        <span>Avenant demandé</span>
+                      </label>
                     )}
-                  </button>
+
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void markDone(r);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-2xs cursor-pointer ${
+                        isChecked
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-primary/10 hover:bg-primary/20 text-primary'
+                      }`}
+                    >
+                      {isBusy ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>En cours...</span>
+                        </>
+                      ) : isChecked ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                          <span>Fait !</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Marquer fait</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -338,21 +416,35 @@ export default function InventoryActions({
                     </button>
                   </td>
                   <td className="px-3 py-2.5">
-                    <span
-                      className={`inline-flex items-center gap-1 text-xs font-bold cursor-help transition-opacity hover:opacity-90 ${
-                        r.type === 'Avenant'
-                          ? 'text-blue-600 dark:text-blue-400'
-                          : 'text-emerald-600 dark:text-emerald-400'
-                      }`}
-                      title={
-                        r.type === 'Avenant'
-                          ? 'Avenant de diminution à faire (Attention : le nombre indiqué est le nombre annuel = revoir contrat)'
-                          : 'À récupérer sur site'
-                      }
-                    >
-                      <span>{r.type}</span>
-                      <Info className="h-3.5 w-3.5 opacity-80 shrink-0" />
-                    </span>
+                    <div className="flex flex-col items-center gap-1">
+                      <span
+                        className={`inline-flex items-center gap-1 text-xs font-bold cursor-help transition-opacity hover:opacity-90 ${
+                          r.type === 'Avenant'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                        title={
+                          r.type === 'Avenant'
+                            ? 'Avenant de diminution à faire (Attention : le nombre indiqué est le nombre annuel = revoir contrat)'
+                            : 'À récupérer sur site'
+                        }
+                      >
+                        <span>{r.type}</span>
+                        <Info className="h-3.5 w-3.5 opacity-80 shrink-0" />
+                      </span>
+                      {r.type === 'Avenant' && (
+                        <label className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isAvenantDemande(r)}
+                            disabled={busyDemandeIds.has(r.id)}
+                            onChange={() => void toggleAvenantDemande(r)}
+                            className="h-3.5 w-3.5 rounded accent-amber-600 cursor-pointer"
+                          />
+                          <span>Demandé</span>
+                        </label>
+                      )}
+                    </div>
                   </td>
                   {data.columns.map((c) => (
                     <td key={c} className="px-3 py-2.5 tabular-nums">
@@ -469,7 +561,7 @@ export default function InventoryActions({
 
           {/* Footer fixe de la Pop-up */}
           {selectedAction && (
-            <div className="p-3.5 sm:p-4 border-t border-border bg-card/95 flex items-center justify-between gap-3 shrink-0">
+            <div className="p-3.5 sm:p-4 border-t border-border bg-card/95 flex items-center justify-between gap-2.5 flex-wrap shrink-0">
               <DialogClose asChild>
                 <button
                   type="button"
@@ -480,32 +572,57 @@ export default function InventoryActions({
                 </button>
               </DialogClose>
 
-              <button
-                type="button"
-                disabled={busyIds.has(selectedAction.id)}
-                onClick={async () => {
-                  const action = selectedAction;
-                  const ok = await markDone(action);
-                  if (ok) setSelectedActionId(null);
-                }}
-                className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition cursor-pointer disabled:opacity-60 ${
-                  selectedAction.type === 'À récupérer'
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
-                    : 'bg-primary hover:bg-primary/95 text-primary-foreground'
-                }`}
-              >
-                {busyIds.has(selectedAction.id) ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Enregistrement...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 stroke-[3]" />
-                    <span>Valider cette action</span>
-                  </>
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedAction.type === 'Avenant' && (
+                  <label
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-bold transition cursor-pointer select-none ${
+                      isAvenantDemande(selectedAction)
+                        ? 'bg-amber-100 border-amber-400 text-amber-900 dark:bg-amber-900/40 dark:border-amber-600 dark:text-amber-200'
+                        : 'bg-muted/50 hover:bg-muted border-border text-foreground'
+                    }`}
+                  >
+                    {busyDemandeIds.has(selectedAction.id) ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={isAvenantDemande(selectedAction)}
+                        disabled={busyDemandeIds.has(selectedAction.id)}
+                        onChange={() => void toggleAvenantDemande(selectedAction)}
+                        className="h-4 w-4 rounded accent-amber-600 cursor-pointer"
+                      />
+                    )}
+                    <span>Avenant demandé (en cours)</span>
+                  </label>
                 )}
-              </button>
+
+                <button
+                  type="button"
+                  disabled={busyIds.has(selectedAction.id)}
+                  onClick={async () => {
+                    const action = selectedAction;
+                    const ok = await markDone(action);
+                    if (ok) setSelectedActionId(null);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition cursor-pointer disabled:opacity-60 ${
+                    selectedAction.type === 'À récupérer'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
+                      : 'bg-primary hover:bg-primary/95 text-primary-foreground'
+                  }`}
+                >
+                  {busyIds.has(selectedAction.id) ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Enregistrement...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 stroke-[3]" />
+                      <span>Valider cette action</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
         </DialogContent>

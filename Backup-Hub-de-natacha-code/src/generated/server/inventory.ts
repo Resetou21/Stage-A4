@@ -272,7 +272,7 @@ export const getInventoryActions = createServerFn({ method: 'GET' })
     if (inFlight) return inFlight;
 
     const promise = (async () => {
-      type Row = { id: string; itemId: string; itemIds: string[]; chantier: string; type: 'À récupérer' | 'Avenant'; values: { name: string; value: string }[] };
+      type Row = { id: string; itemId: string; itemIds: string[]; chantier: string; type: 'À récupérer' | 'Avenant'; avenantDemande?: boolean; values: { name: string; value: string }[] };
       let columns: string[] = [];
       const label = ANIMATEURS.find((a) => a.toLowerCase().startsWith(data.firstName.toLowerCase()));
       if (!label) return { count: 0, columns, rows: [] as Row[] };
@@ -291,6 +291,7 @@ export const getInventoryActions = createServerFn({ method: 'GET' })
         'animateur',
         'dateInventaireActuel',
         'rcuprationRalise',
+        'avenantDemande',
         'avenantRalis',
         ...ACTION_COLS.map(([, r]) => r),
         ...CONTRATS.map(([k]) => k),
@@ -363,7 +364,7 @@ export const getInventoryActions = createServerFn({ method: 'GET' })
         }).filter((v) => Number(v.value) > 0);
         const itId = String(rec.id);
         if (rec_.length && rec.rcuprationRalise !== true) rows.push({ id: `${itId}-r`, itemId: itId, itemIds: [itId], chantier, type: 'À récupérer', values: rec_ });
-        if (ave.length && rec.avenantRalis !== true) rows.push({ id: `${itId}-a`, itemId: itId, itemIds: [itId], chantier, type: 'Avenant', values: ave });
+        if (ave.length && rec.avenantRalis !== true) rows.push({ id: `${itId}-a`, itemId: itId, itemIds: [itId], chantier, type: 'Avenant', avenantDemande: rec.avenantDemande === true, values: ave });
       }
       // Par produit : À récupérer puis Avenant
       const all = ACTION_COLS.flatMap(([n]) => [`${n} - À récupérer`, `${n} - Avenant`]);
@@ -811,6 +812,28 @@ export const markActionDone = createServerFn({ method: 'POST' })
       )
     );
     clearBoardCache(BOARD_IDS.INVENTAIRES_CONSOMMABLES);
+    actionsCache.clear();
+    return { ok: true };
+  });
+
+export const markAvenantDemande = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    itemId: z.string().min(1),
+    itemIds: z.array(z.string()).optional(),
+    demande: z.boolean(),
+  }))
+  .handler(async ({ data }) => {
+    const board = new InventairesConsommablesBoard();
+    const ids = Array.from(new Set([data.itemId, ...(data.itemIds || [])]));
+    await Promise.all(
+      ids.map((id) =>
+        board.item(id).update({ avenantDemande: data.demande } as any).execute().catch((err) => {
+          console.warn(`[markAvenantDemande] Update skipped for item ${id}:`, err?.message || err);
+        })
+      )
+    );
+    clearBoardCache(BOARD_IDS.INVENTAIRES_CONSOMMABLES);
+    actionsCache.clear();
     return { ok: true };
   });
 

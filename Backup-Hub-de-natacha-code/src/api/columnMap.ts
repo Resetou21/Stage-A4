@@ -79,6 +79,7 @@ export const COLUMN_MAP: Record<string, Record<string, ColumnMeta>> = {
     dateInventaireActuel: { id: 'date_mm843j0k', title: 'Date Inventaire Actuel', type: 'date' },
     inventaireValidOk: { id: 'boolean_mm84z0a4', title: 'Inventaire Validé (OK)', type: 'checkbox' },
     rcuprationRalise: { id: 'boolean_mm8cddz6', title: 'Récupération réalisée', type: 'checkbox' },
+    avenantDemande: { id: 'boolean_mm9d7b0z', title: 'Avenant demandé', type: 'checkbox' },
     avenantRalis: { id: 'boolean_mm8capb3', title: 'Avenant réalisé', type: 'checkbox' },
     economieDirecte: { id: 'formula_mm8ccrzs', title: '🏁Economie Directe', type: 'formula' },
     economie12Mois: { id: 'formula_mm8czcsd', title: '🏁Économie 12 mois', type: 'formula' },
