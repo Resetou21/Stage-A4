@@ -99,7 +99,7 @@ export const AtelierAlertsSection: React.FC<AtelierAlertsSectionProps> = ({
 
   const christinePendingInvoices = useMemo(() => {
     return repairTickets
-      .filter((t) => isChristineInvoiceTicket(t) && !isTicketRepaired(t) && !t.machineId)
+      .filter((t) => isChristineInvoiceTicket(t) && !isTicketRepaired(t.status) && !t.machineId)
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   }, [repairTickets]);
 

@@ -1261,7 +1261,7 @@ export const App = () => {
           {(() => {
             const unreadCount = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
             const pendingChristineCount = repairTickets.filter(
-              (t) => isChristineInvoiceTicket(t) && !isTicketRepaired(t) && !t.machineId
+              (t) => isChristineInvoiceTicket(t) && !isTicketRepaired(t.status) && !t.machineId
             ).length;
             const totalBadge = unreadCount + pendingChristineCount;
             return (
