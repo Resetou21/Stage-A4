@@ -88,6 +88,8 @@ export default function RoadmapModal({
   const [successMode, setSuccessMode] = useState<'create' | 'edit'>('create');
   const [editingItem, setEditingItem] = useState<RoadmapItem | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Droits d'administration : SEUL Guillaume Daniel peut cocher / valider les demandes livrées
   const isManager = useMemo(() => {
@@ -409,6 +411,32 @@ export default function RoadmapModal({
       await loadRoadmap(true);
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // Supprimer (archiver sur Monday) une idée en cas de mauvaise manip
+  const handleDeleteItem = async (item: RoadmapItem) => {
+    setDeletingId(item.id);
+    setConfirmDeleteId(null);
+    const prevItems = items;
+    setItems((prev) => prev.filter((it) => it.id !== item.id));
+    if (editingItem?.id === item.id) {
+      setEditingItem(null);
+    }
+
+    try {
+      const mutation = `mutation ($itemId: ID!) {
+        archive_item(item_id: $itemId) {
+          id
+        }
+      }`;
+      await monday.api(mutation, { variables: { itemId: item.id } });
+      roadmapCache = null;
+    } catch (err) {
+      console.error('Erreur suppression idée Roadmap:', err);
+      setItems(prevItems);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -1903,6 +1931,74 @@ export default function RoadmapModal({
                               <Pencil size={11} />
                               <span>Modifier</span>
                             </button>
+
+                            {confirmDeleteId === item.id ? (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <button
+                                  type="button"
+                                  disabled={deletingId === item.id}
+                                  onClick={() => void handleDeleteItem(item)}
+                                  title="Confirmer la suppression (archivage sur Monday)"
+                                  style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: 800,
+                                    padding: '2px 8px',
+                                    borderRadius: '5px',
+                                    backgroundColor: '#E2445C',
+                                    color: '#FFFFFF',
+                                    border: '1px solid #E2445C',
+                                    cursor: deletingId === item.id ? 'wait' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                  }}
+                                >
+                                  <Trash2 size={11} />
+                                  <span>{deletingId === item.id ? '...' : 'Confirmer ?'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  title="Annuler"
+                                  style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    padding: '2px 5px',
+                                    borderRadius: '5px',
+                                    backgroundColor: '#F1F5F9',
+                                    color: '#475569',
+                                    border: '1px solid #CBD5E1',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <X size={11} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={deletingId === item.id}
+                                onClick={() => setConfirmDeleteId(item.id)}
+                                title="Supprimer cette idée"
+                                style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  padding: '2px 7px',
+                                  borderRadius: '5px',
+                                  backgroundColor: '#FEF2F2',
+                                  color: '#DC2626',
+                                  border: '1px solid #FECACA',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                }}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
 
                             {item.workspace && (
                               <span
