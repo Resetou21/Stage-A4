@@ -23,6 +23,8 @@ import {
   Database,
   Sparkles,
   X,
+  History,
+  Trash2,
 } from 'lucide-react';
 import {
   Bar,
@@ -44,6 +46,12 @@ import {
   type GeoWorkbookResult,
 } from '@lib/geolocParser';
 import {
+  saveGeolocWorkbookToHistory,
+  listGeolocWorkbooksHistory,
+  deleteGeolocWorkbookFromHistory,
+  type StoredGeolocWorkbook,
+} from '@lib/geolocStorage';
+import {
   GEOLOC_BOARD_URL,
   getGeolocHistory,
   ensureGeolocWeekGroup,
@@ -51,6 +59,7 @@ import {
   type MondayGeolocHistory,
   type MondayGeolocRecord,
 } from '@generated/server/geoloc';
+import SearchableSelect from '@components/SearchableSelect';
 import { createSpreadsheet, createTheme, useXlsxExport } from '@/skills/xlsx-export';
 import { cn } from '@lib/utils';
 
@@ -196,8 +205,9 @@ export default function GeolocCard() {
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [historyChartMetric, setHistoryChartMetric] = useState<'km' | 'amplitude'>('km');
 
-  // Données Excel Explorateur (32 onglets en mémoire)
+  // Données Excel Explorateur (32 onglets en mémoire + historique local IndexedDB)
   const [workbook, setWorkbook] = useState<GeoWorkbookResult | null>(null);
+  const [savedWorkbooks, setSavedWorkbooks] = useState<StoredGeolocWorkbook[]>([]);
   const [parsing, setParsing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [explorerSubTab, setExplorerSubTab] = useState<ExplorerSubTab>('summary');
@@ -241,6 +251,53 @@ export default function GeolocCard() {
     loadHistory();
   }, [loadHistory]);
 
+  // Charger l'historique local des exports Excel importés dans ce navigateur (IndexedDB)
+  const refreshSavedWorkbooks = useCallback(async (autoSelectLatest = false) => {
+    const list = await listGeolocWorkbooksHistory();
+    setSavedWorkbooks(list);
+    if (autoSelectLatest && list.length > 0) {
+      const latest = list[0].workbook;
+      setWorkbook((cur) => cur ?? latest);
+      const firstActive = latest.vehicles.find((v) => v.trips.length > 0) || latest.vehicles[0];
+      setSelectedVehiclePlate((cur) => cur || firstActive?.plate || '');
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSavedWorkbooks(true);
+  }, [refreshSavedWorkbooks]);
+
+  const handleSelectSavedWorkbook = (weekId: string) => {
+    const found = savedWorkbooks.find((w) => w.weekId === weekId);
+    if (!found) return;
+    setWorkbook(found.workbook);
+    setExplorerSubTab('summary');
+    const firstActive = found.workbook.vehicles.find((v) => v.trips.length > 0) || found.workbook.vehicles[0];
+    setSelectedVehiclePlate(firstActive?.plate || '');
+    setExpandedDays({});
+    setTripDayFilter('all');
+    setTripVehicleFilter('all');
+    setTripVisibleCount(60);
+  };
+
+  const handleDeleteSavedWorkbook = async (weekId: string) => {
+    await deleteGeolocWorkbookFromHistory(weekId);
+    const updated = savedWorkbooks.filter((w) => w.weekId !== weekId);
+    setSavedWorkbooks(updated);
+    if (workbook?.weekId === weekId) {
+      if (updated.length > 0) {
+        const next = updated[0].workbook;
+        setWorkbook(next);
+        const firstActive = next.vehicles.find((v) => v.trips.length > 0) || next.vehicles[0];
+        setSelectedVehiclePlate(firstActive?.plate || '');
+      } else {
+        setWorkbook(null);
+        setSelectedVehiclePlate('');
+      }
+    }
+    toast.info('Import Excel retiré de l’historique local.');
+  };
+
   // Lecture fichier Excel (.xlsx)
   const handleFile = async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
@@ -254,14 +311,18 @@ export default function GeolocCard() {
     try {
       const buf = await file.arrayBuffer();
       const parsed = await parseGeolocWorkbook(buf, file.name);
+      await saveGeolocWorkbookToHistory(parsed);
+      await refreshSavedWorkbooks(false);
       setWorkbook(parsed);
       setMainTab('explorer');
       setExplorerSubTab('summary');
       const firstActive = parsed.vehicles.find((v) => v.trips.length > 0) || parsed.vehicles[0];
       setSelectedVehiclePlate(firstActive?.plate || '');
       setExpandedDays({});
+      setTripDayFilter('all');
+      setTripVehicleFilter('all');
       setTripVisibleCount(60);
-      toast.success(`Export GPS chargé en direct !`, {
+      toast.success(`Export GPS chargé et mémorisé !`, {
         description: `${parsed.weekLabel} · ${parsed.totalVehicles} véhicules · ${parsed.totalTrips.toLocaleString('fr-FR')} trajets (${parsed.matchedDetailSheets} onglets).`,
       });
     } catch (err: any) {
@@ -734,18 +795,26 @@ export default function GeolocCard() {
         {mainTab === 'history' && (
           <div className="flex flex-wrap items-center gap-2">
             {history && history.weeks.length > 0 && (
-              <select
+              <SearchableSelect
+                size="sm"
+                clearable={false}
+                searchable={history.weeks.length > 5}
+                showDot={false}
+                icon={<Calendar className="h-3.5 w-3.5 text-primary" />}
+                className="w-[270px]"
                 value={selectedHistoryWeek}
-                onChange={(e) => setSelectedHistoryWeek(e.target.value)}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-xs font-bold text-foreground outline-none focus:border-primary"
-              >
-                {history.weeks.map((w) => (
-                  <option key={w.weekId} value={w.weekId}>
-                    {w.groupTitle || w.weekId} ({w.activeCount}/{w.vehicleCount} actifs)
-                  </option>
-                ))}
-                {history.weeks.length > 1 && <option value="all">Toutes les semaines ({history.records.length} lignes)</option>}
-              </select>
+                onChange={(val) => setSelectedHistoryWeek(val)}
+                options={[
+                  ...history.weeks.map((w) => ({
+                    value: w.weekId,
+                    label: w.groupTitle || w.weekId,
+                    sublabel: `${w.activeCount}/${w.vehicleCount} actifs`,
+                  })),
+                  ...(history.weeks.length > 1
+                    ? [{ value: 'all', label: 'Toutes les semaines', sublabel: `${history.records.length} lignes` }]
+                    : []),
+                ]}
+              />
             )}
             <button
               type="button"
@@ -921,13 +990,14 @@ export default function GeolocCard() {
                           }}
                         />
                         <Legend wrapperStyle={{ fontSize: '11px' }} />
-                        {historyChartMetric === 'km' ? (
-                          <>
-                            <Bar dataKey="kmPro" name="Km horaires pro" stackId="a" fill="#39A9DC" radius={[0, 0, 0, 0]} />
-                            <Bar dataKey="kmHors" name="Km hors horaires" stackId="a" fill="#D66927" radius={[4, 4, 0, 0]} />
-                          </>
-                        ) : (
-                          <Bar dataKey="amplitude" name="Amplitude moy. (h/jour)" fill="#3989B7" radius={[4, 4, 0, 0]} />
+                        {historyChartMetric === 'km' && (
+                          <Bar key="kmPro" dataKey="kmPro" name="Km horaires pro" stackId="a" fill="#39A9DC" radius={[0, 0, 0, 0]} />
+                        )}
+                        {historyChartMetric === 'km' && (
+                          <Bar key="kmHors" dataKey="kmHors" name="Km hors horaires" stackId="a" fill="#D66927" radius={[4, 4, 0, 0]} />
+                        )}
+                        {historyChartMetric === 'amplitude' && (
+                          <Bar key="amplitude" dataKey="amplitude" name="Amplitude moy. (h/jour)" fill="#3989B7" radius={[4, 4, 0, 0]} />
                         )}
                       </BarChart>
                     </ResponsiveContainer>
@@ -948,16 +1018,19 @@ export default function GeolocCard() {
                   />
                 </div>
 
-                <select
+                <SearchableSelect
+                  size="sm"
+                  clearable={false}
+                  searchable={false}
+                  showDot={false}
+                  className="w-[180px]"
                   value={historyFleetFilter}
-                  onChange={(e) => setHistoryFleetFilter(e.target.value)}
-                  className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
-                >
-                  <option value="all">Toutes les flottes</option>
-                  {historyFleets.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setHistoryFleetFilter(val)}
+                  options={[
+                    { value: 'all', label: 'Toutes les flottes' },
+                    ...historyFleets.map((f) => ({ value: f, label: f })),
+                  ]}
+                />
 
                 <div className="flex flex-wrap items-center gap-1">
                   {(
@@ -1141,6 +1214,61 @@ export default function GeolocCard() {
          ========================================================================= */}
       {mainTab === 'explorer' && (
         <div className="mt-5 space-y-5">
+          {/* Historique local des fichiers Excel importés (IndexedDB) */}
+          {savedWorkbooks.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[var(--radius-xl)] border border-border bg-background/80 px-3.5 py-2.5">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground shrink-0">
+                  <History className="h-3.5 w-3.5 text-primary" />
+                  Imports Excel mémorisés ({savedWorkbooks.length}) :
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {savedWorkbooks.map((item) => {
+                    const isActive = workbook?.weekId === item.weekId;
+                    return (
+                      <div
+                        key={item.weekId}
+                        className={cn(
+                          'inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-1 text-[11px] font-bold transition',
+                          isActive
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-card text-foreground hover:border-primary/50',
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSelectSavedWorkbook(item.weekId)}
+                          className="inline-flex items-center gap-1.5 cursor-pointer"
+                          title={`${item.fileName} — importé le ${new Date(item.importedAt).toLocaleString('fr-FR')}`}
+                        >
+                          <FileSpreadsheet className="h-3 w-3 shrink-0" />
+                          <span>{item.weekLabel}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            ({item.totalTrips} traj.)
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSavedWorkbook(item.weekId);
+                          }}
+                          className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive cursor-pointer"
+                          title="Retirer de l'historique local"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <span className="text-[10px] text-muted-foreground hidden xl:inline">
+                Stocké localement dans ce navigateur · Synthèse partagée dans « Synthèse Monday »
+              </span>
+            </div>
+          )}
+
           {!workbook ? (
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -1325,27 +1453,35 @@ export default function GeolocCard() {
                         className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-xs font-medium outline-none focus:border-primary"
                       />
                     </div>
-                    <select
+                    <SearchableSelect
+                      size="sm"
+                      clearable={false}
+                      searchable={false}
+                      showDot={false}
+                      className="w-[175px]"
                       value={expFleetFilter}
-                      onChange={(e) => setExpFleetFilter(e.target.value)}
-                      className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
-                    >
-                      <option value="all">Toutes les flottes</option>
-                      {workbook.fleets.map((f) => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
-                    <select
+                      onChange={(val) => setExpFleetFilter(val)}
+                      options={[
+                        { value: 'all', label: 'Toutes les flottes' },
+                        ...workbook.fleets.map((f) => ({ value: f, label: f })),
+                      ]}
+                    />
+                    <SearchableSelect
+                      size="sm"
+                      clearable={false}
+                      searchable={false}
+                      showDot={false}
+                      className="w-[195px]"
                       value={expSortBy}
-                      onChange={(e) => setExpSortBy(e.target.value as typeof expSortBy)}
-                      className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
-                    >
-                      <option value="km">Trier : Km total</option>
-                      <option value="offHours">Trier : Km hors horaires</option>
-                      <option value="amplitude">Trier : Amplitude moy.</option>
-                      <option value="trips">Trier : Nb trajets</option>
-                      <option value="plate">Trier : Immatriculation</option>
-                    </select>
+                      onChange={(val) => setExpSortBy(val as typeof expSortBy)}
+                      options={[
+                        { value: 'km', label: 'Trier : Km total' },
+                        { value: 'offHours', label: 'Trier : Km hors horaires' },
+                        { value: 'amplitude', label: 'Trier : Amplitude moy.' },
+                        { value: 'trips', label: 'Trier : Nb trajets' },
+                        { value: 'plate', label: 'Trier : Immatriculation' },
+                      ]}
+                    />
                     <div className="flex flex-wrap items-center gap-1">
                       {(
                         [
@@ -1469,23 +1605,39 @@ export default function GeolocCard() {
                 <div className="space-y-4">
                   {/* Sélecteur rapide de véhicule */}
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <label className="text-xs font-bold text-muted-foreground">Onglet véhicule :</label>
-                      <select
+                    <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+                      <label className="text-xs font-bold text-muted-foreground shrink-0">Onglet véhicule :</label>
+                      <SearchableSelect
+                        size="sm"
+                        clearable={false}
+                        searchable={true}
+                        searchPlaceholder="Rechercher plaque, conducteur, alerte..."
+                        className="w-full max-w-[460px]"
+                        dropdownClassName="min-w-[340px]"
                         value={selectedVehicle.plate}
-                        onChange={(e) => {
-                          setSelectedVehiclePlate(e.target.value);
+                        onChange={(val) => {
+                          setSelectedVehiclePlate(val);
                           setExpandedDays({});
                         }}
-                        className="h-9 min-w-[260px] max-w-full rounded-lg border border-border bg-card px-3 text-xs font-bold text-foreground outline-none focus:border-primary"
-                      >
-                        {workbook.vehicles.map((v) => (
-                          <option key={v.id} value={v.plate}>
-                            {v.plate} — {v.driverName} ({v.tripCount} trajets · {Math.round(v.distanceKm)} km)
-                            {v.alertStatus !== 'Conforme' && v.alertStatus !== 'Inactif' ? ` [${v.alertStatus}]` : ''}
-                          </option>
-                        ))}
-                      </select>
+                        options={workbook.vehicles.map((v) => ({
+                          value: v.plate,
+                          label: `${v.plate} — ${v.driverName}`,
+                          sublabel: `${v.tripCount} trajets · ${Math.round(v.distanceKm)} km${v.alertStatus !== 'Conforme' && v.alertStatus !== 'Inactif' ? ` · ${v.alertStatus}` : ''}`,
+                          badgeColor:
+                            v.alertStatus === 'Hors horaires + WE'
+                              ? '#dc2626'
+                              : v.alertStatus === 'Hors horaires'
+                                ? '#D66927'
+                                : v.alertStatus === 'Week-end'
+                                  ? '#9333ea'
+                                  : v.alertStatus === 'Vie privée'
+                                    ? '#0284c7'
+                                    : v.alertStatus === 'Inactif'
+                                      ? '#94a3b8'
+                                      : '#00c875',
+                          searchTokens: [v.plate, v.driverName, v.fleet, v.alertStatus],
+                        }))}
+                      />
                       <AlertBadge status={selectedVehicle.alertStatus} />
                     </div>
 
@@ -1662,31 +1814,41 @@ export default function GeolocCard() {
                       />
                     </div>
 
-                    <select
+                    <SearchableSelect
+                      size="sm"
+                      clearable={false}
+                      searchable={false}
+                      showDot={false}
+                      className="w-[180px]"
                       value={tripDayFilter}
-                      onChange={(e) => setTripDayFilter(e.target.value)}
-                      className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
-                    >
-                      <option value="all">Tous les jours</option>
-                      {availableTripDays.map(([d, label]) => (
-                        <option key={d} value={d}>{label}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setTripDayFilter(val)}
+                      options={[
+                        { value: 'all', label: 'Tous les jours' },
+                        ...availableTripDays.map(([d, label]) => ({ value: d, label })),
+                      ]}
+                    />
 
-                    <select
+                    <SearchableSelect
+                      size="sm"
+                      clearable={false}
+                      searchable={true}
+                      searchPlaceholder="Filtrer un véhicule..."
+                      className="w-[240px]"
+                      dropdownClassName="min-w-[280px]"
                       value={tripVehicleFilter}
-                      onChange={(e) => setTripVehicleFilter(e.target.value)}
-                      className="h-9 max-w-[220px] rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
-                    >
-                      <option value="all">Tous les véhicules</option>
-                      {workbook.vehicles
-                        .filter((v) => v.trips.length > 0)
-                        .map((v) => (
-                          <option key={v.id} value={v.plate}>
-                            {v.plate} · {v.driverName}
-                          </option>
-                        ))}
-                    </select>
+                      onChange={(val) => setTripVehicleFilter(val)}
+                      options={[
+                        { value: 'all', label: 'Tous les véhicules', badgeColor: '#39A9DC' },
+                        ...workbook.vehicles
+                          .filter((v) => v.trips.length > 0)
+                          .map((v) => ({
+                            value: v.plate,
+                            label: `${v.plate} · ${v.driverName}`,
+                            sublabel: `${v.tripCount} traj.`,
+                            searchTokens: [v.plate, v.driverName, v.fleet],
+                          })),
+                      ]}
+                    />
 
                     <button
                       type="button"
