@@ -2213,6 +2213,55 @@ export async function fetchRepairTickets(): Promise<RepairTicket[]> {
   }
 }
 
+export function isChristineInvoiceTicket(t: RepairTicket): boolean {
+  return (
+    String(t.name || '').startsWith('Facture Réparation') ||
+    String(t.description || '').includes('Facture réparation déposée')
+  );
+}
+
+export async function assignMachineToRepairTicket(
+  ticketId: string,
+  machineId: string,
+  machineName: string
+): Promise<boolean> {
+  const boardId = MAINTENANCE_BOARD_IDS.REPARATION_MACHINES;
+  const colVals = JSON.stringify({
+    board_relation_mm8gc4mh: { item_ids: [Number(machineId)] },
+  });
+
+  const mutation = `
+    mutation AssignMachine($boardId: ID!, $itemId: ID!, $colVals: JSON!) {
+      change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $colVals) {
+        id
+      }
+    }
+  `;
+
+  try {
+    await (monday as any).api(mutation, {
+      variables: { boardId, itemId: ticketId, colVals },
+    });
+
+    try {
+      await (monday as any).api(
+        `mutation AddAssignUpdate($itemId: ID!, $body: String!) { create_update(item_id: $itemId, body: $body) { id } }`,
+        {
+          variables: {
+            itemId: ticketId,
+            body: `✅ Facture déposée par Christine affectée à la machine « ${machineName} » depuis le Hub Parc Matériel (Christophe).`,
+          },
+        }
+      );
+    } catch {}
+
+    return true;
+  } catch (err) {
+    console.error('Erreur affectation machine à la facture:', err);
+    return false;
+  }
+}
+
 export async function moveRepairItemToGroup(
   ticketId: string,
   groupId: string
