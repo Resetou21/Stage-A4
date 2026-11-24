@@ -196,8 +196,6 @@ const buildPoles = (s: PortalStats): PoleMenu[] => [
       {
         id: 'atelier_vehicules',
         title: 'Hub Facturation & Flotte (Christine)',
-        badge: 'Hub Déployé',
-        badgeColor: '#39A9DC',
         description: 'Saisie factures véhicules, TotalEnergies, Chargemap, Bornes Wellborne et Réparations',
         icon: Truck,
       },
@@ -222,8 +220,6 @@ const buildPoles = (s: PortalStats): PoleMenu[] => [
       {
         id: 'comm_lea',
         title: 'Hub de Léa (Communication & Contacts)',
-        badge: 'Hub Déployé',
-        badgeColor: '#3989B7',
         description: 'Export des contacts clients (interlocuteurs, adresses mails) du tableau chantiers',
         icon: Users,
       },
@@ -248,8 +244,6 @@ const buildPoles = (s: PortalStats): PoleMenu[] => [
       {
         id: 'direction_vincent',
         title: 'Hub de Vincent (Direction & Flotte)',
-        badge: 'Hub Déployé',
-        badgeColor: '#1B4565',
         description: 'Suivi de la flotte, coûts de non-qualité, indicateurs financiers et réunion d’associés',
         icon: Landmark,
       },

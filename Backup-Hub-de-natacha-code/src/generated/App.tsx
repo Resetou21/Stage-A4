@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, ClipboardList, HelpCircle, Package, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@components/ui/sonner';
 import AlertsCenter from '@generated/components/AlertsCenter';
@@ -9,7 +9,6 @@ import InventorySpace from '@generated/components/InventorySpace';
 import ChantiersSpace from '@generated/components/ChantiersSpace';
 import QuickFormsSection from '@generated/components/QuickFormsSection';
 import AtelierCommunicationSpace from '@generated/components/AtelierCommunicationSpace';
-import DevRulesModal from '@generated/components/DevRulesModal';
 import { callMondayApi, clearBoardCache, monday } from '@api/BoardSDK';
 import { clearChantiersListCache } from '@generated/server/chantiers';
 import { clearVisitsOverviewCache } from '@generated/server/visits';
@@ -35,18 +34,35 @@ const USER_ID_MAP: Record<string, ProfileKey> = {
 // Utilisateurs administrateurs / superviseurs autorisés à basculer entre tous les secteurs
 const ADMIN_USER_IDS = ['118562356', '76526870']; // Guillaume Daniel, Laurent GUILLOU
 
+// Lecture éventuelle du secteur forcé par le Hub Global (?animatrice=Natacha / ?profile=Ketty)
+function getUrlProfile(): ProfileKey | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = (params.get('animatrice') || params.get('profile') || '').trim().toLowerCase();
+    if (raw.includes('natacha')) return 'Natacha';
+    if (raw.includes('ketty')) return 'Ketty';
+    if (raw.includes('emilie') || raw.includes('émilie')) return 'Emilie';
+  } catch {}
+  return null;
+}
+
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<ProfileKey>('Emilie');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userDetected, setUserDetected] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>('Détection en cours...');
+  const urlProfile = getUrlProfile();
+  const [currentUser, setCurrentUser] = useState<ProfileKey>(urlProfile ?? 'Emilie');
+  const [userDetected, setUserDetected] = useState<boolean>(Boolean(urlProfile));
   const [ecoKey, setEcoKey] = useState(0);
   const [globalKey, setGlobalKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [loadBottom, setLoadBottom] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
+    // Si le Hub Global a déjà transmis ?animatrice=..., on respecte directement ce secteur sans écraser par le profil admin
+    if (urlProfile) {
+      setCurrentUser(urlProfile);
+      setUserDetected(true);
+      return;
+    }
+
     let resolved = false;
 
     const identifyUser = (uid: string, name: string, email: string) => {
@@ -65,21 +81,15 @@ export default function App() {
         normName.includes('laurent') ||
         normName.includes('admin')
       ) {
-        setIsAdmin(true);
         setUserDetected(true);
-        const displayName = normName.includes('laurent') ? 'Admin Laurent GUILLOU' : 'Admin Guillaume';
-        setDebugInfo(`Connecté: ${displayName} (${uid || normEmail})`);
         resolved = true;
         return;
       }
 
       // 2. Détection par ID Monday
       if (uid && USER_ID_MAP[uid]) {
-        const p = USER_ID_MAP[uid];
-        setCurrentUser(p);
-        setIsAdmin(false);
+        setCurrentUser(USER_ID_MAP[uid]);
         setUserDetected(true);
-        setDebugInfo(`Connecté: ${p} (ID: ${uid})`);
         resolved = true;
         return;
       }
@@ -87,25 +97,19 @@ export default function App() {
       // 3. Détection par Email officiel
       if (normEmail.includes('kpaulin')) {
         setCurrentUser('Ketty');
-        setIsAdmin(false);
         setUserDetected(true);
-        setDebugInfo(`Connecté: Ketty (${normEmail})`);
         resolved = true;
         return;
       }
       if (normEmail.includes('etobie')) {
         setCurrentUser('Emilie');
-        setIsAdmin(false);
         setUserDetected(true);
-        setDebugInfo(`Connecté: Emilie (${normEmail})`);
         resolved = true;
         return;
       }
       if (normEmail.includes('nthomas')) {
         setCurrentUser('Natacha');
-        setIsAdmin(false);
         setUserDetected(true);
-        setDebugInfo(`Connecté: Natacha (${normEmail})`);
         resolved = true;
         return;
       }
@@ -113,32 +117,24 @@ export default function App() {
       // 4. Détection par Prénom / Nom dans Monday
       if (normName.includes('ketty')) {
         setCurrentUser('Ketty');
-        setIsAdmin(false);
         setUserDetected(true);
-        setDebugInfo(`Connecté: Ketty (Nom: ${normName})`);
         resolved = true;
         return;
       }
       if (normName.includes('emilie') || normName.includes('émilie')) {
         setCurrentUser('Emilie');
-        setIsAdmin(false);
         setUserDetected(true);
-        setDebugInfo(`Connecté: Emilie (Nom: ${normName})`);
         resolved = true;
         return;
       }
       if (normName.includes('natacha')) {
         setCurrentUser('Natacha');
-        setIsAdmin(false);
         setUserDetected(true);
-        setDebugInfo(`Connecté: Natacha (Nom: ${normName})`);
         resolved = true;
         return;
       }
 
-
       // Par défaut
-      setDebugInfo(`Utilisateur non reconnu: UID=${uid || '?'}, Nom=${name || '?'}, Email=${email || '?'}`);
       setUserDetected(true);
     };
 
@@ -255,38 +251,6 @@ export default function App() {
               <p className="font-[family-name:var(--font-heading)] text-sm font-bold truncate">{fullName}</p>
               <p className="text-xs font-semibold text-primary/80 truncate">Hub Responsable de secteur</p>
             </div>
-
-            {/* Sélecteur de profil et règles : visible STRICTEMENT ET UNIQUEMENT pour l'administrateur */}
-            {isAdmin && (
-              <div className="flex flex-wrap items-center gap-1 sm:ml-2 sm:border-l sm:border-border sm:pl-3">
-                {(['Natacha', 'Emilie', 'Ketty'] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setCurrentUser(p)}
-                    className={cn(
-                      'rounded-full px-2.5 py-1 text-xs font-semibold transition-all',
-                      currentUser === p
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                    title={`Voir la vue de ${p}`}
-                  >
-                    {p}
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => setRulesOpen(true)}
-                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                  title="Détail technique des filtres et calculs Monday"
-                >
-                  <HelpCircle className="h-3 w-3" />
-                  <span className="hidden sm:inline">Règles</span>
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -363,7 +327,6 @@ export default function App() {
           </div>
         </section>
       </main>
-      <DevRulesModal open={rulesOpen} onOpenChange={setRulesOpen} />
       <Toaster />
     </div>
   );
