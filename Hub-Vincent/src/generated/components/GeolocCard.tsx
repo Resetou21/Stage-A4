@@ -1,0 +1,1814 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  MapPin,
+  Upload,
+  ExternalLink,
+  Calendar,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Route,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Download,
+  Car,
+  ShieldAlert,
+  EyeOff,
+  Sun,
+  FileSpreadsheet,
+  RefreshCw,
+  ArrowRight,
+  Database,
+  Sparkles,
+  X,
+} from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Legend,
+} from 'recharts';
+import { toast } from 'sonner';
+import {
+  parseGeolocWorkbook,
+  normalizePlateKey,
+  formatMinutesToDuration,
+  type GeoAlertStatus,
+  type GeoVehicleSummary,
+  type GeoWorkbookResult,
+} from '@lib/geolocParser';
+import {
+  GEOLOC_BOARD_URL,
+  getGeolocHistory,
+  ensureGeolocWeekGroup,
+  upsertGeolocVehicleRow,
+  type MondayGeolocHistory,
+  type MondayGeolocRecord,
+} from '@generated/server/geoloc';
+import { createSpreadsheet, createTheme, useXlsxExport } from '@/skills/xlsx-export';
+import { cn } from '@lib/utils';
+
+type MainTab = 'history' | 'explorer';
+type ExplorerSubTab = 'summary' | 'vehicle' | 'trips';
+type AlertFilter = 'all' | 'alerts' | 'offHours' | 'weekend' | 'private' | 'inactive';
+type TripQuickFilter = 'all' | 'weekend' | 'private' | 'early' | 'late' | 'long';
+
+const ALERT_BADGE_STYLE: Record<GeoAlertStatus, string> = {
+  Conforme: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/25',
+  'Hors horaires': 'bg-amber-500/15 text-amber-800 border-amber-500/30',
+  'Hors horaires + WE': 'bg-red-500/15 text-red-700 border-red-500/30',
+  'Week-end': 'bg-purple-500/12 text-purple-700 border-purple-500/25',
+  'Vie privée': 'bg-sky-500/12 text-sky-700 border-sky-500/25',
+  Inactif: 'bg-muted text-muted-foreground border-border',
+};
+
+const FACILITY_XLSX_THEME = createTheme({
+  primary: 'FF39A9DC',
+  secondary: 'FF3989B7',
+  neutral: 'FFE8F5FC',
+  font: 'Calibri',
+});
+
+function kmFmt(n: number): string {
+  return `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km`;
+}
+
+function hoursFmt(h: number): string {
+  if (!Number.isFinite(h) || h <= 0) return '0h00';
+  const totalMin = Math.round(h * 60);
+  const hh = Math.floor(totalMin / 60);
+  const mm = totalMin % 60;
+  return `${hh}h${String(mm).padStart(2, '0')}`;
+}
+
+function AlertBadge({ status }: { status: GeoAlertStatus }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold whitespace-nowrap',
+        ALERT_BADGE_STYLE[status] || ALERT_BADGE_STYLE.Conforme,
+      )}
+    >
+      {status === 'Conforme' && <CheckCircle2 className="h-3 w-3" />}
+      {(status === 'Hors horaires' || status === 'Hors horaires + WE') && <AlertTriangle className="h-3 w-3" />}
+      {status === 'Week-end' && <Sun className="h-3 w-3" />}
+      {status === 'Vie privée' && <EyeOff className="h-3 w-3" />}
+      <span>{status}</span>
+    </span>
+  );
+}
+
+// Timeline horizontale 03:00 -> 22:00 pour une journée d'un véhicule
+function DayTimelineBar({ day }: { day: GeoVehicleSummary['days'][number] }) {
+  const MIN_START = 3 * 60; // 03:00
+  const MAX_END = 22 * 60; // 22:00
+  const SPAN = MAX_END - MIN_START;
+  const ticks = [4, 7, 10, 13, 16, 19, 22];
+
+  return (
+    <div className="mt-2">
+      <div className="relative h-5 w-full overflow-hidden rounded-md border border-border/70 bg-muted/40">
+        {/* Repères horaires verticaux */}
+        {ticks.map((h) => {
+          const leftPct = ((h * 60 - MIN_START) / SPAN) * 100;
+          return (
+            <div
+              key={h}
+              className="pointer-events-none absolute top-0 bottom-0 border-l border-border/50"
+              style={{ left: `${leftPct}%` }}
+            />
+          );
+        })}
+
+        {/* Barre d'amplitude de fond */}
+        {day.amplitudeMin > 0 && (
+          <div
+            className="pointer-events-none absolute top-1.5 bottom-1.5 rounded bg-primary/12"
+            style={{
+              left: `${Math.max(0, Math.min(100, ((day.firstDepartureMin - MIN_START) / SPAN) * 100))}%`,
+              width: `${Math.max(
+                0.8,
+                Math.min(
+                  100,
+                  ((Math.min(day.lastArrivalMin, MAX_END) - Math.max(day.firstDepartureMin, MIN_START)) / SPAN) * 100,
+                ),
+              )}%`,
+            }}
+          />
+        )}
+
+        {/* Segments de trajets */}
+        {day.trips.map((t) => {
+          const s = Math.max(MIN_START, Math.min(MAX_END, t.startMinutes));
+          const e = Math.max(s + 3, Math.min(MAX_END, t.endMinutes));
+          const leftPct = ((s - MIN_START) / SPAN) * 100;
+          const widthPct = Math.max(0.7, ((e - s) / SPAN) * 100);
+          const colorClass = t.isPrivate
+            ? 'bg-sky-500'
+            : t.isWeekend
+              ? 'bg-purple-500'
+              : t.startMinutes < 270 || t.endMinutes > 1170
+                ? 'bg-[#D66927]'
+                : 'bg-[#39A9DC]';
+          return (
+            <div
+              key={t.id}
+              className={cn('absolute top-0.5 bottom-0.5 rounded-[3px] transition-opacity hover:opacity-80', colorClass)}
+              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+              title={`${t.startTime} → ${t.endTime} (${t.distanceKm} km · ${t.durationLabel})\n${t.startAddress} → ${t.endAddress}`}
+            />
+          );
+        })}
+      </div>
+      <div className="relative mt-0.5 flex justify-between text-[9px] font-mono text-muted-foreground select-none">
+        <span>03h</span>
+        <span>07h</span>
+        <span>10h</span>
+        <span>13h</span>
+        <span>16h</span>
+        <span>19h</span>
+        <span>22h</span>
+      </div>
+    </div>
+  );
+}
+
+export default function GeolocCard() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { exportToXlsx } = useXlsxExport();
+
+  // Mode principal : Historique Monday ou Explorateur Excel
+  const [mainTab, setMainTab] = useState<MainTab>('history');
+
+  // Données Monday (board 5108497111)
+  const [history, setHistory] = useState<MondayGeolocHistory | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [selectedHistoryWeek, setSelectedHistoryWeek] = useState<string>('latest');
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyFleetFilter, setHistoryFleetFilter] = useState('all');
+  const [historyAlertFilter, setHistoryAlertFilter] = useState<AlertFilter>('all');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [historyChartMetric, setHistoryChartMetric] = useState<'km' | 'amplitude'>('km');
+
+  // Données Excel Explorateur (32 onglets en mémoire)
+  const [workbook, setWorkbook] = useState<GeoWorkbookResult | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [explorerSubTab, setExplorerSubTab] = useState<ExplorerSubTab>('summary');
+  const [expSearch, setExpSearch] = useState('');
+  const [expFleetFilter, setExpFleetFilter] = useState('all');
+  const [expAlertFilter, setExpAlertFilter] = useState<AlertFilter>('all');
+  const [expSortBy, setExpSortBy] = useState<'km' | 'offHours' | 'trips' | 'amplitude' | 'plate'>('km');
+  const [selectedVehiclePlate, setSelectedVehiclePlate] = useState<string>('');
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+
+  // Filtres vue Tous les Trajets
+  const [tripSearch, setTripSearch] = useState('');
+  const [tripQuickFilter, setTripQuickFilter] = useState<TripQuickFilter>('all');
+  const [tripDayFilter, setTripDayFilter] = useState<string>('all');
+  const [tripVehicleFilter, setTripVehicleFilter] = useState<string>('all');
+  const [tripVisibleCount, setTripVisibleCount] = useState(60);
+
+  // État synchronisation vers Monday
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; label: string } | null>(null);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await getGeolocHistory({ data: {} });
+      setHistory(res);
+      if (res.weeks.length > 0) {
+        setSelectedHistoryWeek((cur) =>
+          cur === 'latest' || !res.weeks.some((w) => w.weekId === cur) ? res.weeks[0].weekId : cur,
+        );
+      }
+    } catch (err) {
+      console.error('Erreur chargement historique géoloc:', err);
+      toast.error('Impossible de charger le tableau Synthèse Géolocalisation.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  // Lecture fichier Excel (.xlsx)
+  const handleFile = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      toast.error('Format non supporté', {
+        description: 'Veuillez importer un fichier Excel (.xlsx) issu de votre portail GPS.',
+      });
+      return;
+    }
+
+    setParsing(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const parsed = await parseGeolocWorkbook(buf, file.name);
+      setWorkbook(parsed);
+      setMainTab('explorer');
+      setExplorerSubTab('summary');
+      const firstActive = parsed.vehicles.find((v) => v.trips.length > 0) || parsed.vehicles[0];
+      setSelectedVehiclePlate(firstActive?.plate || '');
+      setExpandedDays({});
+      setTripVisibleCount(60);
+      toast.success(`Export GPS chargé en direct !`, {
+        description: `${parsed.weekLabel} · ${parsed.totalVehicles} véhicules · ${parsed.totalTrips.toLocaleString('fr-FR')} trajets (${parsed.matchedDetailSheets} onglets).`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erreur de lecture du fichier Excel', {
+        description: err?.message || 'Vérifiez que le fichier contient bien l’onglet Résumé et les onglets trajets.',
+      });
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  // Analyse anti-doublon pour le workbook chargé vs Monday
+  const syncPreview = useMemo(() => {
+    if (!workbook) return null;
+    const existing = history?.existingByWeekPlate ?? {};
+    let newCount = 0;
+    let existingCount = 0;
+    let linkedCount = 0;
+    const fleetMap = history?.fleetPlateToId ?? {};
+
+    for (const v of workbook.vehicles) {
+      const key = `${workbook.weekId}::${normalizePlateKey(v.plate)}`;
+      if (existing[key]) existingCount++;
+      else newCount++;
+      if (fleetMap[normalizePlateKey(v.plate)]) linkedCount++;
+    }
+    return { newCount, existingCount, linkedCount, total: workbook.vehicles.length };
+  }, [workbook, history]);
+
+  // Enregistrement de la synthèse hebdomadaire sur Monday (5108497111)
+  const handleSyncToMonday = async (overwriteExisting: boolean) => {
+    if (!workbook || syncing) return;
+    setSyncing(true);
+
+    try {
+      const latestHistory = history ?? (await getGeolocHistory({ data: {} }));
+      const existing = latestHistory.existingByWeekPlate;
+      const fleetMap = latestHistory.fleetPlateToId;
+
+      setSyncProgress({ current: 0, total: workbook.vehicles.length, label: `Préparation du groupe ${workbook.weekLabel}…` });
+      const { groupId } = await ensureGeolocWeekGroup({
+        data: { weekId: workbook.weekId, weekLabel: workbook.weekLabel },
+      });
+
+      const targets = workbook.vehicles.filter((v) => {
+        const key = `${workbook.weekId}::${normalizePlateKey(v.plate)}`;
+        const exists = Boolean(existing[key]);
+        return overwriteExisting || !exists;
+      });
+
+      if (targets.length === 0) {
+        toast.info('Semaine déjà entièrement synchronisée sur Monday !');
+        setSyncing(false);
+        setSyncProgress(null);
+        return;
+      }
+
+      let created = 0;
+      let updated = 0;
+
+      for (let i = 0; i < targets.length; i++) {
+        const v = targets[i];
+        const key = `${workbook.weekId}::${normalizePlateKey(v.plate)}`;
+        const existingItemId = existing[key];
+        const linkedVehicleId = fleetMap[normalizePlateKey(v.plate)];
+
+        setSyncProgress({
+          current: i + 1,
+          total: targets.length,
+          label: `${v.plate} (${v.driverName})`,
+        });
+
+        const res = await upsertGeolocVehicleRow({
+          data: {
+            groupId,
+            existingItemId: overwriteExisting ? existingItemId : undefined,
+            weekId: workbook.weekId,
+            startDate: workbook.startDate,
+            endDate: workbook.endDate,
+            plate: v.plate,
+            linkedVehicleId,
+            conducteur: v.vehicleLabel,
+            flotte: v.fleetMondayLabel,
+            alerte: v.alertStatus,
+            nbTrajets: v.tripCount,
+            kmTotal: v.distanceKm,
+            kmPro: v.distanceProKm,
+            kmHors: v.distanceOffHoursKm,
+            conduiteH: v.driveDurationHours,
+            attenteH: v.waitDurationHours,
+            vitesseMoy: v.avgSpeedKmh,
+            joursRoules: v.daysActive,
+            premierDepart: v.avgFirstDeparture,
+            derniereArrivee: v.avgLastArrival,
+            amplitudeH: v.avgAmplitudeHours,
+            syntheseJour: v.dailySummaryText,
+          },
+        });
+
+        if (res.action === 'created') created++;
+        else updated++;
+
+        // Pause douce pour respecter les quotas API Monday
+        await new Promise((r) => setTimeout(r, 70));
+      }
+
+      toast.success('Synthèse enregistrée sur Monday !', {
+        description: `${created > 0 ? `${created} ligne(s) créée(s)` : ''}${created > 0 && updated > 0 ? ' · ' : ''}${updated > 0 ? `${updated} ligne(s) mise(s) à jour` : ''} dans « ${workbook.weekLabel} ».`,
+      });
+
+      await loadHistory();
+      setSelectedHistoryWeek(workbook.weekId);
+    } catch (err: any) {
+      console.error('Erreur synchro géoloc:', err);
+      toast.error('Erreur pendant la synchronisation Monday', {
+        description: err?.message || 'Relancez l’enregistrement : l’anti-doublon reprendra exactement où il s’est arrêté.',
+      });
+      await loadHistory();
+    } finally {
+      setSyncing(false);
+      setSyncProgress(null);
+    }
+  };
+
+  // ==================== DONNÉES FILTRÉES : HISTORIQUE MONDAY ====================
+  const activeHistoryWeekRecords = useMemo(() => {
+    if (!history) return [];
+    if (selectedHistoryWeek === 'all') return history.records;
+    return history.records.filter((r) => r.semaine === selectedHistoryWeek);
+  }, [history, selectedHistoryWeek]);
+
+  const historyFleets = useMemo(() => {
+    return Array.from(new Set(activeHistoryWeekRecords.map((r) => r.flotte).filter(Boolean))).sort();
+  }, [activeHistoryWeekRecords]);
+
+  const filteredHistoryRecords = useMemo(() => {
+    const q = historySearch.trim().toLowerCase();
+    return activeHistoryWeekRecords.filter((r) => {
+      if (historyFleetFilter !== 'all' && r.flotte !== historyFleetFilter) return false;
+      if (historyAlertFilter === 'alerts' && (r.alerte === 'Conforme' || r.alerte === 'Inactif')) return false;
+      if (historyAlertFilter === 'offHours' && r.kmHors <= 0.05) return false;
+      if (historyAlertFilter === 'weekend' && !r.alerte.includes('Week-end') && !r.alerte.includes('WE')) return false;
+      if (historyAlertFilter === 'private' && r.alerte !== 'Vie privée') return false;
+      if (historyAlertFilter === 'inactive' && r.alerte !== 'Inactif') return false;
+      if (q) {
+        const hay = `${r.plate} ${r.conducteur} ${r.flotte} ${r.semaine} ${r.syntheseJour}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [activeHistoryWeekRecords, historySearch, historyFleetFilter, historyAlertFilter]);
+
+  const historyKpis = useMemo(() => {
+    const list = activeHistoryWeekRecords;
+    return {
+      total: list.length,
+      active: list.filter((r) => r.nbTrajets > 0 || r.kmTotal > 0).length,
+      kmTotal: Math.round(list.reduce((s, r) => s + r.kmTotal, 0) * 10) / 10,
+      kmPro: Math.round(list.reduce((s, r) => s + r.kmPro, 0) * 10) / 10,
+      kmHors: Math.round(list.reduce((s, r) => s + r.kmHors, 0) * 10) / 10,
+      trips: list.reduce((s, r) => s + r.nbTrajets, 0),
+      alerts: list.filter((r) => r.alerte !== 'Conforme' && r.alerte !== 'Inactif').length,
+      offHoursCount: list.filter((r) => r.kmHors > 0.05).length,
+    };
+  }, [activeHistoryWeekRecords]);
+
+  const historyChartData = useMemo(() => {
+    const sorted = [...filteredHistoryRecords]
+      .filter((r) => r.kmTotal > 0 || r.amplitudeH > 0)
+      .sort((a, b) => (historyChartMetric === 'km' ? b.kmTotal - a.kmTotal : b.amplitudeH - a.amplitudeH))
+      .slice(0, 12);
+    return sorted.map((r) => ({
+      name: r.plate,
+      conducteur: r.conducteur,
+      kmPro: Math.round(r.kmPro * 10) / 10,
+      kmHors: Math.round(r.kmHors * 10) / 10,
+      amplitude: Math.round(r.amplitudeH * 100) / 100,
+    }));
+  }, [filteredHistoryRecords, historyChartMetric]);
+
+  // ==================== DONNÉES FILTRÉES : EXPLORATEUR EXCEL ====================
+  const filteredExplorerVehicles = useMemo(() => {
+    if (!workbook) return [];
+    const q = expSearch.trim().toLowerCase();
+    const list = workbook.vehicles.filter((v) => {
+      if (expFleetFilter !== 'all' && v.fleet !== expFleetFilter) return false;
+      if (expAlertFilter === 'alerts' && (v.alertStatus === 'Conforme' || v.alertStatus === 'Inactif')) return false;
+      if (expAlertFilter === 'offHours' && !v.hasOffHours) return false;
+      if (expAlertFilter === 'weekend' && !v.hasWeekend) return false;
+      if (expAlertFilter === 'private' && !v.hasPrivate) return false;
+      if (expAlertFilter === 'inactive' && v.alertStatus !== 'Inactif') return false;
+      if (q) {
+        const hay = `${v.plate} ${v.vehicleLabel} ${v.driverName} ${v.fleet}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    return [...list].sort((a, b) => {
+      if (expSortBy === 'offHours') return b.distanceOffHoursKm - a.distanceOffHoursKm || b.distanceKm - a.distanceKm;
+      if (expSortBy === 'trips') return b.tripCount - a.tripCount;
+      if (expSortBy === 'amplitude') return b.avgAmplitudeHours - a.avgAmplitudeHours;
+      if (expSortBy === 'plate') return a.plate.localeCompare(b.plate);
+      return b.distanceKm - a.distanceKm;
+    });
+  }, [workbook, expSearch, expFleetFilter, expAlertFilter, expSortBy]);
+
+  const selectedVehicle = useMemo(() => {
+    if (!workbook) return null;
+    return (
+      workbook.vehicles.find((v) => v.plate === selectedVehiclePlate) ||
+      workbook.vehicles.find((v) => v.trips.length > 0) ||
+      workbook.vehicles[0] ||
+      null
+    );
+  }, [workbook, selectedVehiclePlate]);
+
+  const availableTripDays = useMemo(() => {
+    if (!workbook) return [];
+    const map = new Map<string, string>();
+    for (const t of workbook.allTrips) {
+      if (!map.has(t.date)) map.set(t.date, t.dayLabel);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [workbook]);
+
+  const filteredTrips = useMemo(() => {
+    if (!workbook) return [];
+    const q = tripSearch.trim().toLowerCase();
+    return workbook.allTrips.filter((t) => {
+      if (tripDayFilter !== 'all' && t.date !== tripDayFilter) return false;
+      if (tripVehicleFilter !== 'all' && t.plate !== tripVehicleFilter) return false;
+      if (tripQuickFilter === 'weekend' && !t.isWeekend) return false;
+      if (tripQuickFilter === 'private' && !t.isPrivate) return false;
+      if (tripQuickFilter === 'early' && t.startMinutes >= 4 * 60 + 30) return false;
+      if (tripQuickFilter === 'late' && t.endMinutes <= 19 * 60) return false;
+      if (tripQuickFilter === 'long' && t.distanceKm < 20) return false;
+      if (q) {
+        const hay = `${t.plate} ${t.driverName} ${t.vehicleLabel} ${t.startAddress} ${t.endAddress} ${t.dayLabel}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [workbook, tripSearch, tripQuickFilter, tripDayFilter, tripVehicleFilter]);
+
+  // Exports Excel enrichis
+  const handleExportHistory = async () => {
+    if (filteredHistoryRecords.length === 0) return;
+    const label = selectedHistoryWeek === 'all' ? 'Toutes_Semaines' : selectedHistoryWeek;
+    const ok = await exportToXlsx(
+      createSpreadsheet({
+        sheetName: `Geoloc_${label}`.slice(0, 31),
+        columns: [
+          'Semaine',
+          'Immatriculation',
+          'Conducteur / GPS',
+          'Flotte',
+          'Alerte',
+          'Nb trajets',
+          'Distance totale (km)',
+          'Km horaires pro',
+          'Km hors horaires',
+          'Conduite (h)',
+          'Attente (h)',
+          'Vitesse moy. (km/h)',
+          'Jours roulés',
+          '1er départ moy.',
+          'Dernière arrivée moy.',
+          'Amplitude moy. (h)',
+          'Synthèse journalière',
+        ],
+        rows: filteredHistoryRecords.map((r: MondayGeolocRecord) => [
+          r.semaine,
+          r.plate,
+          r.conducteur,
+          r.flotte,
+          r.alerte,
+          r.nbTrajets,
+          r.kmTotal,
+          r.kmPro,
+          r.kmHors,
+          r.conduiteH,
+          r.attenteH,
+          r.vitesseMoy,
+          r.joursRoules,
+          r.premierDepart,
+          r.derniereArrivee,
+          r.amplitudeH,
+          r.syntheseJour,
+        ]),
+        columnWidths: { 0: 12, 1: 14, 2: 34, 3: 24, 4: 18, 16: 55 },
+        theme: FACILITY_XLSX_THEME,
+      }),
+      `Synthese_Geoloc_${label}.xlsx`,
+    );
+    if (ok) toast.success('Synthèse exportée en Excel (.xlsx) !');
+  };
+
+  const handleExportFilteredTrips = async () => {
+    if (!workbook || filteredTrips.length === 0) return;
+    const ok = await exportToXlsx(
+      createSpreadsheet({
+        sheetName: `Trajets_${workbook.weekId}`.slice(0, 31),
+        columns: [
+          'Jour',
+          'Date',
+          'Immatriculation',
+          'Conducteur',
+          'Départ',
+          'Lieu de départ',
+          'Arrivée',
+          'Lieu d’arrivée',
+          'Distance (km)',
+          'Durée',
+          'Week-end',
+          'Vie privée',
+        ],
+        rows: filteredTrips.map((t) => [
+          t.dayLabel,
+          t.date,
+          t.plate,
+          t.driverName,
+          t.startTime,
+          t.startAddress,
+          t.endTime,
+          t.endAddress,
+          t.distanceKm,
+          t.durationLabel,
+          t.isWeekend ? 'Oui' : 'Non',
+          t.isPrivate ? 'Oui' : 'Non',
+        ]),
+        columnWidths: { 0: 12, 1: 12, 2: 14, 3: 26, 4: 9, 5: 38, 6: 9, 7: 38, 8: 13, 9: 10 },
+        theme: FACILITY_XLSX_THEME,
+      }),
+      `Trajets_GPS_${workbook.weekId}_${filteredTrips.length}lignes.xlsx`,
+    );
+    if (ok) toast.success(`${filteredTrips.length} trajets exportés en Excel (.xlsx) !`);
+  };
+
+  return (
+    <div
+      id="section-geoloc"
+      className="relative rounded-[var(--radius-lg)] border border-border bg-card p-4 pt-8 sm:p-8"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const f = e.dataTransfer.files?.[0];
+        if (f) handleFile(f);
+      }}
+    >
+      {/* Badge Numéro 02 */}
+      <div className="absolute -top-4 left-6 flex items-center gap-3 bg-background pr-3">
+        <span className="inline-flex h-8 min-w-10 items-center justify-center rounded-[var(--radius-sm)] rounded-br-none bg-primary px-2 text-sm font-bold text-primary-foreground">
+          02
+        </span>
+        <h2 className="text-xl font-bold">Géolocalisation &amp; Horaires</h2>
+      </div>
+
+      {/* Overlay glisser-déposer */}
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border-2 border-dashed border-primary bg-primary/10 backdrop-blur-xs">
+          <Upload className="h-10 w-10 text-primary animate-bounce" />
+          <p className="text-sm font-extrabold text-foreground">Déposez votre export GPS (.xlsx) ici</p>
+          <p className="text-xs text-muted-foreground">Lecture instantanée des 32 onglets &amp; trajets</p>
+        </div>
+      )}
+
+      {/* Input fichier caché */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = '';
+        }}
+      />
+
+      {/* En-tête de la carte */}
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+            <MapPin className="h-6 w-6" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm">
+              Explorez vos fichiers GPS multi-onglets (trajets, horaires, amplitudes, km hors horaires) et archivez la synthèse hebdomadaire propre sur Monday.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Liaison automatique par immatriculation officielle (<code className="font-mono font-semibold">AA-123-AA</code>) avec le parc véhicules.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 sm:shrink-0">
+          <button
+            type="button"
+            disabled={parsing}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-4 text-xs font-bold text-primary-foreground shadow-xs transition hover:brightness-95 cursor-pointer disabled:opacity-60"
+          >
+            {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            <span>{workbook ? 'Importer un autre Excel GPS' : 'Importer un Excel GPS (.xlsx)'}</span>
+          </button>
+
+          <a
+            href={GEOLOC_BOARD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-background px-3.5 text-xs font-bold text-foreground transition hover:bg-muted"
+            title="Ouvrir le tableau Monday Synthèse Géolocalisation"
+          >
+            <Database className="h-3.5 w-3.5 text-primary" />
+            <span>Tableau Monday</span>
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+          </a>
+        </div>
+      </div>
+
+      {/* Sélecteur de mode : Historique Monday vs Explorateur Excel (32 onglets) */}
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="inline-flex rounded-[var(--radius-md)] border border-border bg-muted/50 p-1">
+          <button
+            type="button"
+            onClick={() => setMainTab('history')}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer',
+              mainTab === 'history'
+                ? 'bg-card text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Database className="h-3.5 w-3.5 text-primary" />
+            <span>Synthèse Monday</span>
+            {history && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold text-primary">
+                {history.weeks.length} sem.
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainTab('explorer')}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer',
+              mainTab === 'explorer'
+                ? 'bg-card text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-[#D66927]" />
+            <span>Explorateur Excel (Onglets &amp; Trajets)</span>
+            {workbook && (
+              <span className="rounded-full bg-[#D66927]/15 px-2 py-0.5 text-[10px] font-extrabold text-[#D66927]">
+                {workbook.totalTrips.toLocaleString('fr-FR')} trajets
+              </span>
+            )}
+          </button>
+        </div>
+
+        {mainTab === 'history' && (
+          <div className="flex flex-wrap items-center gap-2">
+            {history && history.weeks.length > 0 && (
+              <select
+                value={selectedHistoryWeek}
+                onChange={(e) => setSelectedHistoryWeek(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-background px-3 text-xs font-bold text-foreground outline-none focus:border-primary"
+              >
+                {history.weeks.map((w) => (
+                  <option key={w.weekId} value={w.weekId}>
+                    {w.groupTitle || w.weekId} ({w.activeCount}/{w.vehicleCount} actifs)
+                  </option>
+                ))}
+                {history.weeks.length > 1 && <option value="all">Toutes les semaines ({history.records.length} lignes)</option>}
+              </select>
+            )}
+            <button
+              type="button"
+              onClick={loadHistory}
+              disabled={historyLoading}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground cursor-pointer"
+              title="Recharger depuis Monday"
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', historyLoading && 'animate-spin')} />
+              <span className="hidden sm:inline">Actualiser</span>
+            </button>
+            {filteredHistoryRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportHistory}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-bold text-foreground transition hover:bg-muted cursor-pointer"
+              >
+                <Download className="h-3.5 w-3.5 text-primary" />
+                <span>Export .xlsx</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* =========================================================================
+          ONGLET 1 : SYNTHÈSE ARCHIVÉE SUR MONDAY (BOARD 5108497111)
+         ========================================================================= */}
+      {mainTab === 'history' && (
+        <div className="mt-5 space-y-5">
+          {historyLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-14">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-xs font-medium text-muted-foreground">Chargement du tableau Synthèse Géolocalisation…</p>
+            </div>
+          ) : !history || history.records.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] border-2 border-dashed border-border bg-background/60 px-6 py-12 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-primary">
+                <MapPin className="h-6 w-6" />
+              </div>
+              <p className="text-sm font-bold text-foreground">Aucune semaine encore enregistrée sur Monday</p>
+              <p className="max-w-md text-xs text-muted-foreground">
+                Glissez votre premier fichier Excel <code className="font-mono">Trajets YYYY-MM-DD.xlsx</code> pour explorer les 32 onglets et synchroniser la synthèse hebdomadaire en 1 clic.
+              </p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-xs hover:brightness-95 cursor-pointer"
+              >
+                <Upload className="h-4 w-4" />
+                Importer mon premier export GPS
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* KPI Strip */}
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <Car className="h-3.5 w-3.5 text-primary" /> Véhicules actifs
+                  </p>
+                  <p className="mt-1.5 font-[family-name:var(--font-heading)] text-3xl font-extrabold text-foreground">
+                    {historyKpis.active}
+                    <span className="ml-1 text-sm font-semibold text-muted-foreground">/ {historyKpis.total}</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {historyKpis.trips.toLocaleString('fr-FR')} trajets enregistrés
+                  </p>
+                </div>
+
+                <div className="rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <Route className="h-3.5 w-3.5 text-primary" /> Distance totale
+                  </p>
+                  <p className="mt-1.5 font-[family-name:var(--font-heading)] text-3xl font-extrabold text-primary">
+                    {Math.round(historyKpis.kmTotal).toLocaleString('fr-FR')}
+                    <span className="ml-1 text-sm font-bold">km</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    dont {Math.round(historyKpis.kmPro).toLocaleString('fr-FR')} km horaires pro
+                  </p>
+                </div>
+
+                <div
+                  className={cn(
+                    'rounded-[var(--radius-xl)] border p-3.5',
+                    historyKpis.kmHors > 0
+                      ? 'border-amber-500/35 bg-amber-500/5'
+                      : 'border-border bg-background',
+                  )}
+                >
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <AlertTriangle className={cn('h-3.5 w-3.5', historyKpis.kmHors > 0 ? 'text-amber-600' : 'text-emerald-600')} />
+                    Km hors horaires
+                  </p>
+                  <p
+                    className={cn(
+                      'mt-1.5 font-[family-name:var(--font-heading)] text-3xl font-extrabold',
+                      historyKpis.kmHors > 0 ? 'text-[#D66927]' : 'text-emerald-600',
+                    )}
+                  >
+                    {historyKpis.kmHors.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+                    <span className="ml-1 text-sm font-bold">km</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {historyKpis.offHoursCount} véhicule{historyKpis.offHoursCount > 1 ? 's' : ''} concerné{historyKpis.offHoursCount > 1 ? 's' : ''}
+                  </p>
+                </div>
+
+                <div className="rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <ShieldAlert className="h-3.5 w-3.5 text-purple-600" /> Points de vigilance
+                  </p>
+                  <p className="mt-1.5 font-[family-name:var(--font-heading)] text-3xl font-extrabold text-foreground">
+                    {historyKpis.alerts}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Hors horaires, week-end ou vie privée
+                  </p>
+                </div>
+              </div>
+
+              {/* Graphique comparatif Top 12 */}
+              {historyChartData.length > 0 && (
+                <div className="rounded-[var(--radius-xl)] border border-border bg-background p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        {historyChartMetric === 'km'
+                          ? 'Top 12 véhicules · Kilomètres pro vs hors horaires'
+                          : 'Top 12 véhicules · Amplitude journalière moyenne (h)'}
+                      </p>
+                    </div>
+                    <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-[11px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setHistoryChartMetric('km')}
+                        className={cn(
+                          'rounded-md px-2.5 py-1 transition cursor-pointer',
+                          historyChartMetric === 'km' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        Kilomètres
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHistoryChartMetric('amplitude')}
+                        className={cn(
+                          'rounded-md px-2.5 py-1 transition cursor-pointer',
+                          historyChartMetric === 'amplitude' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        Amplitude (h)
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-56 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={historyChartData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} interval={0} angle={-20} textAnchor="end" height={44} />
+                        <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} width={40} />
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: '10px',
+                            border: '1px solid hsl(var(--border))',
+                            backgroundColor: 'hsl(var(--card))',
+                            fontSize: '12px',
+                          }}
+                          labelFormatter={(val, payload) => {
+                            const p = payload?.[0]?.payload;
+                            return p ? `${val} — ${p.conducteur}` : String(val);
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px' }} />
+                        {historyChartMetric === 'km' ? (
+                          <>
+                            <Bar dataKey="kmPro" name="Km horaires pro" stackId="a" fill="#39A9DC" radius={[0, 0, 0, 0]} />
+                            <Bar dataKey="kmHors" name="Km hors horaires" stackId="a" fill="#D66927" radius={[4, 4, 0, 0]} />
+                          </>
+                        ) : (
+                          <Bar dataKey="amplitude" name="Amplitude moy. (h/jour)" fill="#3989B7" radius={[4, 4, 0, 0]} />
+                        )}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Barre de filtres Historique */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    placeholder="Rechercher une plaque, un conducteur, une flotte…"
+                    className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-xs font-medium outline-none focus:border-primary"
+                  />
+                </div>
+
+                <select
+                  value={historyFleetFilter}
+                  onChange={(e) => setHistoryFleetFilter(e.target.value)}
+                  className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
+                >
+                  <option value="all">Toutes les flottes</option>
+                  {historyFleets.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+
+                <div className="flex flex-wrap items-center gap-1">
+                  {(
+                    [
+                      ['all', 'Tous'],
+                      ['alerts', 'Alertes'],
+                      ['offHours', 'Hors horaires'],
+                      ['weekend', 'Week-end'],
+                      ['private', 'Vie privée'],
+                      ['inactive', 'Inactifs'],
+                    ] as [AlertFilter, string][]
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setHistoryAlertFilter(id)}
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer',
+                        historyAlertFilter === id
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-muted-foreground hover:bg-muted',
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tableau Historique Monday */}
+              <div className="overflow-x-auto rounded-[var(--radius-xl)] border border-border bg-background">
+                <table className="w-full min-w-[820px] text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-3 py-2.5">Véhicule / Conducteur</th>
+                      <th className="px-3 py-2.5">Flotte</th>
+                      <th className="px-3 py-2.5 text-right">Trajets</th>
+                      <th className="px-3 py-2.5 text-right">Km total</th>
+                      <th className="px-3 py-2.5 text-right">Hors hor.</th>
+                      <th className="px-3 py-2.5 text-center">Horaires moy.</th>
+                      <th className="px-3 py-2.5 text-right">Ampl. moy.</th>
+                      <th className="px-3 py-2.5 text-center">Jours</th>
+                      <th className="px-3 py-2.5">Statut</th>
+                      <th className="px-2 py-2.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/70">
+                    {filteredHistoryRecords.map((r) => {
+                      const isExp = expandedHistoryId === r.id;
+                      return (
+                        <tr key={r.id} className="group transition hover:bg-muted/25">
+                          <td className="px-3 py-2.5 align-top" colSpan={isExp ? 10 : undefined}>
+                            {!isExp ? (
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-extrabold text-foreground">{r.plate}</span>
+                                  {r.linkedVehicleId && (
+                                    <span
+                                      className="rounded bg-emerald-500/10 px-1 py-0.5 text-[9px] font-bold text-emerald-700"
+                                      title="Lié automatiquement au tableau Suivi du parc véhicules"
+                                    >
+                                      Parc ✓
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="max-w-[230px] truncate text-[11px] text-muted-foreground" title={r.conducteur}>
+                                  {r.conducteur}
+                                </p>
+                              </div>
+                            ) : (
+                              /* Ligne dépliée avec la synthèse journalière stockée sur Monday */
+                              <div className="space-y-2.5 py-1">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-mono text-sm font-extrabold text-foreground">{r.plate}</span>
+                                    <span className="text-xs font-semibold text-muted-foreground">{r.conducteur}</span>
+                                    <AlertBadge status={r.alerte} />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedHistoryId(null)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-bold text-muted-foreground hover:text-foreground cursor-pointer"
+                                  >
+                                    <ChevronUp className="h-3.5 w-3.5" /> Replier
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-5">
+                                  <div className="rounded-lg border border-border bg-card px-2.5 py-1.5">
+                                    <span className="text-muted-foreground">Distance :</span>{' '}
+                                    <strong className="font-mono">{kmFmt(r.kmTotal)}</strong>
+                                  </div>
+                                  <div className="rounded-lg border border-border bg-card px-2.5 py-1.5">
+                                    <span className="text-muted-foreground">Hors horaires :</span>{' '}
+                                    <strong className={cn('font-mono', r.kmHors > 0 && 'text-[#D66927]')}>{kmFmt(r.kmHors)}</strong>
+                                  </div>
+                                  <div className="rounded-lg border border-border bg-card px-2.5 py-1.5">
+                                    <span className="text-muted-foreground">Conduite :</span>{' '}
+                                    <strong className="font-mono">{hoursFmt(r.conduiteH)}</strong>
+                                  </div>
+                                  <div className="rounded-lg border border-border bg-card px-2.5 py-1.5">
+                                    <span className="text-muted-foreground">Attente :</span>{' '}
+                                    <strong className="font-mono">{hoursFmt(r.attenteH)}</strong>
+                                  </div>
+                                  <div className="rounded-lg border border-border bg-card px-2.5 py-1.5">
+                                    <span className="text-muted-foreground">Vitesse moy. :</span>{' '}
+                                    <strong className="font-mono">{r.vitesseMoy} km/h</strong>
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-border/80 bg-card p-3">
+                                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Synthèse journalière enregistrée ({r.semaine})
+                                  </p>
+                                  <div className="space-y-1 font-mono text-[11px] text-foreground">
+                                    {(r.syntheseJour || 'Aucun détail journalier.').split('\n').map((line, idx) => (
+                                      <div key={idx} className="rounded bg-muted/40 px-2 py-1">
+                                        {line}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                          {!isExp && (
+                            <>
+                              <td className="px-3 py-2.5 text-[11px] text-muted-foreground">{r.flotte}</td>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold">{r.nbTrajets}</td>
+                              <td className="px-3 py-2.5 text-right font-mono font-extrabold text-foreground">
+                                {r.kmTotal.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+                              </td>
+                              <td
+                                className={cn(
+                                  'px-3 py-2.5 text-right font-mono font-bold',
+                                  r.kmHors > 0 ? 'text-[#D66927]' : 'text-muted-foreground/60',
+                                )}
+                              >
+                                {r.kmHors > 0 ? r.kmHors.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : '—'}
+                              </td>
+                              <td className="px-3 py-2.5 text-center font-mono text-[11px] font-semibold">
+                                {r.premierDepart !== '—' ? `${r.premierDepart} → ${r.derniereArrivee}` : '—'}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                                {r.amplitudeH > 0 ? hoursFmt(r.amplitudeH) : '—'}
+                              </td>
+                              <td className="px-3 py-2.5 text-center font-mono font-bold">{r.joursRoules || '—'}</td>
+                              <td className="px-3 py-2.5">
+                                <AlertBadge status={r.alerte} />
+                              </td>
+                              <td className="px-2 py-2.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedHistoryId(r.id)}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:border-primary hover:text-primary cursor-pointer"
+                                  title="Voir le récapitulatif jour par jour"
+                                >
+                                  <ChevronDown className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+                    {filteredHistoryRecords.length === 0 && (
+                      <tr>
+                        <td colSpan={10} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                          Aucun véhicule ne correspond à vos filtres.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          ONGLET 2 : EXPLORATEUR EXCEL COMPLET (32 ONGLETS & 1 110+ TRAJETS)
+         ========================================================================= */}
+      {mainTab === 'explorer' && (
+        <div className="mt-5 space-y-5">
+          {!workbook ? (
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] border-2 border-dashed border-primary/40 bg-primary/5 px-6 py-14 text-center transition hover:border-primary hover:bg-primary/10"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-card text-primary shadow-sm">
+                {parsing ? <Loader2 className="h-7 w-7 animate-spin" /> : <FileSpreadsheet className="h-7 w-7" />}
+              </div>
+              <div>
+                <p className="text-base font-extrabold text-foreground">
+                  Glissez votre export GPS hebdomadaire (.xlsx) ici
+                </p>
+                <p className="mt-1 max-w-lg text-xs text-muted-foreground">
+                  Ex : <code className="font-mono font-semibold">Trajets 2026-11-02 - 2026-11-08.xlsx</code>.
+                  Tous les onglets véhicules sont analysés instantanément dans votre navigateur (horaires 1er départ / dernière arrivée, amplitude, timelines visuelles, recherche d’adresses et enregistrement sur Monday).
+                </p>
+              </div>
+              <span className="mt-1 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-xs">
+                <Upload className="h-4 w-4" /> Choisir un fichier Excel
+              </span>
+            </div>
+          ) : (
+            <>
+              {/* Bannière fichier chargé + Bouton Synchro Monday */}
+              <div className="rounded-[var(--radius-xl)] border border-primary/30 bg-primary/5 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-extrabold text-primary-foreground">
+                        <Calendar className="h-3 w-3" /> {workbook.weekLabel}
+                      </span>
+                      <span className="truncate text-xs font-semibold text-muted-foreground">{workbook.fileName}</span>
+                    </div>
+                    <p className="mt-1.5 text-xs font-medium text-foreground">
+                      <strong>{workbook.totalVehicles}</strong> véhicules ({workbook.activeVehicles} actifs) ·{' '}
+                      <strong>{workbook.matchedDetailSheets}</strong> onglets détaillés ·{' '}
+                      <strong>{workbook.totalTrips.toLocaleString('fr-FR')}</strong> trajets ·{' '}
+                      <strong>{kmFmt(workbook.totalKm)}</strong> au total
+                      {syncPreview && (
+                        <span className="ml-2 text-emerald-700 font-semibold">
+                          ({syncPreview.linkedCount}/{syncPreview.total} reliés au Parc)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Contrôles Synchro Monday */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {syncPreview && syncPreview.newCount > 0 ? (
+                      <button
+                        type="button"
+                        disabled={syncing}
+                        onClick={() => handleSyncToMonday(false)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 cursor-pointer disabled:opacity-60"
+                      >
+                        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        <span>Enregistrer sur Monday (+{syncPreview.newCount} lignes)</span>
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Semaine déjà archivée ({syncPreview?.existingCount}/{syncPreview?.total})
+                        </span>
+                        <button
+                          type="button"
+                          disabled={syncing}
+                          onClick={() => handleSyncToMonday(true)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted cursor-pointer disabled:opacity-60"
+                          title="Met à jour les valeurs existantes sans créer de doublons"
+                        >
+                          <RefreshCw className={cn('h-3.5 w-3.5 text-primary', syncing && 'animate-spin')} />
+                          <span>Mettre à jour</span>
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={syncing}
+                      onClick={() => setWorkbook(null)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                      title="Fermer ce fichier"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Barre de progression pendant la synchro */}
+                {syncing && syncProgress && (
+                  <div className="mt-3 space-y-1.5 rounded-lg border border-primary/20 bg-card p-3">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        Synchronisation Monday : {syncProgress.label}
+                      </span>
+                      <span className="font-mono text-primary">
+                        {syncProgress.current} / {syncProgress.total}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-150"
+                        style={{
+                          width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 10}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3 Sous-Vues de l'Explorateur */}
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    ['summary', `Synthèse Flotte (${workbook.totalVehicles})`, Car],
+                    ['vehicle', `Fiche Véhicule & Horaires (${workbook.matchedDetailSheets} onglets)`, Clock],
+                    ['trips', `Tous les Trajets (${workbook.allTrips.length.toLocaleString('fr-FR')})`, Route],
+                  ] as const
+                ).map(([id, label, Icon]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setExplorerSubTab(id)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-bold transition cursor-pointer',
+                      explorerSubTab === id
+                        ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* ---------- SOUS-VUE 1 : SYNTHÈSE FLOTTE (39 VÉHICULES) ---------- */}
+              {explorerSubTab === 'summary' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div className="rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Distance semaine</p>
+                      <p className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-extrabold text-primary">
+                        {kmFmt(workbook.totalKm)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">{workbook.totalDriveHours} h de conduite</p>
+                    </div>
+                    <div className="rounded-[var(--radius-xl)] border border-amber-500/30 bg-amber-500/5 p-3.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Km hors horaires</p>
+                      <p className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-extrabold text-[#D66927]">
+                        {kmFmt(workbook.totalKmOffHours)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">{workbook.offHoursVehiclesCount} véhicule(s)</p>
+                    </div>
+                    <div className="rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Activité Week-end</p>
+                      <p className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-extrabold text-purple-600">
+                        {workbook.weekendVehiclesCount} véh.
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">Samedi / Dimanche</p>
+                    </div>
+                    <div className="rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Mode Vie privée</p>
+                      <p className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-extrabold text-sky-600">
+                        {workbook.privateVehiclesCount} véh.
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">Trajets masqués détectés</p>
+                    </div>
+                  </div>
+
+                  {/* Filtres + Tri */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={expSearch}
+                        onChange={(e) => setExpSearch(e.target.value)}
+                        placeholder="Filtrer par plaque, conducteur, flotte…"
+                        className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-xs font-medium outline-none focus:border-primary"
+                      />
+                    </div>
+                    <select
+                      value={expFleetFilter}
+                      onChange={(e) => setExpFleetFilter(e.target.value)}
+                      className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
+                    >
+                      <option value="all">Toutes les flottes</option>
+                      {workbook.fleets.map((f) => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={expSortBy}
+                      onChange={(e) => setExpSortBy(e.target.value as typeof expSortBy)}
+                      className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
+                    >
+                      <option value="km">Trier : Km total</option>
+                      <option value="offHours">Trier : Km hors horaires</option>
+                      <option value="amplitude">Trier : Amplitude moy.</option>
+                      <option value="trips">Trier : Nb trajets</option>
+                      <option value="plate">Trier : Immatriculation</option>
+                    </select>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {(
+                        [
+                          ['all', 'Tous'],
+                          ['alerts', 'Alertes'],
+                          ['offHours', 'Hors hor.'],
+                          ['weekend', 'WE'],
+                          ['private', 'Vie privée'],
+                          ['inactive', 'Inactifs'],
+                        ] as [AlertFilter, string][]
+                      ).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setExpAlertFilter(id)}
+                          className={cn(
+                            'rounded-full border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer',
+                            expAlertFilter === id
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-background text-muted-foreground hover:bg-muted',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tableau 39 véhicules */}
+                  <div className="overflow-x-auto rounded-[var(--radius-xl)] border border-border bg-background">
+                    <table className="w-full min-w-[860px] text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          <th className="px-3 py-2.5">Véhicule / Conducteur</th>
+                          <th className="px-3 py-2.5">Flotte</th>
+                          <th className="px-3 py-2.5 text-right">Trajets</th>
+                          <th className="px-3 py-2.5 text-right">Km total</th>
+                          <th className="px-3 py-2.5 text-right">Hors hor.</th>
+                          <th className="px-3 py-2.5 text-center">Horaires moy.</th>
+                          <th className="px-3 py-2.5 text-right">Ampl. moy.</th>
+                          <th className="px-3 py-2.5 text-center">Jours</th>
+                          <th className="px-3 py-2.5">Alertes</th>
+                          <th className="px-2 py-2.5 text-right">Onglet</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/70">
+                        {filteredExplorerVehicles.map((v) => (
+                          <tr
+                            key={v.id}
+                            onClick={() => {
+                              setSelectedVehiclePlate(v.plate);
+                              setExplorerSubTab('vehicle');
+                            }}
+                            className="cursor-pointer transition hover:bg-primary/5"
+                          >
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center gap-1.5">
+                                {v.fleetNumber && (
+                                  <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-primary">
+                                    #{v.fleetNumber}
+                                  </span>
+                                )}
+                                <span className="font-mono font-extrabold text-foreground">{v.plate}</span>
+                              </div>
+                              <p className="max-w-[230px] truncate text-[11px] text-muted-foreground" title={v.vehicleLabel}>
+                                {v.driverName}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2.5 text-[11px] text-muted-foreground">{v.fleet}</td>
+                            <td className="px-3 py-2.5 text-right font-mono font-bold">{v.tripCount}</td>
+                            <td className="px-3 py-2.5 text-right font-mono font-extrabold">
+                              {v.distanceKm.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+                            </td>
+                            <td
+                              className={cn(
+                                'px-3 py-2.5 text-right font-mono font-bold',
+                                v.hasOffHours ? 'text-[#D66927]' : 'text-muted-foreground/50',
+                              )}
+                            >
+                              {v.hasOffHours ? v.distanceOffHoursKm.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-center font-mono text-[11px] font-semibold">
+                              {v.avgFirstDeparture !== '—' ? `${v.avgFirstDeparture} → ${v.avgLastArrival}` : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                              {v.avgAmplitudeHours > 0 ? hoursFmt(v.avgAmplitudeHours) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-center font-mono font-bold">
+                              {v.daysActive || '—'}
+                              {v.weekendDays > 0 && (
+                                <span className="ml-1 rounded bg-purple-500/15 px-1 text-[9px] text-purple-700">
+                                  +{v.weekendDays}WE
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex flex-wrap items-center gap-1">
+                                <AlertBadge status={v.alertStatus} />
+                                {v.hasPrivate && v.alertStatus !== 'Vie privée' && (
+                                  <span className="rounded-full border border-sky-500/25 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-bold text-sky-700">
+                                    Vie privée
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 py-2.5 text-right">
+                              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] font-bold text-primary">
+                                Voir <ArrowRight className="h-3 w-3" />
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ---------- SOUS-VUE 2 : FICHE VÉHICULE & HORAIRES (ONGLET PAR ONGLET) ---------- */}
+              {explorerSubTab === 'vehicle' && selectedVehicle && (
+                <div className="space-y-4">
+                  {/* Sélecteur rapide de véhicule */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <label className="text-xs font-bold text-muted-foreground">Onglet véhicule :</label>
+                      <select
+                        value={selectedVehicle.plate}
+                        onChange={(e) => {
+                          setSelectedVehiclePlate(e.target.value);
+                          setExpandedDays({});
+                        }}
+                        className="h-9 min-w-[260px] max-w-full rounded-lg border border-border bg-card px-3 text-xs font-bold text-foreground outline-none focus:border-primary"
+                      >
+                        {workbook.vehicles.map((v) => (
+                          <option key={v.id} value={v.plate}>
+                            {v.plate} — {v.driverName} ({v.tripCount} trajets · {Math.round(v.distanceKm)} km)
+                            {v.alertStatus !== 'Conforme' && v.alertStatus !== 'Inactif' ? ` [${v.alertStatus}]` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <AlertBadge status={selectedVehicle.alertStatus} />
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-[#39A9DC]" /> Pro</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-[#D66927]" /> &lt;04h30 / &gt;19h30</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-purple-500" /> Week-end</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-sky-500" /> Vie privée</span>
+                    </div>
+                  </div>
+
+                  {/* Bandeau KPIs du véhicule */}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                    <div className="rounded-xl border border-border bg-background p-3">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Distance</p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-primary">{kmFmt(selectedVehicle.distanceKm)}</p>
+                      <p className="text-[10px] text-muted-foreground">{selectedVehicle.tripCount} trajets</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-3">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Hors horaires</p>
+                      <p className={cn('mt-1 font-mono text-lg font-extrabold', selectedVehicle.hasOffHours ? 'text-[#D66927]' : 'text-emerald-600')}>
+                        {kmFmt(selectedVehicle.distanceOffHoursKm)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Pro : {kmFmt(selectedVehicle.distanceProKm)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-3">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">1er départ moy.</p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">{selectedVehicle.avgFirstDeparture}</p>
+                      <p className="text-[10px] text-muted-foreground">Plus tôt : {selectedVehicle.earliestDeparture}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-3">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Dernière arrivée</p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">{selectedVehicle.avgLastArrival}</p>
+                      <p className="text-[10px] text-muted-foreground">Plus tard : {selectedVehicle.latestArrival}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-3">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Amplitude moy.</p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-[#3989B7]">{hoursFmt(selectedVehicle.avgAmplitudeHours)}</p>
+                      <p className="text-[10px] text-muted-foreground">{selectedVehicle.daysActive} jour(s) roulé(s)</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-3">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Conduite / Attente</p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">{hoursFmt(selectedVehicle.driveDurationHours)}</p>
+                      <p className="text-[10px] text-muted-foreground">Attente : {hoursFmt(selectedVehicle.waitDurationHours)}</p>
+                    </div>
+                  </div>
+
+                  {/* Détail jour par jour avec Timeline visuelle */}
+                  {selectedVehicle.days.length === 0 ? (
+                    <div className="rounded-xl border border-border bg-background p-8 text-center text-xs text-muted-foreground">
+                      Aucun trajet enregistré pour ce véhicule sur cette semaine.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedVehicle.days.map((day) => {
+                        const isOpen = expandedDays[day.date] ?? false;
+                        return (
+                          <div
+                            key={day.date}
+                            className={cn(
+                              'rounded-[var(--radius-xl)] border bg-background p-3.5 transition',
+                              day.isWeekend ? 'border-purple-500/35 bg-purple-500/[0.02]' : 'border-border',
+                            )}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                  className={cn(
+                                    'rounded-md px-2 py-0.5 font-mono text-xs font-extrabold',
+                                    day.isWeekend ? 'bg-purple-500/15 text-purple-700' : 'bg-secondary text-primary',
+                                  )}
+                                >
+                                  {day.dayLabel}
+                                </span>
+                                <span className="font-mono text-xs font-extrabold text-foreground">
+                                  {day.firstDeparture} → {day.lastArrival}
+                                </span>
+                                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
+                                  Ampl. {day.amplitudeLabel}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  Conduite {day.driveLabel} · Arrêts/sites {formatMinutesToDuration(day.onSiteStopMin)}
+                                </span>
+                                {day.privateTripsCount > 0 && (
+                                  <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                                    {day.privateTripsCount} vie privée
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2.5">
+                                <span className="font-mono text-xs font-bold text-foreground">
+                                  {day.tripCount} trajets · {kmFmt(day.distanceKm)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedDays((prev) => ({ ...prev, [day.date]: !isOpen }))
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-foreground hover:border-primary hover:text-primary cursor-pointer"
+                                >
+                                  <span>{isOpen ? 'Masquer trajets' : 'Détail trajets'}</span>
+                                  {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <DayTimelineBar day={day} />
+
+                            {/* Liste des trajets de la journée */}
+                            {isOpen && (
+                              <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-card">
+                                <table className="w-full min-w-[660px] text-left text-[11px]">
+                                  <thead>
+                                    <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase text-muted-foreground">
+                                      <th className="px-2.5 py-2">Départ</th>
+                                      <th className="px-2.5 py-2">Site / Adresse départ</th>
+                                      <th className="px-2.5 py-2">Arrivée</th>
+                                      <th className="px-2.5 py-2">Site / Adresse arrivée</th>
+                                      <th className="px-2.5 py-2 text-right">Km</th>
+                                      <th className="px-2.5 py-2 text-right">Durée</th>
+                                      <th className="px-2.5 py-2 text-right">Arrêt sur place</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/60">
+                                    {day.trips.map((t, idx) => {
+                                      const nextTrip = day.trips[idx + 1];
+                                      const stopGap = nextTrip ? nextTrip.startMinutes - t.endMinutes : null;
+                                      return (
+                                        <tr key={t.id} className={cn(t.isPrivate && 'bg-sky-500/5')}>
+                                          <td className="px-2.5 py-1.5 font-mono font-bold">{t.startTime}</td>
+                                          <td className="px-2.5 py-1.5 max-w-[230px] truncate" title={t.startAddress}>
+                                            {t.startAddress}
+                                          </td>
+                                          <td className="px-2.5 py-1.5 font-mono font-bold">{t.endTime}</td>
+                                          <td className="px-2.5 py-1.5 max-w-[230px] truncate font-medium" title={t.endAddress}>
+                                            {t.endAddress}
+                                          </td>
+                                          <td className="px-2.5 py-1.5 text-right font-mono font-bold">{t.distanceKm}</td>
+                                          <td className="px-2.5 py-1.5 text-right font-mono text-muted-foreground">{t.durationLabel}</td>
+                                          <td className="px-2.5 py-1.5 text-right font-mono text-muted-foreground">
+                                            {stopGap !== null && stopGap > 0 ? formatMinutesToDuration(stopGap) : '—'}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ---------- SOUS-VUE 3 : RECHERCHE GLOBALE SUR TOUS LES TRAJETS (1 110+) ---------- */}
+              {explorerSubTab === 'trips' && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="relative flex-1 min-w-[220px]">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={tripSearch}
+                        onChange={(e) => {
+                          setTripSearch(e.target.value);
+                          setTripVisibleCount(60);
+                        }}
+                        placeholder="Rechercher un chantier, une adresse, un conducteur (ex: EUROPIMED, MENCO, Pornic)…"
+                        className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-xs font-medium outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <select
+                      value={tripDayFilter}
+                      onChange={(e) => setTripDayFilter(e.target.value)}
+                      className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
+                    >
+                      <option value="all">Tous les jours</option>
+                      {availableTripDays.map(([d, label]) => (
+                        <option key={d} value={d}>{label}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={tripVehicleFilter}
+                      onChange={(e) => setTripVehicleFilter(e.target.value)}
+                      className="h-9 max-w-[220px] rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none focus:border-primary"
+                    >
+                      <option value="all">Tous les véhicules</option>
+                      {workbook.vehicles
+                        .filter((v) => v.trips.length > 0)
+                        .map((v) => (
+                          <option key={v.id} value={v.plate}>
+                            {v.plate} · {v.driverName}
+                          </option>
+                        ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      disabled={filteredTrips.length === 0}
+                      onClick={handleExportFilteredTrips}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-bold text-foreground hover:bg-muted cursor-pointer disabled:opacity-50"
+                    >
+                      <Download className="h-3.5 w-3.5 text-primary" />
+                      <span>Exporter ({filteredTrips.length})</span>
+                    </button>
+                  </div>
+
+                  {/* Puces de filtres rapides */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(
+                        [
+                          ['all', 'Tous les trajets'],
+                          ['weekend', 'Week-end (Sam/Dim)'],
+                          ['private', 'Vie privée'],
+                          ['early', 'Très tôt (< 04h30)'],
+                          ['late', 'Tardif (> 19h00)'],
+                          ['long', 'Longs (> 20 km)'],
+                        ] as [TripQuickFilter, string][]
+                      ).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => {
+                            setTripQuickFilter(id);
+                            setTripVisibleCount(60);
+                          }}
+                          className={cn(
+                            'rounded-full border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer',
+                            tripQuickFilter === id
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-background text-muted-foreground hover:bg-muted',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      <strong className="text-foreground">{filteredTrips.length.toLocaleString('fr-FR')}</strong> trajets ·{' '}
+                      <strong className="text-primary">
+                        {kmFmt(Math.round(filteredTrips.reduce((s, t) => s + t.distanceKm, 0) * 10) / 10)}
+                      </strong>
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-[var(--radius-xl)] border border-border bg-background">
+                    <table className="w-full min-w-[840px] text-left text-[11px]">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase text-muted-foreground">
+                          <th className="px-3 py-2.5">Jour</th>
+                          <th className="px-3 py-2.5">Véhicule</th>
+                          <th className="px-3 py-2.5">Horaire</th>
+                          <th className="px-3 py-2.5">Départ</th>
+                          <th className="px-3 py-2.5">Arrivée</th>
+                          <th className="px-3 py-2.5 text-right">Km</th>
+                          <th className="px-3 py-2.5 text-right">Durée</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {filteredTrips.slice(0, tripVisibleCount).map((t) => (
+                          <tr key={t.id} className={cn('hover:bg-muted/25', t.isPrivate && 'bg-sky-500/5', t.isWeekend && 'bg-purple-500/[0.03]')}>
+                            <td className="px-3 py-2 font-mono font-bold whitespace-nowrap">
+                              {t.dayLabel}
+                              {t.isWeekend && <span className="ml-1 rounded bg-purple-500/15 px-1 text-[9px] text-purple-700">WE</span>}
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedVehiclePlate(t.plate);
+                                  setExplorerSubTab('vehicle');
+                                }}
+                                className="text-left hover:underline cursor-pointer"
+                              >
+                                <span className="font-mono font-extrabold text-primary">{t.plate}</span>
+                                <span className="block max-w-[160px] truncate text-[10px] text-muted-foreground">{t.driverName}</span>
+                              </button>
+                            </td>
+                            <td className="px-3 py-2 font-mono font-bold whitespace-nowrap">
+                              {t.startTime} → {t.endTime}
+                            </td>
+                            <td className="px-3 py-2 max-w-[220px] truncate" title={t.startAddress}>{t.startAddress}</td>
+                            <td className="px-3 py-2 max-w-[220px] truncate font-medium" title={t.endAddress}>{t.endAddress}</td>
+                            <td className="px-3 py-2 text-right font-mono font-bold">{t.distanceKm}</td>
+                            <td className="px-3 py-2 text-right font-mono text-muted-foreground">{t.durationLabel}</td>
+                          </tr>
+                        ))}
+                        {filteredTrips.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                              Aucun trajet trouvé avec ces critères.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {filteredTrips.length > tripVisibleCount && (
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setTripVisibleCount((c) => c + 100)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
+                      >
+                        Afficher plus ({filteredTrips.length - tripVisibleCount} restants)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

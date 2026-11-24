@@ -45,7 +45,7 @@ export default function DirectionCard() {
   return (
     <div className="relative rounded-[var(--radius-lg)] border border-border bg-card p-4 pt-8 sm:p-8">
       <div className="absolute -top-4 left-6 flex items-center gap-3 bg-background pr-3">
-        <span className="inline-flex h-8 min-w-10 items-center justify-center rounded-[var(--radius-sm)] rounded-br-none bg-primary px-2 text-sm font-bold text-primary-foreground">02</span>
+        <span className="inline-flex h-8 min-w-10 items-center justify-center rounded-[var(--radius-sm)] rounded-br-none bg-primary px-2 text-sm font-bold text-primary-foreground">03</span>
         <h2 className="text-xl font-bold">Direction</h2>
       </div>
       <div className="flex items-start gap-4">

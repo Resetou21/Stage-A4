@@ -11,8 +11,17 @@ import {
   MapPin,
   Wrench,
   Calendar,
+  Link2,
+  Car,
 } from 'lucide-react';
-import { createNewMachine, CreateMachineParams } from '../services/maintenanceApi';
+import {
+  createNewMachine,
+  CreateMachineParams,
+  fetchChantiersList,
+  fetchVehiculesList,
+  findMatchingChantier,
+  findMatchingVehicule,
+} from '../services/maintenanceApi';
 
 interface CreateMachineModalProps {
   existingMachines: Array<{ id: string | number; name: string }>;
@@ -74,6 +83,32 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
   // Gestion des dropdowns personnalisés (un seul ouvert à la fois)
   const [openDropdown, setOpenDropdown] = useState<'type' | 'freq' | 'site' | null>(null);
   const [siteSearch, setSiteSearch] = useState<string>('');
+
+  // Liste des chantiers du Tableau complet chantier pour prévisualisation de la liaison
+  const [chantiersList, setChantiersList] = useState<Array<{ id: string; name: string }>>([]);
+  // Liste des véhicules du Parc Véhicules pour prévisualisation de la liaison
+  const [vehiculesList, setVehiculesList] = useState<
+    Array<{ id: string; name: string; immat: string; number: string }>
+  >([]);
+
+  useEffect(() => {
+    fetchChantiersList().then((list) => {
+      if (Array.isArray(list)) setChantiersList(list);
+    });
+    fetchVehiculesList().then((list) => {
+      if (Array.isArray(list)) setVehiculesList(list);
+    });
+  }, []);
+
+  // Détection automatique du chantier correspondant au site choisi
+  const matchedChantier = useMemo(() => {
+    return findMatchingChantier(site, chantiersList);
+  }, [site, chantiersList]);
+
+  // Détection automatique du véhicule correspondant au site choisi
+  const matchedVehicule = useMemo(() => {
+    return findMatchingVehicule(site, vehiculesList);
+  }, [site, vehiculesList]);
 
   const typeContainerRef = useRef<HTMLDivElement>(null);
   const freqContainerRef = useRef<HTMLDivElement>(null);
@@ -143,6 +178,8 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
       maintenancePreventive,
       pastilleConforme,
       heuresCompteur: heuresCompteur ? parseFloat(heuresCompteur) : undefined,
+      chantierId: matchedChantier?.id,
+      vehiculeId: matchedVehicule?.id,
     };
 
     const res = await createNewMachine(params);
@@ -635,15 +672,57 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                 <MapPin size={14} color="#39A9DC" />
                 <span style={{ fontWeight: 800, color: '#1B4565' }}>{site || 'Sélectionner un site...'}</span>
               </span>
-              <ChevronDown
-                size={15}
-                color="#57778E"
-                style={{
-                  transform: openDropdown === 'site' ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s ease',
-                  flexShrink: 0,
-                }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {matchedChantier && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      color: '#0E7042',
+                      backgroundColor: '#E6F8F0',
+                      border: '1px solid #A3E9C7',
+                      padding: '2px 7px',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    title={`Liaison automatique avec le chantier Monday : ${matchedChantier.name}`}
+                  >
+                    <Link2 size={11} strokeWidth={2.5} />
+                    Chantier relié
+                  </span>
+                )}
+                {matchedVehicule && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      color: '#0369A1',
+                      backgroundColor: '#F0F9FF',
+                      border: '1px solid #BAE6FD',
+                      padding: '2px 7px',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    title={`Liaison automatique avec le véhicule Monday : ${matchedVehicule.name}`}
+                  >
+                    <Car size={11} strokeWidth={2.5} />
+                    Véhicule relié
+                  </span>
+                )}
+                <ChevronDown
+                  size={15}
+                  color="#57778E"
+                  style={{
+                    transform: openDropdown === 'site' ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.15s ease',
+                    flexShrink: 0,
+                  }}
+                />
+              </div>
             </button>
 
             {/* Menu déroulant Site avec recherche intégrée */}
@@ -754,6 +833,8 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                   ) : (
                     filteredSites.map((s) => {
                       const isSelected = site === s;
+                      const hasChantierMatch = Boolean(findMatchingChantier(s, chantiersList));
+                      const hasVehiculeMatch = Boolean(findMatchingVehicule(s, vehiculesList));
                       return (
                         <div
                           key={s}
@@ -785,6 +866,42 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <MapPin size={12} color={isSelected ? '#3989B7' : '#94A3B8'} />
                             {s}
+                            {hasChantierMatch && (
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  color: '#0E7042',
+                                  backgroundColor: '#E6F8F0',
+                                  borderRadius: '4px',
+                                  padding: '1px 5px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                }}
+                                title="Chantier existant sur le Tableau complet chantier"
+                              >
+                                <Link2 size={9} /> Chantier
+                              </span>
+                            )}
+                            {hasVehiculeMatch && (
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  color: '#0369A1',
+                                  backgroundColor: '#F0F9FF',
+                                  borderRadius: '4px',
+                                  padding: '1px 5px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                }}
+                                title="Véhicule du parc reconnu"
+                              >
+                                <Car size={9} /> Véhicule
+                              </span>
+                            )}
                           </span>
                           {isSelected && <Check size={14} color="#3989B7" strokeWidth={3} />}
                         </div>

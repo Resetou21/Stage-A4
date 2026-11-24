@@ -11,6 +11,7 @@ import {
   Wallet,
   ListFilter,
   BarChart3,
+  MapPin,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -244,6 +245,15 @@ export default function VehiclesCard() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5 sm:shrink-0">
+          <button
+            type="button"
+            onClick={() => document.getElementById('section-geoloc')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-background px-3.5 py-2 text-xs font-bold text-foreground transition hover:bg-muted shadow-xs cursor-pointer"
+            title="Accéder au module Géolocalisation & Horaires"
+          >
+            <MapPin className="h-4 w-4 text-primary" />
+            <span>Géoloc &amp; Horaires</span>
+          </button>
           <SyncFixedChargesModal />
           <a
             href={DASHBOARD_URL}

@@ -120,6 +120,8 @@ export const MAINTENANCE_BOARD_IDS = {
   REPARATION_MACHINES: '5106693291',
   PLANNING: '5106585296',
   COMMUNICATION_ANIMATRICES: '5044808167',
+  TABLEAU_COMPLET_CHANTIER: '1976599627',
+  PARC_VEHICULES: '5092005027',
 } as const;
 
 export const COMMUNICATION_GROUP_ID = 'group_mkzb19j1';
@@ -3873,15 +3875,226 @@ export interface CreateMachineParams {
   maintenancePreventive?: boolean;
   pastilleConforme?: boolean;
   heuresCompteur?: number;
+  chantierId?: string | number; // ID optionnel résolu du Tableau complet chantier
+  vehiculeId?: string | number; // ID optionnel résolu du Parc Véhicules
+}
+
+/**
+ * Cache mémoire pour les chantiers du Tableau complet chantier (1976599627)
+ */
+let cachedChantiersList: Array<{ id: string; name: string }> | null = null;
+let cachedChantiersTs = 0;
+
+/**
+ * Cache mémoire pour les véhicules du Parc Véhicules (5092005027)
+ */
+let cachedVehiculesList: Array<{ id: string; name: string; immat: string; number: string }> | null = null;
+let cachedVehiculesTs = 0;
+
+/**
+ * Charge la liste des chantiers en cours du Tableau complet chantier (1976599627)
+ * avec mise en cache mémoire de 10 minutes.
+ */
+export async function fetchChantiersList(
+  force: boolean = false
+): Promise<Array<{ id: string; name: string }>> {
+  const CACHE_TTL_MS = 10 * 60 * 1000;
+  if (!force && cachedChantiersList && Date.now() - cachedChantiersTs < CACHE_TTL_MS) {
+    return cachedChantiersList;
+  }
+
+  try {
+    const query = `
+      query GetChantiersList($boardId: [ID!]) {
+        boards(ids: $boardId) {
+          items_page(limit: 500) {
+            items {
+              id
+              name
+            }
+          }
+        }
+      }
+    `;
+    const res: any = await (monday as any).api(query, {
+      variables: { boardId: [MAINTENANCE_BOARD_IDS.TABLEAU_COMPLET_CHANTIER] },
+    });
+
+    const items: any[] = res?.data?.boards?.[0]?.items_page?.items || [];
+    const chantiers = items
+      .map((it) => ({
+        id: String(it.id),
+        name: String(it.name || '').trim(),
+      }))
+      .filter((c) => Boolean(c.name));
+
+    if (chantiers.length > 0) {
+      cachedChantiersList = chantiers;
+      cachedChantiersTs = Date.now();
+    }
+    return chantiers;
+  } catch (err) {
+    console.warn('Erreur chargement chantiers pour liaison machine:', err);
+    return cachedChantiersList || [];
+  }
+}
+
+/**
+ * Charge la liste des véhicules du Parc Véhicules (5092005027)
+ * avec mise en cache mémoire de 10 minutes.
+ */
+export async function fetchVehiculesList(
+  force: boolean = false
+): Promise<Array<{ id: string; name: string; immat: string; number: string }>> {
+  const CACHE_TTL_MS = 10 * 60 * 1000;
+  if (!force && cachedVehiculesList && Date.now() - cachedVehiculesTs < CACHE_TTL_MS) {
+    return cachedVehiculesList;
+  }
+
+  try {
+    const query = `
+      query GetVehiculesList($boardId: [ID!]) {
+        boards(ids: $boardId) {
+          items_page(limit: 250) {
+            items {
+              id
+              name
+            }
+          }
+        }
+      }
+    `;
+    const res: any = await (monday as any).api(query, {
+      variables: { boardId: [MAINTENANCE_BOARD_IDS.PARC_VEHICULES] },
+    });
+
+    const items: any[] = res?.data?.boards?.[0]?.items_page?.items || [];
+    const list = items
+      .map((it) => {
+        const name = String(it.name || '').trim();
+        // Extrait le numéro #X et l'immatriculation AA-123-AA
+        const numMatch = name.match(/#(\d+)/i) || name.match(/(\d+)/);
+        const immatMatch = name.match(/([A-Z]{2}[-\s]?[0-9]{3}[-\s]?[A-Z]{2})/i);
+        return {
+          id: String(it.id),
+          name,
+          number: numMatch ? numMatch[1] : '',
+          immat: immatMatch ? immatMatch[1].replace(/\s+/g, '-').toUpperCase() : '',
+        };
+      })
+      .filter((v) => Boolean(v.name));
+
+    if (list.length > 0) {
+      cachedVehiculesList = list;
+      cachedVehiculesTs = Date.now();
+    }
+    return list;
+  } catch (err) {
+    console.warn('Erreur chargement véhicules pour liaison machine:', err);
+    return cachedVehiculesList || [];
+  }
+}
+
+/**
+ * Normalise une chaîne pour comparaison souple (minuscules, sans accents, sans ponctuation)
+ */
+export function normalizeChantierName(str: string): string {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Recherche une correspondance intelligente entre un libellé de site saisi/sélectionné
+ * et les chantiers du Tableau complet chantier.
+ */
+export function findMatchingChantier(
+  siteName: string,
+  chantiers: Array<{ id: string; name: string }>
+): { id: string; name: string } | null {
+  if (!siteName || !siteName.trim() || !chantiers || chantiers.length === 0) return null;
+
+  const rawSite = siteName.trim();
+  const normSite = normalizeChantierName(rawSite);
+  if (!normSite || normSite.length < 2) return null;
+
+  // Si c'est un véhicule ou groupe facility général, ne pas lier de chantier
+  if (
+    normSite.startsWith('vehicule') ||
+    normSite.startsWith('voiture') ||
+    normSite === 'groupe facility' ||
+    normSite.includes('machine de pret')
+  ) {
+    return null;
+  }
+
+  // 1. Correspondance exacte normalisée
+  const exact = chantiers.find((c) => normalizeChantierName(c.name) === normSite);
+  if (exact) return exact;
+
+  // 2. L'un contient l'autre si taille significative (>= 4 caractères)
+  if (normSite.length >= 4) {
+    const foundChantierContains = chantiers.find((c) => {
+      const nc = normalizeChantierName(c.name);
+      return nc.length >= 4 && (nc.includes(normSite) || normSite.includes(nc));
+    });
+    if (foundChantierContains) return foundChantierContains;
+  }
+
+  return null;
+}
+
+/**
+ * Recherche une correspondance intelligente entre un libellé de site (ex: "VEHICULE N°17", "Vehicule N°12 (Christophe)")
+ * et les véhicules du Parc Véhicules (ex: "#12 | ET-662-KF", "#17 | FD-597-LD").
+ */
+export function findMatchingVehicule(
+  siteName: string,
+  vehicules: Array<{ id: string; name: string; immat: string; number: string }>
+): { id: string; name: string } | null {
+  if (!siteName || !siteName.trim() || !vehicules || vehicules.length === 0) return null;
+
+  const raw = siteName.trim();
+  const norm = normalizeChantierName(raw);
+
+  // Vérifier si la saisie fait référence à un véhicule
+  if (!norm.includes('vehicule') && !norm.includes('voiture') && !norm.startsWith('n ')) {
+    return null;
+  }
+
+  // Extraire le numéro de véhicule (ex: "VEHICULE N°17" => 17, "Vehicule 12" => 12)
+  const numMatch = raw.match(/(?:vehicule|voiture)?\s*(?:n[°o.]?)?\s*(\d{1,3})/i);
+  if (numMatch && numMatch[1]) {
+    const targetNum = String(parseInt(numMatch[1], 10));
+    const byNum = vehicules.find((v) => v.number === targetNum);
+    if (byNum) return byNum;
+  }
+
+  // Vérifier par immatriculation si présente dans le texte
+  const immatMatch = raw.match(/([A-Z]{2}[-\s]?[0-9]{3}[-\s]?[A-Z]{2})/i);
+  if (immatMatch) {
+    const targetImmat = immatMatch[1].replace(/[\s-]+/g, '').toUpperCase();
+    const byImmat = vehicules.find(
+      (v) => v.immat.replace(/[\s-]+/g, '').toUpperCase() === targetImmat
+    );
+    if (byImmat) return byImmat;
+  }
+
+  return null;
 }
 
 /**
  * Crée une nouvelle machine directement sur le tableau Liste des machines (5106585240)
  * dans le groupe actif "Liste des machines en cours d'utilisation".
+ * Connecte automatiquement la colonne Chantier (board_relation_mm8gxh6a) si le site correspond,
+ * OU la colonne Véhicule (board_relation_mm8g8yw0) si c'est un véhicule !
  */
 export async function createNewMachine(
   params: CreateMachineParams
-): Promise<{ success: boolean; id?: string; error?: string }> {
+): Promise<{ success: boolean; id?: string; error?: string; linkedChantier?: string; linkedVehicule?: string }> {
   try {
     const colValues: Record<string, any> = {
       color_mm8t2mn5: { label: params.type || 'Autolaveuse' },
@@ -3899,6 +4112,53 @@ export async function createNewMachine(
       colValues.numeric_mm8v97ja = String(params.heuresCompteur);
     }
 
+    let linkedChantierName: string | undefined;
+    let linkedVehiculeName: string | undefined;
+    let targetChantierId = params.chantierId ? String(params.chantierId) : undefined;
+    let targetVehiculeId = params.vehiculeId ? String(params.vehiculeId) : undefined;
+
+    // Résolution automatique si non fournie
+    if (params.site && params.site.trim()) {
+      const siteTrim = params.site.trim();
+      const normSite = normalizeChantierName(siteTrim);
+
+      if (normSite.includes('vehicule') || normSite.includes('voiture')) {
+        // C'est un véhicule -> chercher dans le Parc Véhicules
+        try {
+          const vehicules = await fetchVehiculesList();
+          const matchedVeh = findMatchingVehicule(siteTrim, vehicules);
+          if (matchedVeh) {
+            targetVehiculeId = matchedVeh.id;
+            linkedVehiculeName = matchedVeh.name;
+          }
+        } catch (vErr) {
+          console.warn('Erreur résolution véhicule automatique:', vErr);
+        }
+      } else {
+        // C'est un chantier -> chercher dans le Tableau complet chantier
+        if (!targetChantierId) {
+          try {
+            const chantiers = await fetchChantiersList();
+            const matched = findMatchingChantier(siteTrim, chantiers);
+            if (matched) {
+              targetChantierId = matched.id;
+              linkedChantierName = matched.name;
+            }
+          } catch (matchErr) {
+            console.warn('Erreur résolution chantier automatique:', matchErr);
+          }
+        }
+      }
+    }
+
+    if (targetChantierId && /^\d+$/.test(targetChantierId)) {
+      colValues.board_relation_mm8gxh6a = { item_ids: [Number(targetChantierId)] };
+    }
+
+    if (targetVehiculeId && /^\d+$/.test(targetVehiculeId)) {
+      colValues.board_relation_mm8g8yw0 = { item_ids: [Number(targetVehiculeId)] };
+    }
+
     const mutation = `
       mutation CreateParcMachine($boardId: ID!, $groupId: String, $itemName: String!, $columnValues: JSON!) {
         create_item(
@@ -3914,18 +4174,56 @@ export async function createNewMachine(
       }
     `;
 
-    const res: any = await (monday as any).api(mutation, {
-      variables: {
-        boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
-        groupId: 'topics', // Liste des machines en cours d'utilisation
-        itemName: params.name.trim(),
-        columnValues: JSON.stringify(colValues),
-      },
-    });
+    let res: any;
+    try {
+      res = await (monday as any).api(mutation, {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+          groupId: 'topics', // Liste des machines en cours d'utilisation
+          itemName: params.name.trim(),
+          columnValues: JSON.stringify(colValues),
+        },
+      });
+    } catch (firstErr) {
+      console.warn('Création avec relations rejetée, fallback sans relations:', firstErr);
+      delete colValues.board_relation_mm8gxh6a;
+      delete colValues.board_relation_mm8g8yw0;
+      res = await (monday as any).api(mutation, {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+          groupId: 'topics',
+          itemName: params.name.trim(),
+          columnValues: JSON.stringify(colValues),
+        },
+      });
+    }
 
     if (res?.data?.create_item?.id) {
-      return { success: true, id: String(res.data.create_item.id) };
+      return {
+        success: true,
+        id: String(res.data.create_item.id),
+        linkedChantier: linkedChantierName,
+        linkedVehicule: linkedVehiculeName,
+      };
     }
+
+    // Deuxième niveau de fallback si Monday renvoie des errors GraphQL sur les relations
+    if (colValues.board_relation_mm8gxh6a || colValues.board_relation_mm8g8yw0) {
+      delete colValues.board_relation_mm8gxh6a;
+      delete colValues.board_relation_mm8g8yw0;
+      const retryRes: any = await (monday as any).api(mutation, {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+          groupId: 'topics',
+          itemName: params.name.trim(),
+          columnValues: JSON.stringify(colValues),
+        },
+      });
+      if (retryRes?.data?.create_item?.id) {
+        return { success: true, id: String(retryRes.data.create_item.id) };
+      }
+    }
+
     return { success: false, error: formatMondayError(res) };
   } catch (err: any) {
     console.error('Erreur création nouvelle machine:', err);

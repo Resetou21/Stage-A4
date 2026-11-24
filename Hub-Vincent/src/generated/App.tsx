@@ -3,6 +3,7 @@ import mondaySdk from 'monday-sdk-js';
 import { Toaster, toast } from 'sonner';
 import { RotateCw } from 'lucide-react';
 import VehiclesCard from '@generated/components/VehiclesCard';
+import GeolocCard from '@generated/components/GeolocCard';
 import DirectionCard from '@generated/components/DirectionCard';
 import { clearTopCache } from '@generated/components/TopVehicles';
 import { clearVehicleDashboardCache } from '@generated/server/vehicleDashboard';
@@ -103,6 +104,10 @@ export default function App() {
 
         <section className="mt-12">
           <VehiclesCard key={`veh-${refreshKey}`} />
+        </section>
+
+        <section className="mt-14">
+          <GeolocCard key={`geo-${refreshKey}`} />
         </section>
 
         <section className="mt-14">

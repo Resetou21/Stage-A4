@@ -233,11 +233,13 @@ Lors de la validation d'une fiche de contrôle dans le Hub :
   * **Wellborne** : Ignorer les lignes antérieures au 15/05, temporisation anti-surcharge (pause 1s / 50 requêtes).
   * Affichage des 3 dernières factures scannées sous l'outil d'importation.
 
-### D. Flotte, Coûts Fixes & Immatriculations (Vincent)
+### D. Flotte, Coûts Fixes, Géolocalisation & Immatriculations (Vincent)
 * **Coûts fixes mensuels (`Data sur véhicule` -> groupe `Fixe`)** :
   * Chaque nouveau mois, réplication des véhicules actifs du parc avec leur montant mensuel HT dans le groupe `Fixe`. Si un véhicule est restitué, arrêt automatique de la charge fixe le mois suivant.
+* **Synthèse Géolocalisation (`📍 Synthèse Géolocalisation` — Board ID `5108497111`, workspace `🚗Suivi véhicules` `5824035`)** :
+  * Architecture hybride (Option 3) dans **Hub-Vincent** (`GeolocCard.tsx` + `geolocParser.ts` + `geoloc.ts`) : exploration complète en mémoire des 32 onglets / 1 110+ trajets bruts Excel (`.xlsx`) avec timeline journalière et recherche globale d'adresses + archivage propre sur Monday (1 groupe par semaine, 1 ligne par véhicule = ~39 lignes/semaine, anti-doublon par `Semaine + Immatriculation`, liaison automatique `board_relation_mm9dnt7z` vers `❎Suivi du parc véhicules` `5092005027`).
 * **Harmonisation stricte des Immatriculations** :
-  * Toutes les liaisons (contrôles visuels, interventions atelier, consommations carburant/bornes, charges fixes) doivent obligatoirement s'appuyer sur la **plaque d'immatriculation officielle** (format `AA-123-AA`) et non sur un simple numéro de flotte interne, afin d'éliminer tout biais dans le top des consommations importantes.
+  * Toutes les liaisons (contrôles visuels, interventions atelier, consommations carburant/bornes, charges fixes, géolocalisation) doivent obligatoirement s'appuyer sur la **plaque d'immatriculation officielle** (format `AA-123-AA`) et non sur un simple numéro de flotte interne, afin d'éliminer tout biais dans le top des consommations importantes.
 
 
 
