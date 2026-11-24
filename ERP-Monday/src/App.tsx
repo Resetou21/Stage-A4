@@ -1240,21 +1240,28 @@ export const App = () => {
             <BarChart3 size={19} />
             <span className="desktop-tab-label">Indicateurs &amp; Plan d'action</span>
             <span className="mobile-tab-label">Indicateurs</span>
-            {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length > 0 && (
-              <span
-                style={{
-                  backgroundColor: activeTab === 'indicators' ? '#FFFFFF' : '#E2445C',
-                  color: activeTab === 'indicators' ? '#E2445C' : '#FFFFFF',
-                  borderRadius: '10px',
-                  padding: '2px 7px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  marginLeft: '4px',
-                }}
-              >
-                {repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length}
-              </span>
-            )}
+            {(() => {
+              const curatifCount = repairTickets.filter(
+                (t) =>
+                  !isTicketRepaired(t.status, t.groupTitle) &&
+                  !(isChristineInvoiceTicket(t) && !t.machineId)
+              ).length;
+              return curatifCount > 0 ? (
+                <span
+                  style={{
+                    backgroundColor: activeTab === 'indicators' ? '#FFFFFF' : '#E2445C',
+                    color: activeTab === 'indicators' ? '#E2445C' : '#FFFFFF',
+                    borderRadius: '10px',
+                    padding: '2px 7px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    marginLeft: '4px',
+                  }}
+                >
+                  {curatifCount}
+                </span>
+              ) : null;
+            })()}
           </button>
 
           {/* Onglet 5 : Échanges, Alertes Secteur & Factures Christine */}

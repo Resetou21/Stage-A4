@@ -1,7 +1,15 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { FactureTotalBoard } from '@api/BoardSDK';
-import { fetchKeys, makeKey, valText } from './importUtils.server';
+import {
+  fetchKeys,
+  fetchDataVehiculeCounts,
+  consumeDuplicateKey,
+  makeKey,
+  valText,
+  normAmt,
+  normPlate,
+} from './importUtils.server';
 import { invalidateFacturesCache } from './chargemap';
 
 // Colonnes servant à reconnaître une transaction déjà importée
@@ -93,7 +101,15 @@ export const analyzeFacturesTotal = createServerFn({ method: 'POST' })
     });
 
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);
-    const seen = new Set(await fetchKeys(gql, BOARD, KEY_COLS));
+    const [boardKeys, dvCounts] = await Promise.all([
+      fetchKeys(gql, BOARD, KEY_COLS),
+      fetchDataVehiculeCounts(gql, 'group_mm0xzegn').catch(() => new Map<string, number>()),
+    ]);
+    const seen = new Set(boardKeys);
+    const montantHtIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('ht') && (s.includes('montant') || s.includes('prix') || s.includes('total') || s.includes('net'));
+    });
 
     let newCount = 0;
     let dupCount = 0;
@@ -123,7 +139,12 @@ export const analyzeFacturesTotal = createServerFn({ method: 'POST' })
 
       const name = (nameIdx >= 0 ? row[nameIdx] : row[0])?.trim() || 'Facture TOTAL';
       const key = makeKey(name, KEY_COLS.map((id) => valText(values[id])));
-      const isDup = seen.has(key);
+
+      const plate = normPlate(vehiculeIdx >= 0 ? row[vehiculeIdx] : '');
+      const amtHt = normAmt(montantHtIdx >= 0 ? row[montantHtIdx] : '');
+      const dvCandidates = parsedDate && amtHt && plate ? [`tot|${parsedDate}|${amtHt}|${plate}`] : [];
+
+      const isDup = seen.has(key) || consumeDuplicateKey(dvCounts, dvCandidates);
 
       if (isDup) {
         dupCount++;
@@ -185,9 +206,25 @@ export const importFacturesTotal = createServerFn({ method: 'POST' })
     };
     const map = data.headers.map((h) => findCol(h));
     const nameIdx = data.headers.findIndex((h) => ['name', 'nom', 'element', 'élément'].includes(norm(h)));
+    const dateIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('date') || s.includes('jour');
+    });
+    const vehiculeIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('immat') || s.includes('vehicule') || s.includes('estampe') || s.includes('plaque');
+    });
+    const montantHtIdx = data.headers.findIndex((h) => {
+      const s = norm(h);
+      return s.includes('ht') && (s.includes('montant') || s.includes('prix') || s.includes('total') || s.includes('net'));
+    });
 
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);
-    const seen = new Set(await fetchKeys(gql, BOARD, KEY_COLS));
+    const [boardKeys, dvCounts] = await Promise.all([
+      fetchKeys(gql, BOARD, KEY_COLS),
+      fetchDataVehiculeCounts(gql, 'group_mm0xzegn').catch(() => new Map<string, number>()),
+    ]);
+    const seen = new Set(boardKeys);
     let dup = 0;
 
     const results = await Promise.all(
@@ -206,7 +243,13 @@ export const importFacturesTotal = createServerFn({ method: 'POST' })
 
         const name = (nameIdx >= 0 ? row[nameIdx] : row[0])?.trim() || 'Facture TOTAL';
         const key = makeKey(name, KEY_COLS.map((id) => valText(values[id])));
-        if (seen.has(key)) {
+
+        const parsedDate = toDate((dateIdx >= 0 ? row[dateIdx] : '') || '');
+        const plate = normPlate(vehiculeIdx >= 0 ? row[vehiculeIdx] : '');
+        const amtHt = normAmt(montantHtIdx >= 0 ? row[montantHtIdx] : '');
+        const dvCandidates = parsedDate && amtHt && plate ? [`tot|${parsedDate}|${amtHt}|${plate}`] : [];
+
+        if (seen.has(key) || consumeDuplicateKey(dvCounts, dvCandidates)) {
           dup++;
           return null;
         }

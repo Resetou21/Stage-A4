@@ -32,6 +32,7 @@ import {
   updateRepairCost,
   updateRepairTicketStatus,
   isTicketRepaired,
+  isChristineInvoiceTicket,
   findMachineForTicket,
 } from '../services/maintenanceApi';
 
@@ -359,9 +360,10 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
 
     const conformitePercent = totalControles > 0 ? Math.round((vertCount / totalControles) * 100) : 100;
 
-    // Tickets curatifs & délais & coûts
-    const allActiveRepairsCount = repairTickets.filter((t) => !isRepairedTicket(t)).length;
-    const activeRepairs = scopedRepairs.filter((t) => !isRepairedTicket(t));
+    // Tickets curatifs & délais & coûts (les factures Christine non encore affectées à une machine restent dans Alertes & Factures)
+    const isUnassignedChristine = (t: RepairTicket) => isChristineInvoiceTicket(t) && !t.machineId;
+    const allActiveRepairsCount = repairTickets.filter((t) => !isRepairedTicket(t) && !isUnassignedChristine(t)).length;
+    const activeRepairs = scopedRepairs.filter((t) => !isRepairedTicket(t) && !isUnassignedChristine(t));
     const repairedTickets = scopedRepairs.filter((t) => isRepairedTicket(t));
 
     const resolvedDurations = repairedTickets
@@ -484,8 +486,11 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
   }, [machines, realisedControles, selectedPreventiveYear, currentCalendarYear]);
 
   // 3. COMPTEURS ET SÉPARATION DES TICKETS (PANNES ACTIVES VS HISTORIQUE RÉPARÉES)
+  // Les factures Christine sans machine affectée restent dans l'onglet « Alertes & Factures » jusqu'à affectation
   const activeRepairsCount = useMemo(() => {
-    return repairTickets.filter((t) => !isTicketRepaired(t.status, t.groupTitle)).length;
+    return repairTickets.filter(
+      (t) => !isTicketRepaired(t.status, t.groupTitle) && !(isChristineInvoiceTicket(t) && !t.machineId)
+    ).length;
   }, [repairTickets]);
 
   const repairedRepairsCount = useMemo(() => {
@@ -496,6 +501,7 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
     return repairTickets
       .filter((t) => {
         const isReparee = isTicketRepaired(t.status, t.groupTitle);
+        if (!isReparee && isChristineInvoiceTicket(t) && !t.machineId) return false;
 
         // Séparation stricte des 2 onglets : Pannes à traiter vs Historique Réparées
         if (curatifTab === 'a_traiter' && isReparee) return false;

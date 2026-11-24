@@ -1,7 +1,16 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { FactureChargemapBoard } from '@api/BoardSDK';
-import { fetchKeys, makeKey, valText } from './importUtils.server';
+import {
+  fetchKeys,
+  fetchDataVehiculeCounts,
+  consumeDuplicateKey,
+  makeKey,
+  valText,
+  normAmt,
+  normPlate,
+  normToken,
+} from './importUtils.server';
 import { invalidateFacturesCache } from './chargemap';
 
 // Colonnes servant à reconnaître une ligne déjà importée
@@ -162,7 +171,11 @@ export const analyzeFacturesChargemap = createServerFn({ method: 'POST' })
     });
 
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);
-    const seen = new Set(await fetchKeys(gql, BOARD_ID, KEY_COLS));
+    const [boardKeys, dvCounts] = await Promise.all([
+      fetchKeys(gql, BOARD_ID, KEY_COLS),
+      fetchDataVehiculeCounts(gql, 'group_mm0xf5pd').catch(() => new Map<string, number>()),
+    ]);
+    const seen = new Set(boardKeys);
 
     let newCount = 0;
     let dupCount = 0;
@@ -183,7 +196,20 @@ export const analyzeFacturesChargemap = createServerFn({ method: 'POST' })
 
       const name = (nameIdx >= 0 ? row[nameIdx] : row[0])?.trim() || 'Facture Chargemap';
       const key = makeKey(name, KEY_COLS.map((id) => valText(values[id])));
-      const isDup = seen.has(key);
+
+      // Empreinte croisée avec Data sur véhicule (group_mm0xf5pd) : date + montant HT + badge/immat + kWh
+      const dStr = valText(values['date_mm0x7t7d']);
+      const amtHt = normAmt(valText(values['numeric_mm0xkqc5']));
+      const badge = normToken(valText(values['color_mm0xn4gn']));
+      const plate = normPlate(valText(values['color_mm0xyjbt']));
+      const kwh = normAmt(valText(values['numeric_mm0xk1ka']));
+      const dvCandidates: string[] = [];
+      if (dStr && amtHt) {
+        if (badge) dvCandidates.push(`cm_b|${dStr}|${amtHt}|${badge}|${kwh}`);
+        if (plate) dvCandidates.push(`cm_i|${dStr}|${amtHt}|${plate}|${kwh}`);
+      }
+
+      const isDup = seen.has(key) || consumeDuplicateKey(dvCounts, dvCandidates);
 
       if (isDup) {
         dupCount++;
@@ -218,7 +244,11 @@ export const importFactures = createServerFn({ method: 'POST' })
     const map = data.headers.map((h) => findChargemapCol(h));
     const nameIdx = data.headers.findIndex((h) => norm(h) === 'name' || norm(h) === 'nom');
     const gql = (q: string, v: Record<string, unknown>) => board.executeGraphQL(q, v);
-    const seen = new Set(await fetchKeys(gql, BOARD_ID, KEY_COLS));
+    const [boardKeys, dvCounts] = await Promise.all([
+      fetchKeys(gql, BOARD_ID, KEY_COLS),
+      fetchDataVehiculeCounts(gql, 'group_mm0xf5pd').catch(() => new Map<string, number>()),
+    ]);
+    const seen = new Set(boardKeys);
     let dup = 0;
 
     const results = await Promise.all(
@@ -237,7 +267,19 @@ export const importFactures = createServerFn({ method: 'POST' })
 
         const name = (nameIdx >= 0 ? row[nameIdx] : row[0])?.trim() || 'Facture Chargemap';
         const key = makeKey(name, KEY_COLS.map((id) => valText(values[id])));
-        if (seen.has(key)) {
+
+        const dStr = valText(values['date_mm0x7t7d']);
+        const amtHt = normAmt(valText(values['numeric_mm0xkqc5']));
+        const badge = normToken(valText(values['color_mm0xn4gn']));
+        const plate = normPlate(valText(values['color_mm0xyjbt']));
+        const kwh = normAmt(valText(values['numeric_mm0xk1ka']));
+        const dvCandidates: string[] = [];
+        if (dStr && amtHt) {
+          if (badge) dvCandidates.push(`cm_b|${dStr}|${amtHt}|${badge}|${kwh}`);
+          if (plate) dvCandidates.push(`cm_i|${dStr}|${amtHt}|${plate}|${kwh}`);
+        }
+
+        if (seen.has(key) || consumeDuplicateKey(dvCounts, dvCandidates)) {
           dup++;
           return null;
         }
