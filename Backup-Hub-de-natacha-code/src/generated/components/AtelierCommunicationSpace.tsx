@@ -326,7 +326,7 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
               <span>Transmettre un signalement à l'Atelier</span>
             </div>
             <p className="text-xs text-muted-foreground mt-1 mb-4">
-              Christophe recevra immédiatement ce message sur son ERP avec la machine et le chantier ciblés.
+              Christophe recevra immédiatement ce message sur son Hub Parc Matériel avec la machine et le chantier ciblés.
             </p>
 
             <form onSubmit={handleSend} className="space-y-4">

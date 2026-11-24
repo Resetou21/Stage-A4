@@ -1017,7 +1017,7 @@ export const App = () => {
                   letterSpacing: '-0.4px',
                 }}
               >
-                ERP Parc Matériel
+                Parc Matériel & Machines
               </h1>
               <span
                 style={{

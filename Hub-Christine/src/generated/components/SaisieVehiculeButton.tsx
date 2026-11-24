@@ -439,7 +439,7 @@ export default function SaisieVehiculeButton() {
                 <div className="text-xs text-muted-foreground space-y-1.5">
                   <p><strong>1. Rapprochement automatique :</strong> La dépense est rattachée à l'immatriculation du véhicule.</p>
                   <p><strong>2. Ventilation des coûts :</strong> Les entretiens, carburants ou réparations alimentent les indicateurs de suivi de flotte.</p>
-                  <p><strong>3. Atelier mécanique :</strong> En cas de révision ou réparation, l'information est synchronisée avec l'ERP Atelier.</p>
+                  <p><strong>3. Atelier mécanique :</strong> En cas de révision ou réparation, l'information est synchronisée avec le Hub Atelier Matériel.</p>
                 </div>
               </div>
             </DialogContent>
@@ -521,7 +521,7 @@ export default function SaisieVehiculeButton() {
               </div>
               <p>
                 Toute facture ou dépense enregistrée ici est transmise directement au tableau <strong>Data sur véhicule (5092124669)</strong>.
-                Elle est automatiquement partagée avec le <strong>Hub Facturation de Christine</strong>, le <strong>Suivi de Parc de Vincent</strong> (cartes & badges), et l'<strong>ERP Atelier de Christophe</strong> en cas d'intervention mécanique.
+                Elle est automatiquement partagée avec le <strong>Hub Facturation de Christine</strong>, le <strong>Suivi de Parc de Vincent</strong> (cartes & badges), et le <strong>Hub Parc Matériel de Christophe</strong> en cas d'intervention mécanique.
               </p>
             </div>
           )}

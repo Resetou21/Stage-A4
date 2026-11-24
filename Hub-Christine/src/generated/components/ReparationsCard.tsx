@@ -158,7 +158,7 @@ export default function ReparationsCard() {
       }
 
       toast.success(
-        `Dépôt enregistré et alerte transmise à Christophe sur l'ERP Atelier (Tableau Réparations Machines) !`
+        `Dépôt enregistré et alerte transmise à Christophe sur le Hub Parc Matériel (Tableau Réparations Machines) !`
       );
 
       // Réinitialiser le formulaire
@@ -229,7 +229,7 @@ export default function ReparationsCard() {
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground flex flex-col justify-center">
               <p className="font-bold text-primary mb-1">⚙️ Flux direct avec Christophe :</p>
               <p>
-                En enregistrant une facture ici, un ticket d'intervention curative est automatiquement créé dans le <strong>Hub ERP Matériel</strong> avec le statut <em>« À traiter »</em> pour que Christophe l'affecte à la bonne machine.
+                En enregistrant une facture ici, un ticket d'intervention curative est automatiquement créé dans le <strong>Hub Parc Matériel</strong> avec le statut <em>« À traiter »</em> pour que Christophe l'affecte à la bonne machine.
               </p>
             </div>
 
@@ -327,7 +327,7 @@ export default function ReparationsCard() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Destinataire :</span>
-                    <span className="font-semibold text-foreground">Christophe (Atelier ERP)</span>
+                    <span className="font-semibold text-foreground">Christophe (Parc Matériel & Atelier)</span>
                   </div>
                   {selectedReparation.description && (
                     <div className="border-t border-border pt-2 mt-1">
@@ -340,7 +340,7 @@ export default function ReparationsCard() {
                 </div>
 
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[11px] text-muted-foreground leading-relaxed">
-                  ⚙️ <strong>Flux Atelier actif :</strong> Cette facture est en attente d'affectation par Christophe sur la machine du parc concernée dans son Hub ERP.
+                  ⚙️ <strong>Flux Atelier actif :</strong> Cette facture est en attente d'affectation par Christophe sur la machine du parc concernée dans son Hub Parc Matériel.
                 </div>
               </div>
             )}

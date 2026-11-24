@@ -187,7 +187,7 @@ const buildPoles = (s: PortalStats): PoleMenu[] => [
     items: [
       {
         id: 'atelier_erp',
-        title: 'ERP Parc Matériel & Machines',
+        title: 'Parc Matériel & Machines',
         badge: `${s.machinesTotal} machines`,
         badgeColor: '#3989B7',
         description: 'Autolaveuses, monobrosses, compteurs d’heures et réparations curatives',
@@ -1300,7 +1300,7 @@ export default function App() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Wrench size={16} color="#3989B7" />
-                <span>ERP Parc Machines (Christophe)</span>
+                <span>Parc Matériel & Machines (Christophe)</span>
               </div>
               <ChevronRight size={16} color="#94A3B8" />
             </button>
@@ -1579,7 +1579,7 @@ export default function App() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
                   <Wrench size={15} color="#39A9DC" style={{ flexShrink: 0 }} />
                   <span className="subbar-title" style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    ERP Parc Matériel & Atelier
+                    Parc Matériel & Atelier
                   </span>
                   <span
                     className="mobile-hide"
@@ -2027,7 +2027,7 @@ export default function App() {
               }}
             >
               <Wrench size={16} />
-              <span>ERP Atelier ({stats.machinesTotal} machines)</span>
+              <span>Parc Matériel ({stats.machinesTotal} machines)</span>
             </button>
           </div>
         </div>
@@ -2994,7 +2994,7 @@ export default function App() {
               ref={activeIframeRef}
               key={`atelier_erp_${refreshKey}`}
               src={`${URL_ATELIER_ERP}?v=20004306&ts=${refreshKey}`}
-              title="ERP Parc Matériel & Machines"
+              title="Parc Matériel & Machines"
               style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
               allow="clipboard-write; fullscreen; camera; microphone; web-share"
             />

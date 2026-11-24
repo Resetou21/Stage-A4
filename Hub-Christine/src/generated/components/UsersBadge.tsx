@@ -96,7 +96,7 @@ const BUSINESS_USERS_MAP: Record<number, BusinessUser[]> = {
     {
       name: 'Christophe',
       role: 'Responsable Atelier & Maintenance du Parc Machines',
-      hub: 'Hub ERP Parc Matériel (Atelier)',
+      hub: 'Hub Parc Matériel & Atelier',
       tag: 'Destinataire',
       initials: 'CH',
       color: '#D66927',

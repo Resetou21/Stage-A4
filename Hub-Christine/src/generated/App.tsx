@@ -184,7 +184,7 @@ export default function App() {
                       Toute facture réparation saisie ici crée automatiquement un ticket curatif « À traiter » pour Christophe dans l'Atelier, afin qu'il affecte l'intervention à la bonne machine.
                     </p>
                     <div className="text-[10px] text-rose-700 font-semibold flex items-center gap-1">
-                      <ArrowRight className="h-3 w-3" /> Hub ERP Atelier (Christophe)
+                      <ArrowRight className="h-3 w-3" /> Hub Parc Matériel & Atelier (Christophe)
                     </div>
                   </div>
                 </div>

@@ -7,7 +7,6 @@ import {
   ListChecks,
   Megaphone,
   PackageOpen,
-  Trash2,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -15,8 +14,43 @@ import type { AlertsData, Message } from '@generated/hooks/useAlerts';
 import { cn } from '@lib/utils';
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+const fmtDateJJMM = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—');
 
-type Line = { id: string; text: string; sub?: string; date?: string | null; msg?: Message };
+const MONTHS_MAP: Record<string, string> = {
+  january: '01', jan: '01', janvier: '01', 'janv.': '01',
+  february: '02', feb: '02', février: '02', fevrier: '02', 'févr.': '02', fev: '02',
+  march: '03', mar: '03', mars: '03',
+  april: '04', apr: '04', avril: '04', 'avr.': '04',
+  may: '05', mai: '05',
+  june: '06', jun: '06', juin: '06',
+  july: '07', jul: '07', juillet: '07', 'juil.': '07',
+  august: '08', aug: '08', août: '08', aout: '08',
+  september: '09', sep: '09', sept: '09', septembre: '09', 'sept.': '09',
+  october: '10', oct: '10', octobre: '10', 'oct.': '10',
+  november: '11', nov: '11', novembre: '11', 'nov.': '11',
+  december: '12', dec: '12', décembre: '12', decembre: '12', 'déc.': '12',
+};
+
+const MONTH_PATTERN = Object.keys(MONTHS_MAP).map((k) => k.replace('.', '\\.')).join('|');
+const RE_DAY_MONTH = new RegExp(`\\b(\\d{1,2})\\s+(${MONTH_PATTERN})(?:\\s+\\d{4})?\\b`, 'gi');
+const RE_MONTH_DAY = new RegExp(`\\b(${MONTH_PATTERN})\\s+(\\d{1,2})(?:,?\\s+\\d{4})?\\b`, 'gi');
+const RE_ISO_DATE = /\b\d{4}-(\d{2})-(\d{2})\b/g;
+
+function formatAlertTextDatesJJMM(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(RE_DAY_MONTH, (_m, d, mon) => {
+      const mm = MONTHS_MAP[String(mon).toLowerCase()];
+      return mm ? `${String(d).padStart(2, '0')}/${mm}` : _m;
+    })
+    .replace(RE_MONTH_DAY, (_m, mon, d) => {
+      const mm = MONTHS_MAP[String(mon).toLowerCase()];
+      return mm ? `${String(d).padStart(2, '0')}/${mm}` : _m;
+    })
+    .replace(RE_ISO_DATE, (_m, mm, dd) => `${dd}/${mm}`);
+}
+
+type Line = { id: string; text: string; sub?: string; date?: string | null; dateFormat?: 'jjmm'; msg?: Message };
 type Category = { key: string; icon: LucideIcon; title: string; tone: 'orange' | 'red' | 'blue'; count: number; lines?: Line[] };
 
 export function buildCategories(d: AlertsData): Category[] {
@@ -39,7 +73,7 @@ export function buildCategories(d: AlertsData): Category[] {
     { key: 'nv', icon: EyeOff, title: 'Chantiers non vus depuis 11 mois', tone: 'orange', count: d.nonVus11Mois.length,
       lines: d.nonVus11Mois.map((q) => ({ id: q.id, text: q.chantier, date: q.date })) },
     { key: 'v2m', icon: CalendarClock, title: 'Visites des 2 mois', tone: 'blue', count: d.visites2Mois.length,
-      lines: d.visites2Mois.map((v) => ({ id: v.id, text: v.texte, date: v.date })) },
+      lines: d.visites2Mois.map((v) => ({ id: v.id, text: formatAlertTextDatesJJMM(v.texte), date: v.date, dateFormat: 'jjmm' as const })) },
     { key: 'due', icon: ListChecks, title: 'Inventaires à faire', tone: 'blue', count: d.due },
     { key: 'recup', icon: PackageOpen, title: 'Stocks à récupérer', tone: 'blue', count: d.recup },
     { key: 'ave', icon: FileSignature, title: 'Avenants à faire', tone: 'blue', count: d.avenants },
@@ -57,7 +91,6 @@ const toneCls = {
 export default function AlertsList({
   data,
   onSeen,
-  onArchive,
   compact,
 }: {
   data: AlertsData;
@@ -85,24 +118,17 @@ export default function AlertsList({
                         <input type="checkbox" className="h-4 w-4 rounded accent-[hsl(var(--primary))]" onChange={() => l.msg && onSeen(l.msg)} aria-label="Marquer comme vu" />
                         Vu
                       </label>
-                      {onArchive && (
-                        <button
-                          type="button"
-                          onClick={() => l.msg && onArchive(l.msg)}
-                          title="Supprimer (archiver sur Monday)"
-                          aria-label="Supprimer cette alerte"
-                          className="inline-flex h-6 items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="font-medium break-words text-foreground/90">{l.text}</p>
                     {l.sub && <p className="text-xs text-muted-foreground mt-0.5">{l.sub}</p>}
                   </div>
-                  {l.date !== undefined && <span className="shrink-0 text-xs font-medium text-muted-foreground whitespace-nowrap">{fmtDate(l.date ?? null)}</span>}
+                  {l.date !== undefined && (
+                    <span className="shrink-0 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      {l.dateFormat === 'jjmm' ? fmtDateJJMM(l.date ?? null) : fmtDate(l.date ?? null)}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
