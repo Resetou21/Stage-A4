@@ -368,11 +368,11 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
 
     const resolvedDurations = repairedTickets
       .map((t) => computeDaysBetween(t.date, t.repairedDate || t.updatedAt))
-      .filter((d): d is number => d !== null);
+      .filter((d): d is number => d !== null && d >= 0 && d <= 60);
     const avgResolutionDays =
       resolvedDurations.length > 0
-        ? Math.round((resolvedDurations.reduce((a, b) => a + b, 0) / resolvedDurations.length) * 10) / 10
-        : null;
+        ? Math.min(15, Math.max(1, Math.round((resolvedDurations.reduce((a, b) => a + b, 0) / resolvedDurations.length) * 10) / 10))
+        : 8;
 
     const activeImmobDays = activeRepairs
       .map((t) => computeDaysBetween(t.date))
@@ -1404,10 +1404,10 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                           >
                             <Clock size={11} />
                             {(() => {
-                              const avg = stats.avgResolutionDays || 8;
+                              const avg = Math.min(15, Math.max(2, stats.avgResolutionDays || 8));
                               const elapsed = immobDays || 0;
-                              const remaining = Math.max(1, avg - elapsed);
-                              return elapsed > avg ? `Délai dépassé (+${elapsed - avg} j)` : `Reste estimé : ~${remaining} j`;
+                              const remaining = Math.max(1, Math.round(avg - elapsed));
+                              return elapsed > avg ? `Délai dépassé (+${Math.round(elapsed - avg)} j)` : `Reste estimé : ~${remaining} j`;
                             })()}
                           </span>
                         )}
@@ -1695,10 +1695,10 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
                         ⏳ Reste estimé :{' '}
                         <b>
                           {(() => {
-                            const avg = stats.avgResolutionDays || 8;
+                            const avg = Math.min(15, Math.max(2, stats.avgResolutionDays || 8));
                             const elapsed = detailImmob || 0;
-                            const remaining = Math.max(1, avg - elapsed);
-                            return elapsed > avg ? `Délai dépassé (+${elapsed - avg} j)` : `~${remaining} j`;
+                            const remaining = Math.max(1, Math.round(avg - elapsed));
+                            return elapsed > avg ? `Délai dépassé (+${Math.round(elapsed - avg)} j)` : `~${remaining} j`;
                           })()}
                         </b>
                       </span>
