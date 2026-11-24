@@ -11,11 +11,13 @@ type ActionRow = Actions['rows'][number];
 export default function InventoryActions({
   firstName,
   onChanged,
+  onAvenantDemandeChanged,
   search = '',
   preloaded = null,
 }: {
   firstName: string;
   onChanged?: (doneId?: string) => void;
+  onAvenantDemandeChanged?: (rowId: string, demande: boolean) => void;
   search?: string;
   preloaded?: Actions | null;
 }) {
@@ -41,6 +43,7 @@ export default function InventoryActions({
 
     try {
       await markAvenantDemande({ data: { itemId: r.itemId, itemIds: r.itemIds, demande: nextVal } });
+      onAvenantDemandeChanged?.(r.id, nextVal);
       setData((d) =>
         d
           ? {
@@ -171,6 +174,7 @@ export default function InventoryActions({
   if (filteredRows.length === 0) return null;
 
   const totalRefs = filteredRows.reduce((sum, r) => sum + r.values.length, 0);
+  const avenantsDemandesCount = filteredRows.filter((r) => r.type === 'Avenant' && isAvenantDemande(r)).length;
 
   return (
     <div className="space-y-4">
@@ -183,6 +187,12 @@ export default function InventoryActions({
           <span className="bg-primary/10 text-primary font-bold px-2.5 py-0.5 rounded-full text-[11px]">
             {totalRefs} référence{totalRefs > 1 ? 's' : ''} concernée{totalRefs > 1 ? 's' : ''}
           </span>
+          {avenantsDemandesCount > 0 && (
+            <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-300/70 font-bold px-2.5 py-0.5 rounded-full text-[11px]">
+              <Clock className="h-3 w-3" />
+              <span>{avenantsDemandesCount} avenant{avenantsDemandesCount > 1 ? 's' : ''} demandé{avenantsDemandesCount > 1 ? 's' : ''} en cours</span>
+            </span>
+          )}
         </div>
 
         {/* Bascule Fiches / Tableau */}

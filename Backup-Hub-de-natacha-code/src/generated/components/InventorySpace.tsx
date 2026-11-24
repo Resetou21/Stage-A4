@@ -169,6 +169,16 @@ export default function InventorySpace({ firstName, onInventoryValidated }: { fi
               firstName={firstName}
               search={search}
               preloaded={actionsData}
+              onAvenantDemandeChanged={(rowId: string, demande: boolean) => {
+                setActionsData((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        rows: prev.rows.map((x) => (x.id === rowId ? { ...x, avenantDemande: demande } : x)),
+                      }
+                    : prev
+                );
+              }}
               onChanged={(doneId?: string) => {
                 if (doneId) {
                   setActionsData((prev) => {
