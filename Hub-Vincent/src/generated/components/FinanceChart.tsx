@@ -40,7 +40,7 @@ export default function FinanceChart({ metric }: { metric: 'ca' | 'res' }) {
           <BarChart data={rows} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="mois" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-            <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={fmt} width={56} />
+            <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={fmt} width={72} />
             <Tooltip formatter={(v) => (typeof v === 'number' ? fmt(v) : String(v ?? '—'))}
               contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />

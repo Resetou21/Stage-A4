@@ -112,7 +112,7 @@ export type FleetFinancialData = {
 };
 
 const OVERVIEW_LS_KEY = 'hub_vincent_fleet_overview_v2';
-const FIN_LS_KEY = 'hub_vincent_fleet_financial_v1';
+const FIN_LS_KEY = 'hub_vincent_fleet_financial_v2';
 const LS_TTL_MS = 30 * 60 * 1000;
 
 let memOverview: { expires: number; data: FleetOverviewData } | null = null;
@@ -474,12 +474,35 @@ export const getFleetFinancialAnalytics = createServerFn({ method: 'GET' })
     const p = (async (): Promise<FleetFinancialData> => {
       const overview = await getFleetOverviewData({ data: { force: false } });
       const parcMap = new Map<string, ParcVehicleMeta>();
+      const byNormPlate = new Map<string, string>();
+      const byFleetNum = new Map<string, string>();
       for (const v of overview.parcList) {
         if (v.plate) {
-          parcMap.set(v.plate.toUpperCase(), v);
-          parcMap.set(v.plate.toUpperCase().replace(/[^A-Z0-9]/g, ''), v);
+          const up = v.plate.toUpperCase();
+          const normKey = up.replace(/[^A-Z0-9]/g, '');
+          parcMap.set(up, v);
+          if (normKey) {
+            parcMap.set(normKey, v);
+            if (v.inService || !byNormPlate.has(normKey)) byNormPlate.set(normKey, up);
+          }
+          if (v.num && (v.inService || !byFleetNum.has(v.num))) byFleetNum.set(v.num, up);
         }
       }
+
+      const resolveCanonicalPlate = (raw: string): string => {
+        const trimmed = raw.trim();
+        if (!trimmed || trimmed === '0') return '';
+        const vehNum = trimmed.match(/^v[eé]hicule\s*#?(\d+)$/i);
+        if (vehNum && byFleetNum.has(vehNum[1])) return byFleetNum.get(vehNum[1])!;
+        const siv = trimmed.toUpperCase().match(/\b([A-Z]{2})[\s-]?(\d{3})[\s-]?([A-Z]{2})\b/);
+        if (siv) {
+          const normKey = `${siv[1]}${siv[2]}${siv[3]}`;
+          return byNormPlate.get(normKey) || `${siv[1]}-${siv[2]}-${siv[3]}`;
+        }
+        const alpha = trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (alpha && byNormPlate.has(alpha)) return byNormPlate.get(alpha)!;
+        return trimmed.toUpperCase();
+      };
 
       const year = new Date().getFullYear();
       const now = new Date();
@@ -583,14 +606,15 @@ export const getFleetFinancialAnalytics = createServerFn({ method: 'GET' })
         };
 
         const dateStr = g('date4');
-        const rawFormulaPlate = g('formula_mm0ztfrj').toUpperCase();
-        const textPlate = g('text_mm0xqkkm').toUpperCase();
-        const plate =
+        const rawFormulaPlate = g('formula_mm0ztfrj');
+        const textPlate = g('text_mm0xqkkm');
+        const rawCandidate =
           rawFormulaPlate && rawFormulaPlate !== '0'
             ? rawFormulaPlate
             : textPlate && textPlate !== '0'
             ? textPlate
             : '';
+        const plate = resolveCanonicalPlate(rawCandidate);
 
         const km = parseNum(g('numeric_mm0r9f1k'));
         if (plate && !Number.isNaN(km)) {

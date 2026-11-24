@@ -156,7 +156,7 @@ export default function EnergyComparisonChart() {
                 tickLine={false}
                 axisLine={false}
                 fontSize={12}
-                width={56}
+                width={68}
                 stroke="hsl(var(--muted-foreground))"
                 tickFormatter={(v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`}
               />

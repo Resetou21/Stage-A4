@@ -11,7 +11,7 @@ type Source = 'chargemap' | 'carburant';
 type LimitMode = 'all' | 'top10' | 'top5';
 type ViewMode = 'table' | 'chart';
 
-const TOP_STORAGE_PREFIX = 'hub_vincent_top_all_v2_';
+const TOP_STORAGE_PREFIX = 'hub_vincent_top_all_v3_';
 const TOP_TTL_MS = 30 * 60 * 1000;
 const cache = new Map<Source, Promise<Data>>();
 
@@ -33,6 +33,8 @@ export function clearTopCache() {
   try {
     localStorage.removeItem(TOP_STORAGE_PREFIX + 'chargemap');
     localStorage.removeItem(TOP_STORAGE_PREFIX + 'carburant');
+    localStorage.removeItem('hub_vincent_top_all_v2_chargemap');
+    localStorage.removeItem('hub_vincent_top_all_v2_carburant');
     // Nettoyage ancien préfixe Top 5
     localStorage.removeItem('hub_vincent_top_chargemap');
     localStorage.removeItem('hub_vincent_top_carburant');

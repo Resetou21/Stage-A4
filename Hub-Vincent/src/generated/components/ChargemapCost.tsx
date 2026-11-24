@@ -85,14 +85,14 @@ export default function ChargemapCost({ source }: { source: 'chargemap' | 'carbu
       </div>
       <div className="h-64 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data.months} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <BarChart data={data.months} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} stroke="hsl(var(--muted-foreground))" />
             <YAxis
               tickLine={false}
               axisLine={false}
               fontSize={12}
-              width={56}
+              width={68}
               stroke="hsl(var(--muted-foreground))"
               tickFormatter={(v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`}
             />

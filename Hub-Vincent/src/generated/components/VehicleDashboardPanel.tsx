@@ -316,7 +316,7 @@ export default function VehicleDashboardPanel({
                     tickLine={false}
                     axisLine={false}
                     fontSize={11}
-                    width={52}
+                    width={66}
                     stroke="hsl(var(--muted-foreground))"
                     tickFormatter={(v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`}
                   />
@@ -400,7 +400,7 @@ export default function VehicleDashboardPanel({
                   tickLine={false}
                   axisLine={false}
                   fontSize={11}
-                  width={54}
+                  width={68}
                   stroke="hsl(var(--muted-foreground))"
                   tickFormatter={(v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`}
                 />
@@ -498,7 +498,7 @@ export default function VehicleDashboardPanel({
                     tickLine={false}
                     axisLine={false}
                     fontSize={11}
-                    width={56}
+                    width={68}
                     stroke="hsl(var(--muted-foreground))"
                     tickFormatter={(v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`}
                   />
@@ -585,7 +585,7 @@ export default function VehicleDashboardPanel({
                   tickLine={false}
                   axisLine={false}
                   fontSize={11}
-                  width={54}
+                  width={68}
                   stroke="hsl(var(--muted-foreground))"
                   tickFormatter={(v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`}
                 />
@@ -645,7 +645,7 @@ export default function VehicleDashboardPanel({
                     tickLine={false}
                     axisLine={false}
                     fontSize={10}
-                    width={50}
+                    width={56}
                     stroke="hsl(var(--muted-foreground))"
                     tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
                   />
@@ -841,7 +841,7 @@ export default function VehicleDashboardPanel({
                   tickLine={false}
                   axisLine={false}
                   fontSize={11}
-                  width={52}
+                  width={68}
                   stroke="hsl(var(--muted-foreground))"
                   tickFormatter={(v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`}
                 />

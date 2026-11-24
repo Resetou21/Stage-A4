@@ -40,7 +40,43 @@ export function clearEnergyTopServerCache() {
   CACHE.clear();
 }
 
-// Tous les véhicules ayant des dépenses sur les 6 derniers mois + évolution mensuelle et métadonnées flotte.
+/**
+ * Normalise toute saisie d'immatriculation (ex: "FZ780QF", "FN 342 WY",
+ * "HM-718-RA (Proace City Electric)", "VEHICULE 11") vers la plaque officielle AA-123-AA.
+ */
+function canonicalizeVehicleKey(
+  raw: string,
+  byNormPlate: Map<string, string>,
+  byFleetNum: Map<string, string>,
+): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '—';
+
+  // 1. Cas "VEHICULE 11" / "Véhicule #11" -> rattachement au numéro de flotte actif
+  const vehNumMatch = trimmed.match(/^v[eé]hicule\s*#?(\d+)$/i);
+  if (vehNumMatch) {
+    const mapped = byFleetNum.get(vehNumMatch[1]);
+    if (mapped) return mapped;
+  }
+
+  // 2. Extraction d'une plaque française SIV (AA-123-AA / AA 123 AA / AA123AA) même suivie d'un modèle entre parenthèses
+  const sivMatch = trimmed.toUpperCase().match(/\b([A-Z]{2})[\s-]?(\d{3})[\s-]?([A-Z]{2})\b/);
+  if (sivMatch) {
+    const formatted = `${sivMatch[1]}-${sivMatch[2]}-${sivMatch[3]}`;
+    const normKey = `${sivMatch[1]}${sivMatch[2]}${sivMatch[3]}`;
+    return byNormPlate.get(normKey) || formatted;
+  }
+
+  // 3. Correspondance directe alphanumérique avec le référentiel Parc
+  const alphaNum = trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (alphaNum && byNormPlate.has(alphaNum)) {
+    return byNormPlate.get(alphaNum)!;
+  }
+
+  return trimmed;
+}
+
+// Tous les véhicules ayant des dépenses sur les 6 derniers mois + harmonisation stricte des plaques AA-123-AA.
 export const getTopVehicles = createServerFn({ method: 'GET' })
   .validator(z.object({ source: z.enum(['chargemap', 'carburant']) }))
   .handler(async ({ data }) => {
@@ -48,14 +84,59 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
     if (hit && Date.now() - hit.t < TTL) return hit.v;
     const sdk = new InformationsMensuellesBoard();
 
-    // 1. Récupération des métadonnées du parc (Numéro de flotte, Marque, Modèle, Carburant)
-    const parcPromise = sdk.executeGraphQL(
-      `query { boards(ids: [${FLEET_BOARD_ID}]) { items_page(limit: 200) { items { name column_values(ids: ["text_mm839fsd", "numeric_mm0rw3mq", "color_mm0p87t0", "text_mm0p386j", "color_mm0p7xft"]) { id text } } } } }`
-    ).catch(() => null);
+    // 1. Récupération préalable du référentiel Parc pour harmoniser les plaques dès l'agrégation
+    const parcPromise = sdk
+      .executeGraphQL(
+        `query { boards(ids: [${FLEET_BOARD_ID}]) { items_page(limit: 200) { items { name group { id } column_values(ids: ["text_mm839fsd", "numeric_mm0rw3mq", "color_mm0p87t0", "text_mm0p386j", "color_mm0p7xft"]) { id text } } } } }`,
+      )
+      .catch(() => null);
 
-    const meta = (await sdk.executeGraphQL(
-      `query ($b: [ID!]) { boards(ids: $b) { columns { id title type } groups { id title } } }`, { b: [BOARD] },
-    )) as { boards?: { columns: Col[]; groups: Group[] }[] };
+    const [parcRes, meta] = (await Promise.all([
+      parcPromise,
+      sdk.executeGraphQL(
+        `query ($b: [ID!]) { boards(ids: $b) { columns { id title type } groups { id title } } }`,
+        { b: [BOARD] },
+      ),
+    ])) as [any, { boards?: { columns: Col[]; groups: Group[] }[] }];
+
+    const parcItems = parcRes?.boards?.[0]?.items_page?.items || [];
+    const parcMap = new Map<string, { num: string; model: string; fuel: string }>();
+    const byNormPlate = new Map<string, string>();
+    const byFleetNum = new Map<string, string>();
+
+    for (const it of parcItems) {
+      const colPlate = it.column_values?.find((c: any) => c.id === 'text_mm839fsd')?.text?.trim().toUpperCase();
+      const namePlate = it.name.match(/[A-Z]{2}-?\d{3}-?[A-Z]{2}/i)?.[0]?.toUpperCase();
+      const rawPlate = colPlate || namePlate || '';
+      const siv = rawPlate.match(/^([A-Z]{2})[\s-]?(\d{3})[\s-]?([A-Z]{2})$/);
+      const plate = siv ? `${siv[1]}-${siv[2]}-${siv[3]}` : rawPlate;
+
+      const numVal =
+        it.column_values?.find((c: any) => c.id === 'numeric_mm0rw3mq')?.text?.trim() ||
+        it.name.match(/#(\d+)/)?.[1] ||
+        '';
+      const marque = it.column_values?.find((c: any) => c.id === 'color_mm0p87t0')?.text?.trim() || '';
+      const modele = it.column_values?.find((c: any) => c.id === 'text_mm0p386j')?.text?.trim() || '';
+      const fuel = it.column_values?.find((c: any) => c.id === 'color_mm0p7xft')?.text?.trim().toUpperCase() || '';
+      const fullModel = [marque, modele].filter(Boolean).join(' ');
+      const entry = { num: numVal || '—', model: fullModel, fuel };
+      const inService = it.group?.id === 'topics';
+
+      if (plate) {
+        parcMap.set(plate, entry);
+        const normPlate = plate.replace(/[^A-Z0-9]/g, '');
+        if (normPlate) {
+          parcMap.set(normPlate, entry);
+          if (inService || !byNormPlate.has(normPlate)) {
+            byNormPlate.set(normPlate, plate);
+          }
+        }
+        if (numVal && (inService || !byFleetNum.has(numVal))) {
+          byFleetNum.set(numVal, plate);
+        }
+      }
+    }
+
     const cols = meta.boards?.[0]?.columns ?? [];
     const group = (meta.boards?.[0]?.groups ?? []).find((g) =>
       (data.source === 'chargemap' ? ['chargemap', 'electrique'] : ['carburant']).some((k) => norm(g.title).includes(k)),
@@ -94,9 +175,9 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
         if (Number.isNaN(d.getTime()) || d < start || d > now) continue;
         const n = parseFloat(get(AMOUNT_COL).replace(/\s/g, '').replace(',', '.'));
         if (Number.isNaN(n)) continue;
-        // Priorité : 🏁immat -> Immat textuelle -> Nom
         const rawVeh = ((vehCol && get(vehCol)) || (textImmatCol && get(textImmatCol)) || it.name || '—').trim();
-        const veh = rawVeh === '0' ? (textImmatCol && get(textImmatCol).trim()) || it.name || '—' : rawVeh;
+        const fallbackVeh = rawVeh === '0' ? (textImmatCol && get(textImmatCol).trim()) || it.name || '—' : rawVeh;
+        const veh = canonicalizeVehicleKey(fallbackVeh, byNormPlate, byFleetNum);
         const rec = byVeh.get(veh) ?? {};
         const k = `${d.getFullYear()}-${d.getMonth()}`;
         rec[k] = (rec[k] ?? 0) + n;
@@ -142,34 +223,7 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
       cursor = page?.cursor ?? null;
     }
 
-    // Mapping métadonnées du parc
-    const parcRes = (await parcPromise) as any;
-    const parcItems = parcRes?.boards?.[0]?.items_page?.items || [];
-    const parcMap = new Map<string, { num: string; model: string; fuel: string }>();
-    for (const it of parcItems) {
-      const colPlate = it.column_values?.find((c: any) => c.id === 'text_mm839fsd')?.text?.trim().toUpperCase();
-      const namePlate = it.name.match(/[A-Z]{2}-?\d{3}-?[A-Z]{2}/i)?.[0]?.toUpperCase();
-      const plate = colPlate || namePlate || '';
-
-      const numVal =
-        it.column_values?.find((c: any) => c.id === 'numeric_mm0rw3mq')?.text?.trim() ||
-        it.name.match(/#(\d+)/)?.[1] ||
-        '';
-      const marque = it.column_values?.find((c: any) => c.id === 'color_mm0p87t0')?.text?.trim() || '';
-      const modele = it.column_values?.find((c: any) => c.id === 'text_mm0p386j')?.text?.trim() || '';
-      const fuel = it.column_values?.find((c: any) => c.id === 'color_mm0p7xft')?.text?.trim().toUpperCase() || '';
-      const fullModel = [marque, modele].filter(Boolean).join(' ');
-      const entry = { num: numVal || (it.name.match(/#(\d+)/)?.[1] || '—'), model: fullModel, fuel };
-
-      if (plate) {
-        parcMap.set(plate, entry);
-        const normPlate = plate.replace(/[^A-Z0-9]/g, '');
-        if (normPlate) parcMap.set(normPlate, entry);
-      }
-    }
-
     const round = (n: number) => Math.round(n * 100) / 100;
-    // TOUS les véhicules triés par dépense décroissante (sans limite Top 5)
     const allSorted = [...byVeh.entries()]
       .map(([name, rec]) => ({ name, total: round(Object.values(rec).reduce((s, v) => s + v, 0)), rec }))
       .filter((v) => v.total > 0)
