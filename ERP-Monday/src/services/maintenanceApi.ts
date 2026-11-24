@@ -3940,58 +3940,8 @@ export async function fetchChantiersList(
 }
 
 /**
- * Référentiel des véhicules du Parc Véhicules (5092005027)
- * Sert de base immédiate et de secours garanti si l'API Monday cross-workspace est restreinte.
- */
-const DEFAULT_FLEET_VEHICULES: Array<{ id: string; name: string; immat: string; number: string }> = [
-  { id: '2954881040', name: '#1 | GR-298-ZJ', number: '1', immat: 'GR-298-ZJ' },
-  { id: '2954950075', name: '#2 | CW-637-NE', number: '2', immat: 'CW-637-NE' },
-  { id: '2954950051', name: '#3 | GS-825-PJ', number: '3', immat: 'GS-825-PJ' },
-  { id: '2954986181', name: '#4 | FB-394-WW', number: '4', immat: 'FB-394-WW' },
-  { id: '2896069023', name: '#5 | HK-342-PH', number: '5', immat: 'HK-342-PH' },
-  { id: '3038320015', name: '#6 | HD-531-BJ', number: '6', immat: 'HD-531-BJ' },
-  { id: '2954969852', name: '#7 | HC-016-YD', number: '7', immat: 'HC-016-YD' },
-  { id: '2954950043', name: '#8 | EK-116-VR', number: '8', immat: 'EK-116-VR' },
-  { id: '2954986309', name: '#9 | EL-018-JE', number: '9', immat: 'EL-018-JE' },
-  { id: '2954969841', name: '#10 | HF-099-YZ', number: '10', immat: 'HF-099-YZ' },
-  { id: '2954950045', name: '#11 | GK-232-WZ', number: '11', immat: 'GK-232-WZ' },
-  { id: '2954950197', name: '#12 | ET-662-KF', number: '12', immat: 'ET-662-KF' },
-  { id: '2954950199', name: '#14 | GX-287-GC', number: '14', immat: 'GX-287-GC' },
-  { id: '3222483754', name: '#15 | HM-718-RA', number: '15', immat: 'HM-718-RA' },
-  { id: '2954969855', name: '#17 | FD-597-LD', number: '17', immat: 'FD-597-LD' },
-  { id: '3038313865', name: '#18 | FE-708-TS', number: '18', immat: 'FE-708-TS' },
-  { id: '2954909865', name: '#19 | HL-982-ZP', number: '19', immat: 'HL-982-ZP' },
-  { id: '2954986136', name: '#20 | GT-270-PM', number: '20', immat: 'GT-270-PM' },
-  { id: '2954909849', name: '#21 | GT-771-NJ', number: '21', immat: 'GT-771-NJ' },
-  { id: '2954881168', name: '#22 | FN-342-WY', number: '22', immat: 'FN-342-WY' },
-  { id: '3038291065', name: '#23 | GV-056-NB', number: '23', immat: 'GV-056-NB' },
-  { id: '3038383590', name: '#24 | GX-323-GC', number: '24', immat: 'GX-323-GC' },
-  { id: '2954909833', name: '#25 | GX-399-GC', number: '25', immat: 'GX-399-GC' },
-  { id: '3038319494', name: '#26 | FZ-780-QF', number: '26', immat: 'FZ-780-QF' },
-  { id: '2730389467', name: '#27 | FY-710-NX', number: '27', immat: 'FY-710-NX' },
-  { id: '2730380542', name: '#28 | HC-071-YD', number: '28', immat: 'HC-071-YD' },
-  { id: '2730379026', name: '#30 | HG-731-TE', number: '30', immat: 'HG-731-TE' },
-  { id: '3038384351', name: '#31 | HG-709-TE', number: '31', immat: 'HG-709-TE' },
-  { id: '2954986310', name: '#32 | GD-969-EF', number: '32', immat: 'GD-969-EF' },
-  { id: '3038384149', name: '#33 | GV-007-XE', number: '33', immat: 'GV-007-XE' },
-  { id: '2954969851', name: '#34 | HB-525-PW', number: '34', immat: 'HB-525-PW' },
-  { id: '3038349470', name: '#35 | HB-599-PW', number: '35', immat: 'HB-599-PW' },
-  { id: '2954881107', name: '#36 | HB-360-PW', number: '36', immat: 'HB-360-PW' },
-  { id: '3038349477', name: '#37 | HB-255-PW', number: '37', immat: 'HB-255-PW' },
-  { id: '2954969884', name: '#38 | HB-187-PT', number: '38', immat: 'HB-187-PT' },
-  { id: '2954950061', name: '#39 | HB-959-FJ', number: '39', immat: 'HB-959-FJ' },
-  { id: '2954881108', name: '#40 | HC-089-EN', number: '40', immat: 'HC-089-EN' },
-  { id: '2954986179', name: '#41 | HC-752-EM', number: '41', immat: 'HC-752-EM' },
-  { id: '3038313268', name: '#42 | HG-965-EM', number: '42', immat: 'HG-965-EM' },
-  { id: '2954909919', name: '#43 | HE-159-CL', number: '43', immat: 'HE-159-CL' },
-  { id: '2954950198', name: '#44 | GP-115-YJ', number: '44', immat: 'GP-115-YJ' },
-  { id: '3038319375', name: '#45 | GR-392-TY', number: '45', immat: 'GR-392-TY' },
-  { id: '2954881167', name: 'FA-777-MS', number: '', immat: 'FA-777-MS' },
-];
-
-/**
  * Charge la liste des véhicules du Parc Véhicules (5092005027)
- * avec fallback garanti sur le référentiel de flotte.
+ * avec mise en cache mémoire de 10 minutes (100 % dynamique via API Monday).
  */
 export async function fetchVehiculesList(
   force: boolean = false
@@ -4039,12 +3989,10 @@ export async function fetchVehiculesList(
       return list;
     }
   } catch (err) {
-    console.warn('Chargement API véhicules non dispo, bascule sur flotte intégrée:', err);
+    console.warn('Erreur chargement véhicules via API Monday:', err);
   }
 
-  cachedVehiculesList = DEFAULT_FLEET_VEHICULES;
-  cachedVehiculesTs = Date.now();
-  return DEFAULT_FLEET_VEHICULES;
+  return cachedVehiculesList || [];
 }
 
 /**
@@ -4107,8 +4055,7 @@ export function findMatchingVehicule(
   siteName: string,
   vehicules: Array<{ id: string; name: string; immat: string; number: string }>
 ): { id: string; name: string } | null {
-  if (!siteName || !siteName.trim()) return null;
-  const pool = Array.isArray(vehicules) && vehicules.length > 0 ? vehicules : DEFAULT_FLEET_VEHICULES;
+  if (!siteName || !siteName.trim() || !Array.isArray(vehicules) || vehicules.length === 0) return null;
 
   const raw = siteName.trim();
   const norm = normalizeChantierName(raw);
@@ -4127,7 +4074,7 @@ export function findMatchingVehicule(
     const immatMatch = raw.match(/([A-Z]{2}[-\s]?[0-9]{3}[-\s]?[A-Z]{2})/i);
     if (immatMatch) {
       const targetImmat = immatMatch[1].replace(/[\s-]+/g, '').toUpperCase();
-      const byImmat = pool.find(
+      const byImmat = vehicules.find(
         (v) => v.immat && v.immat.replace(/[\s-]+/g, '').toUpperCase() === targetImmat
       );
       if (byImmat) return byImmat;
@@ -4139,7 +4086,7 @@ export function findMatchingVehicule(
   const numMatch = raw.match(/(?:vehicule|voiture|camion|fourgon|v)?\s*(?:n[°o.]?)?\s*(\d{1,3})/i);
   if (numMatch && numMatch[1]) {
     const targetNum = String(parseInt(numMatch[1], 10));
-    const byNum = pool.find((v) => v.number === targetNum);
+    const byNum = vehicules.find((v) => v.number === targetNum);
     if (byNum) return byNum;
   }
 
@@ -4147,7 +4094,7 @@ export function findMatchingVehicule(
   const immatMatch = raw.match(/([A-Z]{2}[-\s]?[0-9]{3}[-\s]?[A-Z]{2})/i);
   if (immatMatch) {
     const targetImmat = immatMatch[1].replace(/[\s-]+/g, '').toUpperCase();
-    const byImmat = pool.find(
+    const byImmat = vehicules.find(
       (v) => v.immat && v.immat.replace(/[\s-]+/g, '').toUpperCase() === targetImmat
     );
     if (byImmat) return byImmat;
