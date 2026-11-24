@@ -65,8 +65,7 @@ export const getDernieresReparations = createServerFn({ method: 'GET' })
         const description = (byId.get('text_mm8vhwst') || '').trim();
         const isFromChristine =
           String(it.name || '').startsWith('Facture Réparation') ||
-          description.includes('Facture réparation déposée') ||
-          fournisseurCol.length > 0;
+          description.includes('Facture réparation déposée');
 
         if (!isFromChristine) return null;
 
