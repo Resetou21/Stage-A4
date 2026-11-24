@@ -113,6 +113,17 @@ export default function BornesCard() {
     );
   }, [monthCharges]);
 
+  const lastImportedLabel = useMemo(() => {
+    const latest = monthCharges.reduce<string | null>((acc, c) => {
+      if (!c.createdAt) return acc;
+      return !acc || c.createdAt > acc ? c.createdAt : acc;
+    }, null);
+    if (!latest) return null;
+    const d = new Date(latest);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }, [monthCharges]);
+
   // Historique des 3 derniers imports Wellborne avec horodatage et période
   const [history, setHistory] = useState<ScanHistoryEntry[]>(() => {
     try {
@@ -521,6 +532,13 @@ export default function BornesCard() {
                       <div className="font-bold text-foreground text-xs truncate">
                         {selectedBornesMonth.label} {year}
                       </div>
+                      <div className="text-[10px] font-medium text-muted-foreground mt-0.5 truncate">
+                        {chargesLoading
+                          ? 'Date d’import : …'
+                          : lastImportedLabel
+                            ? `Importé le ${lastImportedLabel}`
+                            : 'Non importé'}
+                      </div>
                     </div>
                   </div>
 
@@ -799,7 +817,7 @@ export default function BornesCard() {
                     {analysis.suggestedName}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    Période du fichier : du {analysis.minDate || '—'} au {analysis.maxDate || '—'}
+                    Période du fichier : du {analysis.minDate || '—'} au {analysis.maxDate || '—'} • Date d'import : <strong className="text-foreground">{new Date().toLocaleDateString('fr-FR')}</strong>
                   </div>
                 </div>
                 {!hideDownloadInApp && (

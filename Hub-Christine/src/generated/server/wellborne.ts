@@ -82,6 +82,7 @@ export interface WellborneChargeItem {
   endTime: string;
   duration: string;
   energyKwh: string;
+  createdAt?: string;
 }
 
 // Extraction de toutes les charges d'un mois spécifique pour export Excel / CSV
@@ -95,13 +96,13 @@ export const getWellborneMonthCharges = createServerFn({ method: 'GET' })
 
     type Page = {
       cursor: string | null;
-      items: { id: string; name: string; column_values: { id: string; text: string | null }[] }[];
+      items: { id: string; name: string; created_at?: string; column_values: { id: string; text: string | null }[] }[];
     };
 
     while (first || cursor) {
       const q = first
-        ? `query { boards(ids: [${BOARD}]) { items_page(limit: 500) { cursor items { id name column_values(ids: ["text_mm8j5jn3", "text_mm8j609x", "text_mm8j8x0k"]) { id text } } } } }`
-        : `query ($c: String!) { next_items_page(limit: 500, cursor: $c) { cursor items { id name column_values(ids: ["text_mm8j5jn3", "text_mm8j609x", "text_mm8j8x0k"]) { id text } } } }`;
+        ? `query { boards(ids: [${BOARD}]) { items_page(limit: 500) { cursor items { id name created_at column_values(ids: ["text_mm8j5jn3", "text_mm8j609x", "text_mm8j8x0k"]) { id text } } } } }`
+        : `query ($c: String!) { next_items_page(limit: 500, cursor: $c) { cursor items { id name created_at column_values(ids: ["text_mm8j5jn3", "text_mm8j609x", "text_mm8j8x0k"]) { id text } } } }`;
 
       const r: any = await sdk.executeGraphQL(q, first ? {} : { c: cursor });
       const page: Page | undefined = first ? r?.boards?.[0]?.items_page : r?.next_items_page;
@@ -116,6 +117,7 @@ export const getWellborneMonthCharges = createServerFn({ method: 'GET' })
           endTime: byId.get('text_mm8j5jn3') || '',
           duration: byId.get('text_mm8j609x') || '',
           energyKwh: byId.get('text_mm8j8x0k') || '0',
+          createdAt: it.created_at || undefined,
         });
       }
       cursor = page?.cursor ?? null;

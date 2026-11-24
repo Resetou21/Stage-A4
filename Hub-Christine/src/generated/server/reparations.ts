@@ -1,9 +1,11 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { ReparationMachinesBoard } from '@api/BoardSDK';
+import { monday } from '@api/mondayApi';
 
 const BOARD_REPARATIONS = 5106693291;
 const GROUP_TOPICS = 'topics'; // Machine en réparation
+const FILE_COLUMN_ID = 'file_mm95gtnd';
 
 // Récupération des 10 dernières réparations enregistrées
 export const getDernieresReparations = createServerFn({ method: 'GET' })
@@ -35,8 +37,8 @@ export const getDernieresReparations = createServerFn({ method: 'GET' })
         name: it.name,
         createdAt: it.created_at,
         statut: byId.get('color_mm8vp2nd') || 'À traiter',
-        montant: byId.get('numeric_mm8g9d6m') || '—',
-        fournisseur: byId.get('text_mm91mkdz') || '—',
+        montant: byId.get('numeric_mm8g9d6m') || '',
+        fournisseur: byId.get('text_mm91mkdz') || it.name || '—',
         date: byId.get('date_mm8g4vq6') || '',
         description: byId.get('text_mm8vhwst') || '',
       };
@@ -44,15 +46,61 @@ export const getDernieresReparations = createServerFn({ method: 'GET' })
     return { reparations: items };
   });
 
-// Création d'une fiche réparation matériel et alerte automatique du Hub de Christophe
+// Upload d'un fichier PDF / Image vers la colonne file_mm95gtnd du ticket réparation
+export async function uploadReparationPdf(itemId: string | number, file: File): Promise<boolean> {
+  const mutation = `mutation ($file: File!) {
+    add_file_to_column(item_id: ${itemId}, column_id: "${FILE_COLUMN_ID}", file: $file) {
+      id
+      name
+    }
+  }`;
+
+  try {
+    const res: any = await (monday as any).api(mutation, { variables: { file } });
+    if (res?.data?.add_file_to_column?.id || res?.add_file_to_column?.id) {
+      return true;
+    }
+  } catch (sdkErr) {
+    console.warn('Tentative monday.api fichier réparation échouée, fallback fetch:', sdkErr);
+  }
+
+  try {
+    let token = '';
+    try {
+      const sessionRes: any = await (monday as any).get('sessionToken');
+      token = sessionRes?.data || '';
+    } catch {}
+
+    const formData = new FormData();
+    formData.append('query', mutation);
+    formData.append('variables[file]', file);
+
+    const headers: Record<string, string> = { 'API-Version': '2024-04' };
+    if (token) headers['Authorization'] = token;
+
+    const res = await fetch('https://api.monday.com/v2/file', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const json = await res.json();
+    if (json?.data?.add_file_to_column?.id) {
+      return true;
+    }
+  } catch (fetchErr) {
+    console.warn('Erreur fallback fetch /v2/file réparation:', fetchErr);
+  }
+
+  return false;
+}
+
+// Création d'une fiche réparation matériel (Fournisseur + Date de dépôt + PDF) et alerte automatique du Hub de Christophe
 export const createFactureReparation = createServerFn({ method: 'POST' })
   .validator(z.object({
     designation: z.string().min(1, 'Désignation obligatoire'),
     fournisseur: z.string().min(1, 'Fournisseur obligatoire'),
-    dateFacture: z.string().min(1, 'Date obligatoire'),
-    montantHt: z.number().positive('Montant supérieur à 0 obligatoire'),
-    numeroFacture: z.string().optional(),
-    description: z.string().optional(),
+    dateFacture: z.string().min(1, 'Date de dépôt obligatoire'),
+    fileName: z.string().optional(),
   }))
   .handler(async ({ data }) => {
     const board = new ReparationMachinesBoard();
@@ -60,11 +108,9 @@ export const createFactureReparation = createServerFn({ method: 'POST' })
     const colValues: Record<string, any> = {
       color_mm8vp2nd: { label: 'À traiter' }, // Statut de suivi
       color_mm8gs7c7: { label: 'Curative' }, // Type d'intervention
-      numeric_mm8g9d6m: String(data.montantHt), // Montant (€)
       text_mm91mkdz: data.fournisseur, // Fournisseur / Prestataire
-      date_mm8g4vq6: { date: data.dateFacture }, // Réalisée le
-      text_mm8vhwst: `Facture réparation à affecter par machine : ${data.fournisseur} - ${data.montantHt} € HT ${data.numeroFacture ? `(N° ${data.numeroFacture})` : ''}. ${data.description || ''}`,
-      ...(data.numeroFacture ? { text_mm9196c1: data.numeroFacture } : {}),
+      date_mm8g4vq6: { date: data.dateFacture }, // Date de dépôt
+      text_mm8vhwst: `Facture réparation déposée le ${data.dateFacture} — Fournisseur : ${data.fournisseur}${data.fileName ? ` (PDF : ${data.fileName})` : ''}`,
     };
 
     const mutation = `
@@ -98,14 +144,12 @@ export const createFactureReparation = createServerFn({ method: 'POST' })
               🔔 Alerte Hub Facturation (Christine) ➔ Hub Atelier & Parc (Christophe)
             </p>
             <p style="margin: 0 0 6px 0;">
-              Une nouvelle facture de réparation matériel a été réceptionnée et importée :
+              Une nouvelle facture de réparation matériel a été déposée :
             </p>
             <ul style="margin: 0 0 10px 0; padding-left: 20px;">
               <li><strong>Fournisseur / Prestataire :</strong> ${data.fournisseur}</li>
-              <li><strong>Montant HT :</strong> ${data.montantHt} €</li>
-              <li><strong>Date facture :</strong> ${data.dateFacture}</li>
-              ${data.numeroFacture ? `<li><strong>N° de Facture :</strong> ${data.numeroFacture}</li>` : ''}
-              ${data.description ? `<li><strong>Détail intervention :</strong> ${data.description}</li>` : ''}
+              <li><strong>Date de dépôt :</strong> ${data.dateFacture}</li>
+              ${data.fileName ? `<li><strong>Facture PDF jointe :</strong> ${data.fileName}</li>` : ''}
             </ul>
             <p style="background: #f1f5f9; padding: 8px 12px; border-radius: 6px; font-weight: 600; color: #0f172a; margin: 0;">
               👉 Action requise : Merci d'affecter cette réparation à la machine concernée dans le tableau Parc Machines.

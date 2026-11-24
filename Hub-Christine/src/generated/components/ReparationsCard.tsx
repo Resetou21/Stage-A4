@@ -4,7 +4,7 @@ import UsersBadge from '@generated/components/UsersBadge';
 import SearchableSelect from '@components/SearchableSelect';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@components/ui/dialog';
-import { createFactureReparation, getDernieresReparations } from '@generated/server/reparations';
+import { createFactureReparation, getDernieresReparations, uploadReparationPdf } from '@generated/server/reparations';
 
 interface ReparationItem {
   id: string;
@@ -27,12 +27,9 @@ export default function ReparationsCard() {
   const [reparations, setReparations] = useState<ReparationItem[]>([]);
   const [selectedReparation, setSelectedReparation] = useState<ReparationItem | null>(null);
 
-  // Formulaire
+  // Formulaire simplifié : Fournisseur, Date de dépôt, PDF
   const [fournisseur, setFournisseur] = useState('KÄRCHER');
-  const [dateFacture, setDateFacture] = useState(new Date().toISOString().slice(0, 10));
-  const [montantHt, setMontantHt] = useState('');
-  const [numeroFacture, setNumeroFacture] = useState('');
-  const [description, setDescription] = useState('');
+  const [dateDepot, setDateDepot] = useState(new Date().toISOString().slice(0, 10));
 
   // Fichier facture scannée et prévisualisation live
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -84,7 +81,7 @@ export default function ReparationsCard() {
 
     const ext = file.name.substring(file.name.lastIndexOf('.'));
     const fClean = (fournisseur || 'FACTURE').toUpperCase().replace(/[^A-Z0-9]/g, '_');
-    const autoName = `REPARATION_${fClean}_${dateFacture || '2026'}${ext}`;
+    const autoName = `REPARATION_${fClean}_${dateDepot || '2026'}${ext}`;
     setRenamedFileName(autoName);
 
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -116,33 +113,40 @@ export default function ReparationsCard() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const finalFournisseur = (fournisseur || '').trim();
-    const montant = Number(montantHt);
 
     if (!finalFournisseur) {
-      toast.error('Veuillez indiquer le réparateur.');
+      toast.error('Veuillez indiquer le fournisseur / réparateur.');
       return;
     }
-    if (!dateFacture) {
-      toast.error('La date de la facture est obligatoire.');
-      return;
-    }
-    if (!montantHt || isNaN(montant) || montant <= 0) {
-      toast.error('Le montant HT est obligatoire et doit être supérieur à 0.');
+    if (!dateDepot) {
+      toast.error('La date de dépôt est obligatoire.');
       return;
     }
 
     setSaving(true);
     try {
-      await createFactureReparation({
+      const created = await createFactureReparation({
         data: {
-          designation: `Facture réparation ${finalFournisseur}`,
+          designation: `Réparation ${finalFournisseur} (${dateDepot})`,
           fournisseur: finalFournisseur,
-          dateFacture,
-          montantHt: montant,
-          numeroFacture: numeroFacture || undefined,
-          description: description || undefined,
+          dateFacture: dateDepot,
+          fileName: renamedFileName || selectedFile?.name || undefined,
         },
       });
+
+      // Téléverser automatiquement le PDF / Image joint dans la colonne fichier de l'élément Monday
+      if (created?.id && selectedFile) {
+        try {
+          const uploadFile =
+            renamedFileName && renamedFileName !== selectedFile.name
+              ? new File([selectedFile], renamedFileName, { type: selectedFile.type })
+              : selectedFile;
+          await uploadReparationPdf(created.id, uploadFile);
+        } catch (upErr) {
+          console.error('Erreur upload PDF réparation:', upErr);
+          toast.warning('Ticket créé sur Monday, mais la pièce jointe PDF n’a pas pu être téléversée automatiquement.');
+        }
+      }
 
       // Mémoriser le nouveau réparateur dans la liste si pas déjà présent
       if (!reparateurs.includes(finalFournisseur)) {
@@ -154,15 +158,16 @@ export default function ReparationsCard() {
       }
 
       toast.success(
-        `Facture enregistrée et alerte transmise à Christophe sur l'ERP Atelier (Tableau Réparations Machines) !`
+        `Dépôt enregistré et alerte transmise à Christophe sur l'ERP Atelier (Tableau Réparations Machines) !`
       );
 
       // Réinitialiser le formulaire
-      setMontantHt('');
-      setNumeroFacture('');
-      setDescription('');
+      setDateDepot(new Date().toISOString().slice(0, 10));
       setSelectedFile(null);
       setRenamedFileName('');
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setPreviewType(null);
       setOpen(false);
 
       loadList();
@@ -250,8 +255,10 @@ export default function ReparationsCard() {
                         🔧 {r.fournisseur} ({r.date || 'Récemment'})
                       </span>
                       <span className="shrink-0 flex items-center gap-1.5">
-                        <span className="font-bold text-primary">{r.montant} €</span>
-                        <span className="rounded bg-amber-100 dark:bg-amber-900/40 px-1 py-0.2 text-[9px] font-semibold text-amber-800 dark:text-amber-300">
+                        {r.montant && r.montant !== '—' && (
+                          <span className="font-bold text-primary">{r.montant} €</span>
+                        )}
+                        <span className="rounded bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800 dark:text-amber-300">
                           {r.statut}
                         </span>
                       </span>
@@ -295,11 +302,13 @@ export default function ReparationsCard() {
               <div className="p-3.5 sm:p-5 flex-1 overflow-y-auto space-y-3.5 text-xs pb-32 sm:pb-8">
                 <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 flex items-center justify-between">
                   <div>
-                    <div className="text-xl font-black text-amber-700">
-                      {selectedReparation.montant} € HT
+                    <div className="text-base font-black text-amber-800">
+                      {selectedReparation.montant && selectedReparation.montant !== '—'
+                        ? `${selectedReparation.montant} € HT`
+                        : selectedReparation.fournisseur}
                     </div>
                     <div className="text-[11px] text-amber-700 font-medium">
-                      Date : {selectedReparation.date || 'Non renseignée'}
+                      Date de dépôt : {selectedReparation.date || 'Non renseignée'}
                     </div>
                   </div>
                   <span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-white border border-amber-300 text-amber-800">
@@ -402,66 +411,25 @@ export default function ReparationsCard() {
               />
             </div>
 
-            {/* Date de la facture (obligatoire) */}
-            <div className="grid gap-1">
+            {/* Date de dépôt (obligatoire) */}
+            <div className="grid gap-1 sm:col-span-2">
               <label className="text-sm font-semibold text-foreground">
-                Date de la facture <span className="text-destructive">*</span>
+                Date de dépôt <span className="text-destructive">*</span>
               </label>
               <input
                 type="date"
                 required
-                value={dateFacture}
-                onChange={(e) => setDateFacture(e.target.value)}
+                value={dateDepot}
+                onChange={(e) => setDateDepot(e.target.value)}
                 className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
-            {/* Montant HT (obligatoire) */}
-            <div className="grid gap-1">
-              <label className="text-sm font-semibold text-foreground">
-                Montant HT (€) <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                required
-                placeholder="Ex : 450.00"
-                value={montantHt}
-                onChange={(e) => setMontantHt(e.target.value)}
-                className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            {/* N° de facture */}
-            <div className="grid gap-1 sm:col-span-2">
-              <label className="text-sm font-semibold text-foreground">Numéro de facture ou Bon de commande</label>
-              <input
-                type="text"
-                placeholder="Ex : FC-2026-089"
-                value={numeroFacture}
-                onChange={(e) => setNumeroFacture(e.target.value)}
-                className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            {/* Description des travaux - FIX: resize-none pour empêcher l'agrandissement souris */}
-            <div className="grid gap-1 sm:col-span-2">
-              <label className="text-sm font-semibold text-foreground">Détail des réparations / Pièces</label>
-              <textarea
-                rows={3}
-                placeholder="Ex : Remplacement moteur d'aspiration + bavettes sur autolaveuse..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="h-24 w-full resize-none rounded-lg border border-input bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            {/* Fichier joint et renommage automatique */}
+            {/* Fichier joint PDF / Image */}
             <div className="grid gap-2 sm:col-span-2 rounded-xl border border-border bg-muted/30 p-3.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-primary" /> Fichier facture scannée (PDF, Image) :
+                  <FileText className="h-4 w-4 text-primary" /> Facture PDF / Image :
                 </span>
                 <input
                   ref={fileInputRef}

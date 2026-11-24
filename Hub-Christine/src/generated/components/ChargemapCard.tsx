@@ -62,11 +62,13 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
   const [periodLoading, setPeriodLoading] = useState(false);
   const [periodTransactions, setPeriodTransactions] = useState<PeriodTransactionItem[]>([]);
   const [periodTotalMontant, setPeriodTotalMontant] = useState(0);
+  const [periodLastImportedAt, setPeriodLastImportedAt] = useState<string | null>(null);
   const [periodSearch, setPeriodSearch] = useState('');
 
   useEffect(() => {
     if (!selectedPeriodDetail) {
       setPeriodTransactions([]);
+      setPeriodLastImportedAt(null);
       setPeriodSearch('');
       return;
     }
@@ -81,12 +83,26 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
       .then((r: any) => {
         setPeriodTransactions(r?.transactions || []);
         setPeriodTotalMontant(r?.totalMontant || 0);
+        setPeriodLastImportedAt(r?.lastImportedAt || null);
       })
       .catch((err) => {
         console.error('Erreur chargement transactions:', err);
       })
       .finally(() => setPeriodLoading(false));
   }, [selectedPeriodDetail, variant]);
+
+  const periodLastImportedLabel = useMemo(() => {
+    const raw =
+      periodLastImportedAt ||
+      periodTransactions.reduce<string | null>((latest, t) => {
+        if (!t.createdAt) return latest;
+        return !latest || t.createdAt > latest ? t.createdAt : latest;
+      }, null);
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }, [periodLastImportedAt, periodTransactions]);
 
   // Transactions nettoyées : dédoublonnées automatiquement (on ne garde qu'une seule occurrence)
   // et on ignore les lignes totalement vides créées par erreur sur Monday
@@ -629,6 +645,13 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                             : `16 au 30/31 ${selectedPeriodDetail.label}`
                           : selectedPeriodDetail.label} {year}
                       </div>
+                      <div className="text-[10px] font-medium text-muted-foreground mt-0.5 truncate">
+                        {periodLoading
+                          ? 'Date d’import : …'
+                          : periodLastImportedLabel
+                            ? `Importé le ${periodLastImportedLabel}`
+                            : 'Non importé'}
+                      </div>
                     </div>
                   </div>
 
@@ -826,13 +849,14 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
             <ul className="space-y-1.5 text-xs">
               {history.map((h) => (
                 <li key={h.id} className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="truncate max-w-[170px] font-medium text-foreground" title={h.renamedName}>
+                  <span className="truncate max-w-[165px] font-medium text-foreground" title={h.renamedName}>
                     📄 {h.renamedName}
                   </span>
-                  <span className="shrink-0 text-[10px]">
-                    <span className="text-emerald-600 font-semibold">{h.imported} importées</span>
+                  <span className="shrink-0 text-[10px] flex items-center gap-1.5">
+                    {h.dateScan && <span className="text-muted-foreground">{h.dateScan}</span>}
+                    <span className="text-emerald-600 font-semibold">{h.imported} imp.</span>
                     {h.duplicates > 0 && (
-                      <span className="text-amber-600 ml-1">({h.duplicates} doublons)</span>
+                      <span className="text-amber-600">({h.duplicates} doubl.)</span>
                     )}
                   </span>
                 </li>
@@ -910,7 +934,7 @@ export default function ChargemapCard({ variant = 'chargemap' }: Props) {
                     {analysis.suggestedName}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    Fichier source : {analysis.file.name}
+                    Fichier source : {analysis.file.name} • Date d'import : <strong className="text-foreground">{new Date().toLocaleDateString('fr-FR')}</strong>
                   </div>
                 </div>
                 {!hideDownloadInApp && (

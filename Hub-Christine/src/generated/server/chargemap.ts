@@ -257,6 +257,7 @@ export interface PeriodTransactionItem {
   id: string;
   name: string;
   date: string;
+  createdAt?: string;
   vehicule: string;
   produit: string;
   quantite: string;
@@ -288,6 +289,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
               items {
                 id
                 name
+                created_at
                 d_trans: column_values(ids: ["date_mm149d1c"]) { text }
                 d_fac: column_values(ids: ["date_mm148mxx"]) { text }
                 c_immat: column_values(ids: ["text_mm145fgq"]) { text }
@@ -313,6 +315,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
             id: it.id,
             name: it.name || 'Facture TOTAL',
             date: dateStr,
+            createdAt: it.created_at || undefined,
             vehicule: it.c_immat?.[0]?.text || '—',
             produit: it.c_prod?.[0]?.text || 'Carburant',
             quantite: it.c_qte?.[0]?.text ? `${it.c_qte[0].text} L` : '—',
@@ -344,6 +347,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
                       items {
                         id
                         name
+                        created_at
                         dateInfo: column_values(ids: ["date_mm0r0s2b", "date4"]) { text }
                         montantHt: column_values(ids: ["numeric_mm0rv0tq", "numeric_mm0r8ag0"]) { text }
                         prestation: column_values(ids: ["color_mm0rqb33", "dropdown_mm0r2vyg"]) { text }
@@ -361,6 +365,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
                   items {
                     id
                     name
+                    created_at
                     dateInfo: column_values(ids: ["date_mm0r0s2b", "date4"]) { text }
                     montantHt: column_values(ids: ["numeric_mm0rv0tq", "numeric_mm0r8ag0"]) { text }
                     prestation: column_values(ids: ["color_mm0rqb33", "dropdown_mm0r2vyg"]) { text }
@@ -386,6 +391,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
               id: it.id,
               name: it.name || 'Carburant',
               date: dateStr,
+              createdAt: it.created_at || undefined,
               vehicule: it.immat?.[0]?.text || it.name || '—',
               produit: it.prestation?.[0]?.text || 'Carburant',
               quantite: it.km?.[0]?.text ? `${it.km[0].text} km` : '—',
@@ -415,6 +421,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
                       items {
                         id
                         name
+                        created_at
                         dateInfo: column_values(ids: ["date4"]) { text }
                         montantHt: column_values(ids: ["numeric_mm0r8ag0"]) { text }
                         carte: column_values(ids: ["text_mm0xccqy"]) { text }
@@ -432,6 +439,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
                   items {
                     id
                     name
+                    created_at
                     dateInfo: column_values(ids: ["date4"]) { text }
                     montantHt: column_values(ids: ["numeric_mm0r8ag0"]) { text }
                     carte: column_values(ids: ["text_mm0xccqy"]) { text }
@@ -459,6 +467,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
               quantite: it.kwh?.[0]?.text ? `${it.kwh[0].text} kWh` : '—',
               montant: it.montantHt?.[0]?.text ? `${it.montantHt[0].text} € HT` : '—',
               station: it.fournisseur?.[0]?.text || 'Chargemap',
+              createdAt: it.created_at || undefined,
             });
           }
           cursorV = pageV?.cursor ?? null;
@@ -476,6 +485,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
               items {
                 id
                 name
+                created_at
                 d_trans: column_values(ids: ["date_mm0x7t7d"]) { text }
                 c_immat: column_values(ids: ["color_mm0xyjbt"]) { text }
                 c_badge: column_values(ids: ["color_mm0xn4gn"]) { text }
@@ -501,6 +511,7 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
             quantite: it.c_kwh?.[0]?.text ? `${it.c_kwh[0].text} kWh` : '—',
             montant: it.c_ttc?.[0]?.text ? `${it.c_ttc[0].text} € TTC` : '—',
             station: it.c_loc?.[0]?.text || 'Borne Chargemap',
+            createdAt: it.created_at || undefined,
           });
         }
       } catch (err) {
@@ -509,14 +520,19 @@ export const getPeriodTransactions = createServerFn({ method: 'GET' })
     }
 
     let totalMontant = 0;
+    let lastImportedAt: string | null = null;
     for (const t of transactions) {
       const m = parseFloat(t.montant.replace(',', '.').replace(/[^\d.]/g, ''));
       if (!isNaN(m)) totalMontant += m;
+      if (t.createdAt && (!lastImportedAt || t.createdAt > lastImportedAt)) {
+        lastImportedAt = t.createdAt;
+      }
     }
 
     return {
       transactions: transactions.sort((a, b) => b.date.localeCompare(a.date)),
       totalCount: transactions.length,
       totalMontant: Math.round(totalMontant * 100) / 100,
+      lastImportedAt,
     };
   });
