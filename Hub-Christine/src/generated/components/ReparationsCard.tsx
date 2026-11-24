@@ -215,9 +215,9 @@ export default function ReparationsCard() {
                       ⚙️ <strong>Tableau Monday relié :</strong> <strong>Réparations machines (5106693291)</strong>.
                     </div>
                     <div className="text-xs text-muted-foreground space-y-1.5">
-                      <p><strong>1. Création automatique :</strong> En enregistrant une facture ici, un ticket « Curative » est créé avec le statut « À traiter ».</p>
-                      <p><strong>2. Alerte atelier :</strong> Christophe (responsable atelier) reçoit la notification pour affecter l'intervention à la bonne machine.</p>
-                      <p><strong>3. Historique SAV :</strong> Suivi des montants et pièces changées.</p>
+                      <p><strong>1. Dépôt simplifié :</strong> Christine renseigne uniquement le fournisseur, la date de dépôt et joint la facture (PDF ou image).</p>
+                      <p><strong>2. Ticket & Alerte Christophe :</strong> Un ticket « Curative » au statut « À traiter » est créé automatiquement avec une notification pour que Christophe l'affecte à la bonne machine.</p>
+                      <p><strong>3. Pièce jointe centralisée :</strong> Le fichier PDF/image est renommé et rattaché directement sur la ligne Monday dans la colonne Fichier.</p>
                     </div>
                   </div>
                 </DialogContent>
@@ -233,15 +233,15 @@ export default function ReparationsCard() {
               </p>
             </div>
 
-            {/* 3 dernières factures de réparations enregistrées */}
+            {/* 3 dernières factures déposées par Christine */}
             <div className="rounded-xl border border-border/80 bg-muted/30 p-2.5 flex flex-col justify-between">
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-                Dernières factures enregistrées :
+                Dernières factures déposées par Christine :
               </p>
               {loadingList ? (
                 <div className="h-10 animate-pulse rounded bg-muted" />
               ) : reparations.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground italic py-2">Aucune facture récente.</p>
+                <p className="text-[11px] text-muted-foreground italic py-2">Aucune facture déposée pour le moment.</p>
               ) : (
                 <ul className="space-y-1.5 text-xs">
                   {reparations.slice(0, 3).map((r) => (

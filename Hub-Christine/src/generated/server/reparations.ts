@@ -7,42 +7,84 @@ const BOARD_REPARATIONS = 5106693291;
 const GROUP_TOPICS = 'topics'; // Machine en réparation
 const FILE_COLUMN_ID = 'file_mm95gtnd';
 
-// Récupération des 10 dernières réparations enregistrées
+// Récupération des dernières factures déposées par Christine (filtrées et triées par date de dépôt décroissante)
 export const getDernieresReparations = createServerFn({ method: 'GET' })
   .validator(z.object({}).optional())
   .handler(async () => {
     const board = new ReparationMachinesBoard();
-    const q = `
-      query {
-        boards(ids: [${BOARD_REPARATIONS}]) {
-          items_page(limit: 10) {
-            items {
-              id
-              name
-              created_at
-              column_values(ids: ["color_mm8vp2nd", "numeric_mm8g9d6m", "text_mm91mkdz", "date_mm8g4vq6", "text_mm8vhwst"]) {
-                id
-                text
+    const allItems: any[] = [];
+    let cursor: string | null = null;
+    let first = true;
+
+    while (first || cursor) {
+      const q = first
+        ? `query {
+            boards(ids: [${BOARD_REPARATIONS}]) {
+              items_page(limit: 500) {
+                cursor
+                items {
+                  id
+                  name
+                  created_at
+                  column_values(ids: ["color_mm8vp2nd", "numeric_mm8g9d6m", "text_mm91mkdz", "date_mm8g4vq6", "text_mm8vhwst"]) {
+                    id
+                    text
+                  }
+                }
               }
             }
-          }
-        }
-      }
-    `;
-    const res: any = await board.executeGraphQL(q);
-    const items = (res?.boards?.[0]?.items_page?.items ?? []).map((it: any) => {
-      const byId = new Map(it.column_values.map((c: any) => [c.id, c.text ?? '']));
-      return {
-        id: it.id,
-        name: it.name,
-        createdAt: it.created_at,
-        statut: byId.get('color_mm8vp2nd') || 'À traiter',
-        montant: byId.get('numeric_mm8g9d6m') || '',
-        fournisseur: byId.get('text_mm91mkdz') || it.name || '—',
-        date: byId.get('date_mm8g4vq6') || '',
-        description: byId.get('text_mm8vhwst') || '',
-      };
-    });
+          }`
+        : `query ($c: String!) {
+            next_items_page(limit: 500, cursor: $c) {
+              cursor
+              items {
+                id
+                name
+                created_at
+                column_values(ids: ["color_mm8vp2nd", "numeric_mm8g9d6m", "text_mm91mkdz", "date_mm8g4vq6", "text_mm8vhwst"]) {
+                  id
+                  text
+                }
+              }
+            }
+          }`;
+
+      const res: any = await board.executeGraphQL(q, first ? {} : { c: cursor });
+      const page = first ? res?.boards?.[0]?.items_page : res?.next_items_page;
+      first = false;
+      allItems.push(...(page?.items ?? []));
+      cursor = page?.cursor ?? null;
+    }
+
+    const items = allItems
+      .map((it: any) => {
+        const byId = new Map<string, string>(
+          (it.column_values ?? []).map((c: any) => [String(c.id), String(c.text ?? '')])
+        );
+        const fournisseurCol = (byId.get('text_mm91mkdz') || '').trim();
+        const description = (byId.get('text_mm8vhwst') || '').trim();
+        const isFromChristine =
+          String(it.name || '').startsWith('Facture Réparation') ||
+          description.includes('Facture réparation déposée') ||
+          fournisseurCol.length > 0;
+
+        if (!isFromChristine) return null;
+
+        return {
+          id: String(it.id),
+          name: String(it.name || ''),
+          createdAt: String(it.created_at || ''),
+          statut: byId.get('color_mm8vp2nd') || 'À traiter',
+          montant: byId.get('numeric_mm8g9d6m') || '',
+          fournisseur: fournisseurCol || String(it.name || '—'),
+          date: byId.get('date_mm8g4vq6') || '',
+          description,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      .slice(0, 10);
+
     return { reparations: items };
   });
 
