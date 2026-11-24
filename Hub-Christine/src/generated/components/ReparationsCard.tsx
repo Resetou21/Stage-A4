@@ -62,6 +62,18 @@ export default function ReparationsCard() {
     setFournisseur(clean);
   };
 
+  const handleDeleteFournisseur = (valToRemove: string) => {
+    const updated = reparateurs.filter((r) => r !== valToRemove);
+    setReparateurs(updated);
+    try {
+      localStorage.setItem('hub_christine_reparateurs', JSON.stringify(updated));
+    } catch {}
+    if (fournisseur === valToRemove) {
+      setFournisseur(updated[0] || '');
+    }
+    toast.success(`Étiquette "${valToRemove}" supprimée de la liste`);
+  };
+
   const loadList = () => {
     setLoadingList(true);
     getDernieresReparations()
@@ -406,6 +418,7 @@ export default function ReparationsCard() {
                 createLabelPrefix="Ajouter le réparateur"
                 autoUppercase={true}
                 onCreateOption={handleCreateFournisseur}
+                onDeleteOption={handleDeleteFournisseur}
                 naturalSort={true}
                 icon={<Wrench className="h-4 w-4 text-primary" />}
               />
