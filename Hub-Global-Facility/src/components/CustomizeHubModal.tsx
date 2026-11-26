@@ -32,7 +32,19 @@ export default function CustomizeHubModal({
 }: CustomizeHubModalProps) {
   if (!isOpen) return null;
 
-  const allowedHubsOrder = prefs.hubOrder.filter((k) => permissions[k]);
+  // Les 5 cartes-pôles du menu principal (Facturation+Fournisseurs regroupés, Clients = Commerce+Contacts)
+  const GROUPED_DISPLAY_KEYS: HubKey[] = ['secteurs', 'atelier', 'facturation', 'commercial', 'direction'];
+  const isCardAllowed = (k: HubKey): boolean => {
+    if (k === 'facturation') return permissions.facturation || permissions.fournisseurs;
+    if (k === 'commercial') return permissions.commercial || permissions.communication;
+    return permissions[k];
+  };
+  const CARD_LABEL_OVERRIDE: Partial<Record<HubKey, string>> = {
+    facturation: 'Facturation & Fournisseurs',
+    commercial: 'Clients (Commerce & Contacts)',
+  };
+
+  const allowedHubsOrder = prefs.hubOrder.filter((k) => GROUPED_DISPLAY_KEYS.includes(k) && isCardAllowed(k));
   const defMap = new Map(HUB_DEFINITIONS.map((d) => [d.key, d]));
 
   const toggleHubVisibility = (key: HubKey) => {
@@ -46,7 +58,7 @@ export default function CustomizeHubModal({
   const moveHub = (key: HubKey, dir: -1 | 1) => {
     const fullOrder = [...prefs.hubOrder];
     const allowedIndices = fullOrder
-      .map((k, idx) => (permissions[k] ? idx : -1))
+      .map((k, idx) => (GROUPED_DISPLAY_KEYS.includes(k) && isCardAllowed(k) ? idx : -1))
       .filter((idx) => idx !== -1);
 
     const posInAllowed = allowedIndices.findIndex((idx) => fullOrder[idx] === key);
@@ -289,7 +301,7 @@ export default function CustomizeHubModal({
                       </span>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {def.label}
+                          {CARD_LABEL_OVERRIDE[hubKey] || def.label}
                         </div>
                         <div style={{ fontSize: '11px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {isVisible ? 'Affiché sur mon accueil' : 'Masqué de mon accueil'}

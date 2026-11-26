@@ -317,13 +317,59 @@ export default function App() {
     void saveUserPrefs(monday, userKey, next);
   };
 
-  // Construction complète des données de cartes Hubs (connectées aux stats temps réel)
+  // Construction des 5 pôles unifiés (regroupement Facturation+Fournisseurs et Clients=Commerce+Contacts)
   const allHubCards: HubCardData[] = useMemo(() => {
     const defByKey = new Map(HUB_DEFINITIONS.map((d) => [d.key, d]));
     const getDef = (k: HubKey) => defByKey.get(k)!;
 
-    return [
-      {
+    const facturationItems: HubCardData['items'] = [];
+    if (permissions.facturation) {
+      facturationItems.push({
+        id: 'atelier_vehicules',
+        title: 'Hub Facturation Véhicules (Christine)',
+        badge: 'Énergie & Flotte',
+        badgeColor: '#1B4565',
+        description: 'Saisie factures véhicules, TotalEnergies, Chargemap & Wellborne',
+        icon: Truck,
+      });
+    }
+    if (permissions.fournisseurs) {
+      facturationItems.push({
+        id: 'atelier_fournisseurs',
+        title: 'Répertoire Fournisseurs & SAV',
+        badge: 'Kalhyge / Nilfisk',
+        badgeColor: '#3989B7',
+        description: 'Contacts directs fournisseurs consommables & constructeurs machines',
+        icon: PackageSearch,
+      });
+    }
+
+    const clientsItems: HubCardData['items'] = [];
+    if (permissions.commercial) {
+      clientsItems.push({
+        id: 'commercial_contrats',
+        title: 'Hub Commercial & Portefeuille Chantiers',
+        badge: 'Indicateurs live',
+        badgeColor: '#B87414',
+        description: 'Portefeuille actif, heures/mois, gains, pertes, CA & provenances',
+        icon: FileSpreadsheet,
+      });
+    }
+    if (permissions.communication) {
+      clientsItems.push({
+        id: 'comm_lea',
+        title: 'Hub Contacts Clients (Léa)',
+        badge: 'Annuaire & Excel',
+        badgeColor: '#D66927',
+        description: 'Export Excel et annuaire complet des contacts chantiers',
+        icon: Users,
+      });
+    }
+
+    const cards: HubCardData[] = [];
+
+    if (permissions.secteurs) {
+      cards.push({
         key: 'secteurs',
         title: getDef('secteurs').label,
         description: getDef('secteurs').description,
@@ -331,6 +377,7 @@ export default function App() {
         accentColor: getDef('secteurs').accentColor,
         bgLight: getDef('secteurs').bgLight,
         badge: `${stats.chantiersActifs} chantiers`,
+        menuLabel: 'Choisir un secteur',
         defaultView: 'secteur_global',
         icon: Building2,
         items: [
@@ -367,8 +414,11 @@ export default function App() {
             icon: User,
           },
         ],
-      },
-      {
+      });
+    }
+
+    if (permissions.atelier) {
+      cards.push({
         key: 'atelier',
         title: getDef('atelier').label,
         description: getDef('atelier').description,
@@ -388,46 +438,43 @@ export default function App() {
             icon: Wrench,
           },
         ],
-      },
-      {
+      });
+    }
+
+    if (facturationItems.length > 0) {
+      cards.push({
         key: 'facturation',
-        title: getDef('facturation').label,
-        description: getDef('facturation').description,
+        title: 'Facturation & Fournisseurs',
+        description: 'Saisie factures véhicules, imports énergie (Total, Chargemap, Wellborne) et partenaires SAV',
         image: getDef('facturation').image,
-        accentColor: getDef('facturation').accentColor,
-        bgLight: getDef('facturation').bgLight,
-        badge: 'Énergie & Flotte',
-        defaultView: 'atelier_vehicules',
+        accentColor: '#1B4565',
+        bgLight: '#EBF6FC',
+        badge: facturationItems.length > 1 ? '2 espaces' : facturationItems[0].badge,
+        menuLabel: 'Facturation ou Fournisseurs',
+        defaultView: facturationItems[0].id,
         icon: Truck,
-        items: [
-          {
-            id: 'atelier_vehicules',
-            title: 'Hub Facturation Véhicules (Christine)',
-            description: 'Saisie factures véhicules, TotalEnergies, Chargemap & Wellborne',
-            icon: Truck,
-          },
-        ],
-      },
-      {
-        key: 'communication',
-        title: getDef('communication').label,
-        description: getDef('communication').description,
-        image: getDef('communication').image,
-        accentColor: getDef('communication').accentColor,
-        bgLight: getDef('communication').bgLight,
-        badge: 'Contacts Clients',
-        defaultView: 'comm_lea',
+        items: facturationItems,
+      });
+    }
+
+    if (clientsItems.length > 0) {
+      cards.push({
+        key: 'commercial',
+        title: 'Clients (Commerce & Contacts)',
+        description: 'Portefeuille chantiers, gains/pertes, tranches CA, annuaire clients et exports contacts',
+        image: getDef('commercial').image,
+        accentColor: '#B87414',
+        bgLight: '#FEF6E7',
+        badge: `${stats.chantiersActifs} chantiers`,
+        menuLabel: 'Commerce ou Contacts',
+        defaultView: clientsItems[0].id,
         icon: Users,
-        items: [
-          {
-            id: 'comm_lea',
-            title: 'Hub de Léa — Contacts Clients',
-            description: 'Export Excel et annuaire complet des contacts chantiers',
-            icon: Users,
-          },
-        ],
-      },
-      {
+        items: clientsItems,
+      });
+    }
+
+    if (permissions.direction) {
+      cards.push({
         key: 'direction',
         title: getDef('direction').label,
         description: getDef('direction').description,
@@ -445,56 +492,14 @@ export default function App() {
             icon: Landmark,
           },
         ],
-      },
-      {
-        key: 'commercial',
-        title: getDef('commercial').label,
-        description: getDef('commercial').description,
-        image: getDef('commercial').image,
-        accentColor: getDef('commercial').accentColor,
-        bgLight: getDef('commercial').bgLight,
-        badge: `${stats.chantiersActifs} chantiers`,
-        defaultView: 'commercial_contrats',
-        icon: FileSpreadsheet,
-        items: [
-          {
-            id: 'commercial_contrats',
-            title: 'Hub Commercial & Portefeuille Chantiers',
-            badge: 'Indicateurs live',
-            badgeColor: '#B87414',
-            description: 'Portefeuille actif, heures/mois, gains, pertes, CA & provenances',
-            icon: FileSpreadsheet,
-          },
-        ],
-      },
-      {
-        key: 'fournisseurs',
-        title: getDef('fournisseurs').label,
-        description: getDef('fournisseurs').description,
-        image: getDef('fournisseurs').image,
-        accentColor: getDef('fournisseurs').accentColor,
-        bgLight: getDef('fournisseurs').bgLight,
-        badge: 'Partenaires SAV',
-        defaultView: 'atelier_fournisseurs',
-        icon: PackageSearch,
-        items: [
-          {
-            id: 'atelier_fournisseurs',
-            title: 'Répertoire Fournisseurs & SAV',
-            badge: 'Kalhyge / Nilfisk',
-            badgeColor: '#3989B7',
-            description: 'Contacts directs fournisseurs consommables & constructeurs machines',
-            icon: PackageSearch,
-          },
-        ],
-      },
-    ];
-  }, [stats, curYear]);
+      });
+    }
 
-  // Hubs autorisés uniquement (table Monday 🔐 Autorisations Hubs)
-  const authorizedHubCards = useMemo(() => {
-    return allHubCards.filter((card) => permissions[card.key]);
-  }, [allHubCards, permissions]);
+    return cards;
+  }, [stats, curYear, permissions]);
+
+  // Hubs autorisés uniquement (déjà filtrés finement par permission individuelle ci-dessus)
+  const authorizedHubCards = allHubCards;
 
   // Hubs visibles et ordonnés selon les préférences de l'utilisateur
   const visibleOrderedHubCards = useMemo(() => {

@@ -29,6 +29,7 @@ export interface HubCardData {
   accentColor: string;
   bgLight: string;
   badge?: string;
+  menuLabel?: string;
   defaultView: ViewId;
   icon: React.ComponentType<{ size?: number; color?: string; className?: string; style?: React.CSSProperties }>;
   items: HubCardSubItem[];
@@ -649,7 +650,7 @@ export default function HubsCarousel({
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                 <Layers size={14} color={card.accentColor} style={{ flexShrink: 0 }} />
                                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  Choisir un secteur ({card.items.length})
+                                  {card.menuLabel || 'Choisir un espace'} ({card.items.length})
                                 </span>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
