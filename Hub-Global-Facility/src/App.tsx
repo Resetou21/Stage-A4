@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Award,
+  BookOpen,
   Building2,
   ChevronDown,
   Clock,
@@ -52,6 +53,7 @@ import NewsCarousel from './components/NewsCarousel';
 import HubsCarousel, { HubCardData } from './components/HubsCarousel';
 import CustomizeHubModal from './components/CustomizeHubModal';
 import PermissionsModal from './components/PermissionsModal';
+import DataRulesAuditModal from './components/DataRulesAuditModal';
 import RoadmapModal from './components/RoadmapModal';
 import CommercialHubView from './components/CommercialHubView';
 import { prefetchCommercialData } from './services/commercialService';
@@ -194,6 +196,7 @@ export default function App() {
   const [roadmapInitialTab, setRoadmapInitialTab] = useState<'form' | 'list' | 'my_ideas' | 'company_ideas'>('company_ideas');
   const [showCustomizeModal, setShowCustomizeModal] = useState<boolean>(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState<boolean>(false);
+  const [showDataRulesModal, setShowDataRulesModal] = useState<boolean>(false);
 
   const CACHE_KEY = 'facility_portal_stats_v5';
   const USER_CACHE_KEY = 'facility_portal_user_v2';
@@ -1170,28 +1173,52 @@ export default function App() {
           </button>
 
           {isAdmin && (
-            <button
-              type="button"
-              className="ui-btn"
-              onClick={() => setShowPermissionsModal(true)}
-              title="Gérer les autorisations par collaborateur"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 11px',
-                borderRadius: '9px',
-                border: '1px solid #1B4565',
-                backgroundColor: '#1B4565',
-                color: '#FFFFFF',
-                fontSize: '12px',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              <ShieldCheck size={14} color="#F7AC37" />
-              <span className="header-btn-label">Accès</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="ui-btn"
+                onClick={() => setShowPermissionsModal(true)}
+                title="Gérer les autorisations par collaborateur"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 11px',
+                  borderRadius: '9px',
+                  border: '1px solid #1B4565',
+                  backgroundColor: '#1B4565',
+                  color: '#FFFFFF',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                <ShieldCheck size={14} color="#F7AC37" />
+                <span className="header-btn-label">Accès</span>
+              </button>
+
+              <button
+                type="button"
+                className="ui-btn"
+                onClick={() => setShowDataRulesModal(true)}
+                title="Référentiel Admin — Filtres, tableaux sources & règles de calcul de tous les Hubs"
+                aria-label="Référentiel des filtres et règles de calcul (Admin)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '9px',
+                  border: '1px solid #B7D8EA',
+                  backgroundColor: '#F4F9FC',
+                  color: '#1B4565',
+                  cursor: 'pointer',
+                }}
+              >
+                <BookOpen size={14} color="#1B4565" />
+              </button>
+            </>
           )}
 
           <button
@@ -2526,14 +2553,20 @@ export default function App() {
         />
 
         {isAdmin && (
-          <PermissionsModal
-            isOpen={showPermissionsModal}
-            onClose={() => setShowPermissionsModal(false)}
-            monday={monday}
-            onPermissionsChanged={() => {
-              void refreshUserPermissions(true);
-            }}
-          />
+          <>
+            <PermissionsModal
+              isOpen={showPermissionsModal}
+              onClose={() => setShowPermissionsModal(false)}
+              monday={monday}
+              onPermissionsChanged={() => {
+                void refreshUserPermissions(true);
+              }}
+            />
+            <DataRulesAuditModal
+              isOpen={showDataRulesModal}
+              onClose={() => setShowDataRulesModal(false)}
+            />
+          </>
         )}
       </main>
     </div>
