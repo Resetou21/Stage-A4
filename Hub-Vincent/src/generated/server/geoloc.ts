@@ -514,3 +514,44 @@ export const upsertGeolocVehicleBatch = createServerFn({ method: 'POST' })
       action: m.action,
     }));
   });
+
+/**
+ * Archive proprement toutes les lignes d'une semaine donnée dans Synthèse Géolocalisation (5108497111).
+ * Utilise uniquement archive_item (récupérable dans les archives Monday, aucune suppression de structure).
+ */
+export const archiveGeolocWeekItems = createServerFn({ method: 'POST' })
+  .validator(z.object({ weekId: z.string().min(1) }))
+  .handler(async ({ data }): Promise<{ archivedCount: number }> => {
+    const cleanWeek = data.weekId.replace(/"/g, '').trim();
+    const q = `query {
+      boards(ids: [${GEOLOC_BOARD_ID}]) {
+        items_page(
+          limit: 500,
+          query_params: { rules: [{ column_id: "${GEOLOC_COLS.semaine}", compare_value: ["${cleanWeek}"], operator: contains_text }] }
+        ) {
+          items {
+            id
+            state
+            column_values(ids: ["${GEOLOC_COLS.semaine}"]) { id text }
+          }
+        }
+      }
+    }`;
+    const res = await callMondayApi(q, { ttlMs: 0 });
+    const items: any[] = res?.boards?.[0]?.items_page?.items ?? res?.data?.boards?.[0]?.items_page?.items ?? [];
+    const targetIds = items
+      .filter((it) => (!it.state || it.state === 'active') && String(it.column_values?.[0]?.text || '').trim() === cleanWeek)
+      .map((it) => String(it.id));
+
+    let archivedCount = 0;
+    const BATCH = 20;
+    for (let i = 0; i < targetIds.length; i += BATCH) {
+      const chunk = targetIds.slice(i, i + BATCH);
+      const muts = chunk.map((id, idx) => `a${idx}: archive_item(item_id: ${id}) { id }`).join(' ');
+      await callMondayApi(`mutation { ${muts} }`);
+      archivedCount += chunk.length;
+    }
+
+    clearBoardCache(GEOLOC_BOARD_ID);
+    return { archivedCount };
+  });

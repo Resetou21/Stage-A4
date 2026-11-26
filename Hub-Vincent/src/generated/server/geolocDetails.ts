@@ -942,6 +942,73 @@ export const archiveDetailsOlderThan6Months = createServerFn({ method: 'POST' })
     return { archivedGroups };
   });
 
+/**
+ * Archive proprement toutes les lignes d'une semaine donnée dans Pointage & Détails Journaliers GPS (5108589918).
+ * Utilise uniquement archive_item (récupérable dans les archives Monday, aucune suppression de structure).
+ */
+export const archiveDetailWeekItems = createServerFn({ method: 'POST' })
+  .validator(z.object({ weekId: z.string().min(1) }))
+  .handler(async ({ data }): Promise<{ archivedCount: number }> => {
+    const cleanWeek = data.weekId.replace(/"/g, '').trim();
+    const targetIds: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+
+    do {
+      pages++;
+      const q = cursor
+        ? `query ($c: String!) {
+            next_items_page(limit: 500, cursor: $c) {
+              cursor
+              items {
+                id
+                state
+                column_values(ids: ["${GEOLOC_DETAILS_COLS.semaine}"]) { id text }
+              }
+            }
+          }`
+        : `query {
+            boards(ids: [${GEOLOC_DETAILS_BOARD_ID}]) {
+              items_page(
+                limit: 500,
+                query_params: { rules: [{ column_id: "${GEOLOC_DETAILS_COLS.semaine}", compare_value: ["${cleanWeek}"], operator: contains_text }] }
+              ) {
+                cursor
+                items {
+                  id
+                  state
+                  column_values(ids: ["${GEOLOC_DETAILS_COLS.semaine}"]) { id text }
+                }
+              }
+            }
+          }`;
+      const res = await callMondayApi(q, { variables: cursor ? { c: cursor } : undefined, ttlMs: 0 });
+      const page = cursor
+        ? res?.next_items_page ?? res?.data?.next_items_page
+        : res?.boards?.[0]?.items_page ?? res?.data?.boards?.[0]?.items_page;
+      const items: any[] = page?.items ?? [];
+      cursor = page?.cursor ?? null;
+
+      for (const it of items) {
+        if ((!it.state || it.state === 'active') && String(it.column_values?.[0]?.text || '').trim() === cleanWeek) {
+          targetIds.push(String(it.id));
+        }
+      }
+    } while (cursor && pages < 10);
+
+    let archivedCount = 0;
+    const BATCH = 20;
+    for (let i = 0; i < targetIds.length; i += BATCH) {
+      const chunk = targetIds.slice(i, i + BATCH);
+      const muts = chunk.map((id, idx) => `a${idx}: archive_item(item_id: ${id}) { id }`).join(' ');
+      await callMondayApi(`mutation { ${muts} }`);
+      archivedCount += chunk.length;
+    }
+
+    clearBoardCache(GEOLOC_DETAILS_BOARD_ID);
+    return { archivedCount };
+  });
+
 export interface CommuteTripDetail {
   startTime: string;
   endTime: string;

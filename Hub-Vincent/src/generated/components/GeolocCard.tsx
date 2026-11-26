@@ -61,6 +61,7 @@ import {
   getGeolocHistory,
   ensureGeolocWeekGroup,
   upsertGeolocVehicleBatch,
+  archiveGeolocWeekItems,
   type MondayGeolocHistory,
   type MondayGeolocRecord,
 } from '@generated/server/geoloc';
@@ -73,6 +74,7 @@ import {
   upsertDailyDetailRow,
   upsertDailyDetailBatch,
   archiveDetailsOlderThan6Months,
+  archiveDetailWeekItems,
   getCommuteKmRecords,
   computeUsefulDayMetrics,
   computePointageStatus,
@@ -192,6 +194,11 @@ export default function GeolocCard() {
   // Suivi Km Domicile ↔ Travail (Monday 5108589918 + coches live de l'Explorateur)
   const [mondayCommuteRecords, setMondayCommuteRecords] = useState<CommuteDayRecord[]>([]);
   const [commuteLoading, setCommuteLoading] = useState<boolean>(false);
+
+  // Modales Import 1-clic et Retrait d'une semaine
+  const [pendingImportWorkbook, setPendingImportWorkbook] = useState<GeoWorkbookResult | null>(null);
+  const [confirmRemoveWeek, setConfirmRemoveWeek] = useState<{ weekId: string; label: string } | null>(null);
+  const [removingWeek, setRemovingWeek] = useState(false);
 
   const refreshCommuteRecords = useCallback(async () => {
     setCommuteLoading(true);
@@ -359,7 +366,7 @@ export default function GeolocCard() {
     toast.info('Import Excel retiré de l’historique local.');
   };
 
-  // Lecture fichier Excel (.xlsx)
+  // Lecture fichier Excel (.xlsx) -> ouvre la confirmation d'import 1-clic
   const handleFile = async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
       toast.error('Format non supporté', {
@@ -374,18 +381,7 @@ export default function GeolocCard() {
       const parsed = await parseGeolocWorkbook(buf, file.name);
       await saveGeolocWorkbookToHistory(parsed);
       await refreshSavedWorkbooks(false);
-      setWorkbook(parsed);
-      setMainTab('explorer');
-      setExplorerSubTab('summary');
-      const firstActive = parsed.vehicles.find((v) => v.trips.length > 0) || parsed.vehicles[0];
-      setSelectedVehiclePlate(firstActive?.plate || '');
-      setExpandedDays({});
-      setTripDayFilter('all');
-      setTripVehicleFilter('all');
-      setTripVisibleCount(60);
-      toast.success(`Export GPS chargé et mémorisé !`, {
-        description: `${parsed.weekLabel} · ${parsed.totalVehicles} véhicules · ${parsed.totalTrips.toLocaleString('fr-FR')} trajets (${parsed.matchedDetailSheets} onglets).`,
-      });
+      setPendingImportWorkbook(parsed);
     } catch (err: any) {
       console.error(err);
       toast.error('Erreur de lecture du fichier Excel', {
@@ -394,6 +390,20 @@ export default function GeolocCard() {
     } finally {
       setParsing(false);
     }
+  };
+
+  // Aperçu simple sans archiver tout de suite
+  const handlePreviewPendingImportOnly = (parsed: GeoWorkbookResult) => {
+    setPendingImportWorkbook(null);
+    setWorkbook(parsed);
+    setMainTab('explorer');
+    setExplorerSubTab('summary');
+    const firstActive = parsed.vehicles.find((v) => v.trips.length > 0) || parsed.vehicles[0];
+    setSelectedVehiclePlate(firstActive?.plate || '');
+    setExpandedDays({});
+    setTripDayFilter('all');
+    setTripVehicleFilter('all');
+    setTripVisibleCount(60);
   };
 
   // Analyse anti-doublon pour le workbook chargé vs Monday
@@ -415,8 +425,9 @@ export default function GeolocCard() {
   }, [workbook, history]);
 
   // Enregistrement de la synthèse hebdomadaire sur Monday (5108497111)
-  const handleSyncToMonday = async (overwriteExisting: boolean) => {
-    if (!workbook || syncing) return;
+  const handleSyncToMonday = async (overwriteExisting: boolean, overrideWb?: GeoWorkbookResult) => {
+    const targetWb = overrideWb ?? workbook;
+    if (!targetWb || syncing) return;
     setSyncing(true);
 
     try {
@@ -424,19 +435,19 @@ export default function GeolocCard() {
       const existing = latestHistory.existingByWeekPlate;
       const fleetMap = latestHistory.fleetPlateToId;
 
-      setSyncProgress({ current: 0, total: workbook.vehicles.length, label: `Préparation du groupe ${workbook.weekLabel}…` });
+      setSyncProgress({ current: 0, total: targetWb.vehicles.length, label: `Préparation du groupe ${targetWb.weekLabel}…` });
       const { groupId } = await ensureGeolocWeekGroup({
-        data: { weekId: workbook.weekId, weekLabel: workbook.weekLabel },
+        data: { weekId: targetWb.weekId, weekLabel: targetWb.weekLabel },
       });
 
-      const targets = workbook.vehicles.filter((v) => {
-        const key = `${workbook.weekId}::${normalizePlateKey(v.plate)}`;
+      const targets = targetWb.vehicles.filter((v) => {
+        const key = `${targetWb.weekId}::${normalizePlateKey(v.plate)}`;
         const exists = Boolean(existing[key]);
         return overwriteExisting || !exists;
       });
 
       if (targets.length === 0) {
-        toast.info('Semaine déjà entièrement synchronisée sur Monday !');
+        if (!overrideWb) toast.info('Semaine déjà entièrement synchronisée sur Monday !');
         setSyncing(false);
         setSyncProgress(null);
         return;
@@ -457,15 +468,15 @@ export default function GeolocCard() {
         const results = await upsertGeolocVehicleBatch({
           data: {
             rows: chunk.map((v) => {
-              const key = `${workbook.weekId}::${normalizePlateKey(v.plate)}`;
+              const key = `${targetWb.weekId}::${normalizePlateKey(v.plate)}`;
               const existingItemId = existing[key];
               const linkedVehicleId = fleetMap[normalizePlateKey(v.plate)];
               return {
                 groupId,
                 existingItemId: overwriteExisting ? existingItemId : undefined,
-                weekId: workbook.weekId,
-                startDate: workbook.startDate,
-                endDate: workbook.endDate,
+                weekId: targetWb.weekId,
+                startDate: targetWb.startDate,
+                endDate: targetWb.endDate,
                 plate: v.plate,
                 linkedVehicleId,
                 conducteur: v.vehicleLabel,
@@ -498,12 +509,14 @@ export default function GeolocCard() {
         }
       }
 
-      toast.success('Synthèse enregistrée sur Monday !', {
-        description: `${created > 0 ? `${created} ligne(s) créée(s)` : ''}${created > 0 && updated > 0 ? ' · ' : ''}${updated > 0 ? `${updated} ligne(s) mise(s) à jour` : ''} dans « ${workbook.weekLabel} ».`,
-      });
+      if (!overrideWb) {
+        toast.success('Synthèse enregistrée sur Monday !', {
+          description: `${created > 0 ? `${created} ligne(s) créée(s)` : ''}${created > 0 && updated > 0 ? ' · ' : ''}${updated > 0 ? `${updated} ligne(s) mise(s) à jour` : ''} dans « ${targetWb.weekLabel} ».`,
+        });
+      }
 
       await loadHistory();
-      setSelectedHistoryWeek(workbook.weekId);
+      setSelectedHistoryWeek(targetWb.weekId);
     } catch (err: any) {
       console.error('Erreur synchro géoloc:', err);
       toast.error('Erreur pendant la synchronisation Monday', {
@@ -722,26 +735,27 @@ export default function GeolocCard() {
     return workbook.vehicles.reduce((sum, v) => sum + v.days.length, 0);
   }, [workbook]);
 
-  const handleSyncAllDetailsToMonday = async () => {
-    if (!workbook || syncingDetails) return;
+  const handleSyncAllDetailsToMonday = async (overrideWb?: GeoWorkbookResult) => {
+    const targetWb = overrideWb ?? workbook;
+    if (!targetWb || syncingDetails) return;
     const tasks: Array<{ vehicle: GeoVehicleSummary; day: GeoVehicleSummary['days'][number] }> = [];
-    for (const v of workbook.vehicles) {
+    for (const v of targetWb.vehicles) {
       for (const d of v.days) {
         if (d.trips.length > 0) tasks.push({ vehicle: v, day: d });
       }
     }
     if (tasks.length === 0) {
-      toast.info('Aucun détail journalier à archiver pour cette semaine.');
+      if (!overrideWb) toast.info('Aucun détail journalier à archiver pour cette semaine.');
       return;
     }
 
     setSyncingDetails(true);
     try {
-      setDetailsSyncProgress({ current: 0, total: tasks.length, label: `Préparation du groupe ${workbook.weekLabel}…` });
+      setDetailsSyncProgress({ current: 0, total: tasks.length, label: `Préparation du groupe ${targetWb.weekLabel}…` });
       const { groupId } = await ensureDetailsWeekGroup({
-        data: { weekId: workbook.weekId, weekLabel: workbook.weekLabel },
+        data: { weekId: targetWb.weekId, weekLabel: targetWb.weekLabel },
       });
-      const existingPayload = await loadMondayWeekDetails({ data: { weekId: workbook.weekId, forceRefresh: true } });
+      const existingPayload = await loadMondayWeekDetails({ data: { weekId: targetWb.weekId, forceRefresh: true } });
       const existingIds = existingPayload.itemIdByKey;
 
       let created = 0;
@@ -770,7 +784,7 @@ export default function GeolocCard() {
           return {
             groupId,
             existingItemId,
-            weekId: workbook.weekId,
+            weekId: targetWb.weekId,
             date: day.date,
             plate: vehicle.plate,
             vehicleLabel: vehicle.vehicleLabel,
@@ -806,9 +820,11 @@ export default function GeolocCard() {
         return next;
       });
 
-      toast.success('Tous les détails journaliers archivés sur Monday !', {
-        description: `${created} créé(s) · ${updated} mis à jour dans « ${workbook.weekLabel} » (rechargeables sans Excel depuis n’importe quel PC).`,
-      });
+      if (!overrideWb) {
+        toast.success('Tous les détails journaliers archivés sur Monday !', {
+          description: `${created} créé(s) · ${updated} mis à jour dans « ${targetWb.weekLabel} » (rechargeables sans Excel depuis n’importe quel PC).`,
+        });
+      }
       await refreshMondayDetailsList();
       await refreshCommuteRecords();
     } catch (err: any) {
@@ -820,6 +836,65 @@ export default function GeolocCard() {
     } finally {
       setSyncingDetails(false);
       setDetailsSyncProgress(null);
+    }
+  };
+
+  // Import 1-clic : enchaîne automatiquement Synthèse + Détails journaliers sur Monday
+  const handleOneClickImportAndArchive = async (targetWb: GeoWorkbookResult) => {
+    setPendingImportWorkbook(null);
+    setWorkbook(targetWb);
+    setMainTab('explorer');
+    setExplorerSubTab('vehicle');
+    const firstActive = targetWb.vehicles.find((v) => v.trips.length > 0) || targetWb.vehicles[0];
+    setSelectedVehiclePlate(firstActive?.plate || '');
+    setExpandedDays({});
+    setTripDayFilter('all');
+    setTripVehicleFilter('all');
+    setTripVisibleCount(60);
+
+    await handleSyncToMonday(true, targetWb);
+    await handleSyncAllDetailsToMonday(targetWb);
+
+    toast.success(`Semaine ${targetWb.weekLabel} enregistrée sur Monday !`, {
+      description: `${targetWb.activeVehicles} véhicules actifs · ${targetWb.totalTrips.toLocaleString('fr-FR')} trajets archivés et disponibles pour toute l’équipe.`,
+    });
+
+    // Recharger proprement l'archive Monday pour basculer en mode épuré
+    await handleLoadMondayDetailWeek(targetWb.weekId, { silent: true });
+  };
+
+  // Retrait propre d'une semaine (archive les lignes dans les 2 tableaux Monday + supprime le cache local)
+  const handleConfirmRemoveWeek = async () => {
+    if (!confirmRemoveWeek || removingWeek) return;
+    const { weekId, label } = confirmRemoveWeek;
+    setRemovingWeek(true);
+    try {
+      const [synthRes, detRes] = await Promise.all([
+        archiveGeolocWeekItems({ data: { weekId } }),
+        archiveDetailWeekItems({ data: { weekId } }),
+      ]);
+      await deleteGeolocWorkbookFromHistory(weekId).catch(() => {});
+      await refreshSavedWorkbooks(false);
+
+      if (workbook?.weekId === weekId) {
+        setWorkbook(null);
+        setSelectedVehiclePlate('');
+        autoLoadedMondayRef.current = false;
+      }
+      if (selectedHistoryWeek === weekId) {
+        setSelectedHistoryWeek('latest');
+      }
+
+      await Promise.all([loadHistory(), refreshMondayDetailsList(), refreshCommuteRecords()]);
+
+      toast.success(`Semaine « ${label} » retirée du Hub`, {
+        description: `${synthRes.archivedCount} ligne(s) synthèse et ${detRes.archivedCount} journée(s) archivées sur Monday (récupérables dans les archives Monday).`,
+      });
+      setConfirmRemoveWeek(null);
+    } catch (err: any) {
+      toast.error('Impossible de retirer cette semaine', { description: err?.message });
+    } finally {
+      setRemovingWeek(false);
     }
   };
 
@@ -1326,6 +1401,23 @@ export default function GeolocCard() {
                 <span>Export .xlsx</span>
               </button>
             )}
+            {history && selectedHistoryWeek !== 'all' && activeHistoryWeekRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const wkMeta =
+                    history.weeks.find((w) => w.weekId === selectedHistoryWeek) || history.weeks[0];
+                  if (wkMeta) {
+                    setConfirmRemoveWeek({ weekId: wkMeta.weekId, label: wkMeta.groupTitle || wkMeta.weekId });
+                  }
+                }}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 text-xs font-bold text-destructive transition hover:bg-destructive/15 cursor-pointer"
+                title="Retirer cette semaine du Hub (archive ses lignes sur Monday en cas d'import erroné)"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Retirer</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1797,6 +1889,20 @@ export default function GeolocCard() {
                 <span>Tableau Pointages</span>
                 <ExternalLink className="h-3 w-3 text-muted-foreground" />
               </a>
+
+              {workbook && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfirmRemoveWeek({ weekId: workbook.weekId, label: workbook.weekLabel || workbook.weekId })
+                  }
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 text-[11px] font-bold text-destructive transition hover:bg-destructive/15 cursor-pointer"
+                  title="Retirer cette semaine du Hub (archive ses lignes sur Monday en cas d'import erroné)"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>Retirer</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1888,7 +1994,7 @@ export default function GeolocCard() {
                         <button
                           type="button"
                           disabled={syncing || syncingDetails}
-                          onClick={handleSyncAllDetailsToMonday}
+                          onClick={() => handleSyncAllDetailsToMonday()}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-xs transition hover:brightness-95 cursor-pointer disabled:opacity-60"
                           title="Enregistre tous les trajets détaillés, exclusions et pointages sur Monday (partagés avec toute l'équipe)"
                         >
@@ -2572,6 +2678,141 @@ export default function GeolocCard() {
           onRefresh={refreshCommuteRecords}
           onGoToExplorer={() => setMainTab('explorer')}
         />
+      )}
+
+      {/* ==================== MODALE CONFIRMATION IMPORT 1-CLIC ==================== */}
+      {pendingImportWorkbook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <FileSpreadsheet className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-foreground">Importer &amp; enregistrer sur Monday</h3>
+                  <p className="text-xs text-muted-foreground truncate max-w-[260px]" title={pendingImportWorkbook.fileName}>
+                    {pendingImportWorkbook.fileName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingImportWorkbook(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-primary/25 bg-primary/[0.04] p-3.5 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-extrabold text-primary-foreground">
+                  <Calendar className="h-3 w-3" /> {pendingImportWorkbook.weekLabel}
+                </span>
+                {history?.weeks.some((w) => w.weekId === pendingImportWorkbook.weekId) && (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                    Déjà présente (mise à jour sans doublon)
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                <div className="rounded-lg bg-card p-2 border border-border/70">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">Véhicules</p>
+                  <p className="font-mono text-sm font-extrabold text-foreground">
+                    {pendingImportWorkbook.activeVehicles}/{pendingImportWorkbook.totalVehicles}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-card p-2 border border-border/70">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">Trajets</p>
+                  <p className="font-mono text-sm font-extrabold text-primary">
+                    {pendingImportWorkbook.totalTrips.toLocaleString('fr-FR')}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-card p-2 border border-border/70">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">Distance</p>
+                  <p className="font-mono text-sm font-extrabold text-foreground">
+                    {Math.round(pendingImportWorkbook.totalKm).toLocaleString('fr-FR')} km
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              L’enregistrement synchronise automatiquement la <strong>Synthèse hebdomadaire</strong> et tous les{' '}
+              <strong>Détails &amp; Pointages journaliers</strong> sur Monday pour toute l’équipe.
+            </p>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => handleOneClickImportAndArchive(pendingImportWorkbook)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-extrabold text-primary-foreground shadow-sm transition hover:brightness-95 cursor-pointer"
+              >
+                <CloudUpload className="h-4 w-4" />
+                <span>Confirmer &amp; Enregistrer sur Monday</span>
+              </button>
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePreviewPendingImportOnly(pendingImportWorkbook)}
+                  className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-[11px] font-bold text-foreground hover:bg-muted cursor-pointer"
+                >
+                  Aperçu sans enregistrer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingImportWorkbook(null)}
+                  className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODALE CONFIRMATION RETRAIT SEMAINE ==================== */}
+      {confirmRemoveWeek && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-destructive/30 bg-card p-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-extrabold text-foreground">Retirer cette semaine du Hub ?</h3>
+                <p className="mt-1 text-xs font-semibold text-foreground">{confirmRemoveWeek.label}</p>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Toutes les lignes de cette semaine seront <strong>archivées</strong> dans les tableaux Monday{' '}
+                  <em>Synthèse Géolocalisation</em> et <em>Pointage &amp; Détails Journaliers GPS</em>. Aucune colonne ni
+                  structure n’est supprimée (récupérable dans les Archives Monday si besoin).
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={removingWeek}
+                onClick={() => setConfirmRemoveWeek(null)}
+                className="rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={removingWeek}
+                onClick={handleConfirmRemoveWeek}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-4 py-2 text-xs font-extrabold text-white shadow-xs transition hover:brightness-95 cursor-pointer disabled:opacity-60"
+              >
+                {removingWeek ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                <span>{removingWeek ? 'Archivage en cours…' : 'Oui, retirer cette semaine'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
