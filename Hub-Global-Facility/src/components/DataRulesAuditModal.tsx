@@ -784,11 +784,13 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
         </div>
 
         {/* Cartes de filtres visuels façon Dashboard Monday */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#FAFCFE' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 22px', backgroundColor: '#FAFCFE' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {filteredRules.map((card) => (
             <div
               key={card.id}
               style={{
+                flexShrink: 0,
                 borderRadius: '14px',
                 border: '1px solid #D7EAF5',
                 backgroundColor: '#FFFFFF',
@@ -1008,6 +1010,7 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
               Aucun filtre trouvé pour « {search} ».
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
