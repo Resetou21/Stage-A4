@@ -2762,12 +2762,18 @@ export const App = () => {
         <DeleteMachineModal
           machines={machines}
           repairTickets={repairTickets}
+          realisedControles={realisedControles}
+          getCol={getColText}
           onClose={() => setIsDeleteMachineModalOpen(false)}
-          onSuccess={async (deletedMachineId, deletedMachineName, archivedTicketIds) => {
+          onSuccess={async (deletedMachineId, deletedMachineName, archivedTicketIds, archivedControlIds) => {
             setMachines((prev) => prev.filter((m) => String(m.id) !== deletedMachineId));
             if (archivedTicketIds.length > 0) {
               const idSet = new Set(archivedTicketIds);
               setRepairTickets((prev) => prev.filter((t) => !idSet.has(String(t.id))));
+            }
+            if (archivedControlIds.length > 0) {
+              const ctrlSet = new Set(archivedControlIds);
+              setRealisedControles((prev) => prev.filter((c) => !ctrlSet.has(String(c.id))));
             }
             clearErpApiCache();
             try {
@@ -2775,9 +2781,17 @@ export const App = () => {
               localStorage.removeItem('parc_machines_cache_ts_v1');
               localStorage.removeItem('parc_repairs_cache_v1');
               localStorage.removeItem('parc_repairs_cache_ts_v1');
+              localStorage.removeItem('parc_controles_cache_v1');
+              localStorage.removeItem('parc_controles_cache_ts_v1');
             } catch {}
+            const extras = [
+              archivedTicketIds.length > 0 ? `${archivedTicketIds.length} ticket(s)` : '',
+              archivedControlIds.length > 0 ? `${archivedControlIds.length} contrôle(s)` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ');
             setSuccessMessage(
-              `Machine "${deletedMachineName}" retirée du parc et archivée sur Monday${archivedTicketIds.length > 0 ? ` (${archivedTicketIds.length} ticket(s) ouvert(s) archivé(s))` : ''} !`
+              `Machine "${deletedMachineName}" retirée du parc et archivée sur Monday${extras ? ` (${extras} archivé(s))` : ''} !`
             );
             await Promise.all([fetchMachines(), loadMaintenanceData()]);
           }}

@@ -4253,8 +4253,8 @@ export async function createNewMachine(
  */
 export async function archiveMachineFromParc(
   machineId: string,
-  openRepairTicketIds: string[] = []
-): Promise<{ success: boolean; archivedRepairs: number; error?: string }> {
+  extraItemIdsToArchive: string[] = []
+): Promise<{ success: boolean; archivedExtra: number; error?: string }> {
   try {
     const res: any = await (monday as any).api(
       `mutation ArchiveMachine($itemId: ID!) {
@@ -4268,34 +4268,34 @@ export async function archiveMachineFromParc(
     );
 
     if (!res?.data?.archive_item?.id) {
-      return { success: false, archivedRepairs: 0, error: formatMondayError(res) };
+      return { success: false, archivedExtra: 0, error: formatMondayError(res) };
     }
 
-    let archivedRepairs = 0;
-    for (const ticketId of openRepairTicketIds) {
-      if (!ticketId) continue;
+    let archivedExtra = 0;
+    for (const extraId of extraItemIdsToArchive) {
+      if (!extraId) continue;
       try {
         const tRes: any = await (monday as any).api(
-          `mutation ArchiveOpenRepair($itemId: ID!) {
+          `mutation ArchiveLinkedItem($itemId: ID!) {
             archive_item(item_id: $itemId) {
               id
             }
           }`,
           {
-            variables: { itemId: ticketId },
+            variables: { itemId: extraId },
           }
         );
-        if (tRes?.data?.archive_item?.id) archivedRepairs++;
+        if (tRes?.data?.archive_item?.id) archivedExtra++;
       } catch {
-        // continue même si un ticket a déjà été archivé
+        // continue même si un élément a déjà été archivé
       }
     }
 
     clearErpApiCache();
-    return { success: true, archivedRepairs };
+    return { success: true, archivedExtra };
   } catch (err: any) {
     console.error('Erreur suppression/archivage machine:', err);
-    return { success: false, archivedRepairs: 0, error: err?.message || 'Erreur réseau ou permission' };
+    return { success: false, archivedExtra: 0, error: err?.message || 'Erreur réseau ou permission' };
   }
 }
 

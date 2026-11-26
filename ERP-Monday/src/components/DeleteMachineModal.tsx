@@ -1,55 +1,43 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, Trash2, X } from 'lucide-react';
 import type { Machine } from '../types';
-import { FacilitySelect } from './FacilitySelect';
+import { MachineSelect } from './MachineSelect';
 import {
   archiveMachineFromParc,
   findMachineForTicket,
   isTicketRepaired,
+  type RealisedControle,
   type RepairTicket,
 } from '../services/maintenanceApi';
 
 interface DeleteMachineModalProps {
   machines: Machine[];
   repairTickets: RepairTicket[];
+  realisedControles: RealisedControle[];
+  getCol: (m: Machine, colId: string) => string;
   onClose: () => void;
-  onSuccess: (deletedMachineId: string, deletedMachineName: string, archivedTicketIds: string[]) => Promise<void> | void;
+  onSuccess: (
+    deletedMachineId: string,
+    deletedMachineName: string,
+    archivedTicketIds: string[],
+    archivedControlIds: string[]
+  ) => Promise<void> | void;
 }
 
 export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
   machines,
   repairTickets,
+  realisedControles,
+  getCol,
   onClose,
   onSuccess,
 }) => {
   const [selectedMachineId, setSelectedMachineId] = useState<string>('');
   const [archiveOpenRepairs, setArchiveOpenRepairs] = useState<boolean>(true);
+  const [archiveControls, setArchiveControls] = useState<boolean>(false);
   const [confirmChecked, setConfirmChecked] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const getColText = (m: Machine, keywords: string[]) => {
-    const col = m.column_values?.find((c) => {
-      const t = `${c.title || ''} ${c.id || ''}`.toLowerCase();
-      return keywords.some((k) => t.includes(k));
-    });
-    return col?.display_value || col?.text || '';
-  };
-
-  const machineOptions = useMemo(() => {
-    return [...machines]
-      .sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' }))
-      .map((m) => {
-        const type = getColText(m, ['type', 'catégorie', 'categorie', 'famille', 'dropdown_mm8f']);
-        const site = getColText(m, ['chantier', 'site', 'affectation', 'board_relation_mm8gxh6a']);
-        const sub = [type, site].filter(Boolean).join(' • ');
-        return {
-          value: String(m.id),
-          label: m.name,
-          subLabel: sub || undefined,
-        };
-      });
-  }, [machines]);
 
   const selectedMachine = useMemo(
     () => machines.find((m) => String(m.id) === String(selectedMachineId)) || null,
@@ -65,13 +53,24 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
     });
   }, [selectedMachine, repairTickets, machines]);
 
+  const linkedControls = useMemo(() => {
+    if (!selectedMachine) return [];
+    const mNameLow = selectedMachine.name.trim().toLowerCase();
+    return realisedControles.filter((c) => {
+      if (c.machineId && String(c.machineId) === String(selectedMachine.id)) return true;
+      const cName = (c.machineName || '').trim().toLowerCase();
+      return Boolean(cName && (cName === mNameLow || cName.includes(mNameLow) || mNameLow.includes(cName)));
+    });
+  }, [selectedMachine, realisedControles]);
+
   const handleConfirmDelete = async () => {
     if (!selectedMachine || !confirmChecked || submitting) return;
     setSubmitting(true);
     setErrorMsg(null);
 
-    const openIds = archiveOpenRepairs ? linkedOpenRepairs.map((t) => String(t.id)) : [];
-    const res = await archiveMachineFromParc(String(selectedMachine.id), openIds);
+    const ticketIds = archiveOpenRepairs ? linkedOpenRepairs.map((t) => String(t.id)) : [];
+    const controlIds = archiveControls ? linkedControls.map((c) => String(c.id)) : [];
+    const res = await archiveMachineFromParc(String(selectedMachine.id), [...ticketIds, ...controlIds]);
 
     if (!res.success) {
       setErrorMsg(res.error || 'Impossible de supprimer cette machine sur Monday.');
@@ -79,7 +78,7 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
       return;
     }
 
-    await onSuccess(String(selectedMachine.id), selectedMachine.name, openIds);
+    await onSuccess(String(selectedMachine.id), selectedMachine.name, ticketIds, controlIds);
     setSubmitting(false);
     onClose();
   };
@@ -103,12 +102,12 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '540px',
+          maxWidth: '640px',
           backgroundColor: '#FFFFFF',
           borderRadius: '18px',
           border: '1px solid #FECACA',
           boxShadow: '0 24px 60px rgba(15, 23, 42, 0.28)',
-          overflow: 'hidden',
+          overflow: 'visible',
           fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
@@ -118,6 +117,8 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
             padding: '16px 20px',
             background: 'linear-gradient(135deg, #B91C1C 0%, #DC2626 100%)',
             color: '#FFFFFF',
+            borderTopLeftRadius: '17px',
+            borderTopRightRadius: '17px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -170,31 +171,17 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
 
         {/* Body */}
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '12px',
-                fontWeight: 800,
-                color: '#1B4565',
-                marginBottom: '6px',
-              }}
-            >
-              Machine à supprimer ({machines.length} disponibles)
-            </label>
-            <FacilitySelect
-              value={selectedMachineId}
-              onChange={(val) => {
-                setSelectedMachineId(val);
-                setConfirmChecked(false);
-                setErrorMsg(null);
-              }}
-              options={machineOptions}
-              placeholder="Rechercher par numéro, nom ou chantier..."
-              searchable
-              clearable
-            />
-          </div>
+          <MachineSelect
+            machines={machines}
+            selectedMachineId={selectedMachineId}
+            onSelectMachine={(val) => {
+              setSelectedMachineId(val);
+              setConfirmChecked(false);
+              setArchiveControls(false);
+              setErrorMsg(null);
+            }}
+            getCol={getCol}
+          />
 
           {selectedMachine && (
             <div
@@ -217,9 +204,6 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
                   <strong>{selectedMachine.name}</strong> disparaîtra de la Fiche de Contrôle, de la Maintenance Préventive et des Indicateurs.
                 </li>
                 <li>
-                  Les anciens contrôles déjà réalisés restent conservés dans l’historique pour la traçabilité.
-                </li>
-                <li>
                   {linkedOpenRepairs.length > 0 ? (
                     <span>
                       <strong>{linkedOpenRepairs.length} ticket(s) de réparation ouvert(s)</strong> sont actuellement liés à cette machine.
@@ -228,12 +212,21 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
                     <span>Aucun ticket de réparation ouvert lié à cette machine.</span>
                   )}
                 </li>
+                <li>
+                  {linkedControls.length > 0 ? (
+                    <span>
+                      <strong>{linkedControls.length} fiche(s) de contrôle</strong> trouvée(s) dans l’historique (conservées par défaut pour la traçabilité).
+                    </span>
+                  ) : (
+                    <span>Aucune fiche de contrôle enregistrée pour cette machine.</span>
+                  )}
+                </li>
               </ul>
 
               {linkedOpenRepairs.length > 0 && (
                 <label
                   style={{
-                    marginTop: '4px',
+                    marginTop: '2px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
@@ -254,6 +247,32 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
                     style={{ width: '15px', height: '15px', accentColor: '#DC2626' }}
                   />
                   <span>Archiver aussi ses {linkedOpenRepairs.length} ticket(s) de réparation ouverts</span>
+                </label>
+              )}
+
+              {linkedControls.length > 0 && (
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#1B4565',
+                    cursor: 'pointer',
+                    backgroundColor: '#FFFFFF',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={archiveControls}
+                    onChange={(e) => setArchiveControls(e.target.checked)}
+                    style={{ width: '15px', height: '15px', accentColor: '#DC2626' }}
+                  />
+                  <span>Archiver aussi ses {linkedControls.length} fiche(s) de contrôle (utile pour supprimer un test)</span>
                 </label>
               )}
             </div>
@@ -308,6 +327,8 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
             padding: '14px 20px',
             backgroundColor: '#F8FAFC',
             borderTop: '1px solid #E2E8F0',
+            borderBottomLeftRadius: '17px',
+            borderBottomRightRadius: '17px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
