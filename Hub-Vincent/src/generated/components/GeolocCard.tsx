@@ -1065,7 +1065,7 @@ export default function GeolocCard() {
   return (
     <div
       id="section-geoloc"
-      className="relative w-full max-w-full overflow-x-hidden rounded-[var(--radius-lg)] border border-border bg-card p-3.5 pt-8 sm:p-8"
+      className="relative w-full max-w-full rounded-[var(--radius-lg)] border border-border bg-card p-3.5 pt-8 sm:p-8"
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
