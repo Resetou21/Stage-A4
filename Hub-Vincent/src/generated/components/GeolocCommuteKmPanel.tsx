@@ -263,6 +263,28 @@ export default function GeolocCommuteKmPanel({
     const vehicleCount = new Set(periodRecords.map((r) => r.plateKey)).size;
     const pctOfTotal = totalAllKm > 0 ? Math.round((totalCommuteKm / totalAllKm) * 1000) / 10 : 0;
     const avgPerVehicle = vehicleCount > 0 ? Math.round((totalCommuteKm / vehicleCount) * 10) / 10 : 0;
+
+    // Comparaison automatique vs année précédente (N-1) sur la même période (Mois / Trimestre / Année)
+    const prevYear = String(Number(effectiveYear) - 1);
+    const prevPeriodRecords = mergedRecords.filter((r) => {
+      if (periodMode === 'year') return r.date.startsWith(prevYear);
+      if (periodMode === 'month') {
+        const mm = effectiveMonth.slice(5, 7);
+        return r.date.startsWith(`${prevYear}-${mm}`);
+      }
+      if (!r.date.startsWith(prevYear)) return false;
+      const qTarget = Number(effectiveQuarter.split('-Q')[1] || 1);
+      return getQuarter(Number(r.date.slice(5, 7))) === qTarget;
+    });
+    const prevCommuteKm =
+      prevPeriodRecords.length > 0
+        ? Math.round(prevPeriodRecords.reduce((s, r) => s + r.commuteKm, 0) * 10) / 10
+        : null;
+    const deltaPctVsPrev =
+      prevCommuteKm && prevCommuteKm > 0
+        ? Math.round(((totalCommuteKm - prevCommuteKm) / prevCommuteKm) * 100)
+        : null;
+
     return {
       totalCommuteKm,
       totalAllKm,
@@ -271,8 +293,11 @@ export default function GeolocCommuteKmPanel({
       vehicleCount,
       pctOfTotal,
       avgPerVehicle,
+      prevYear,
+      prevCommuteKm,
+      deltaPctVsPrev,
     };
-  }, [periodRecords]);
+  }, [periodRecords, mergedRecords, periodMode, effectiveYear, effectiveMonth, effectiveQuarter]);
 
   // Données graphique : Top véhicules
   const vehicleChartData = useMemo(
@@ -472,7 +497,22 @@ export default function GeolocCommuteKmPanel({
             <span>Total Km Domicile ↔ Travail</span>
             <Home className="h-4 w-4 text-[#D66927]" />
           </div>
-          <div className="mt-1.5 text-2xl font-black text-[#1B4565]">{kmFmt(kpis.totalCommuteKm)}</div>
+          <div className="mt-1.5 flex items-baseline gap-2">
+            <span className="text-2xl font-black text-[#1B4565]">{kmFmt(kpis.totalCommuteKm)}</span>
+            {kpis.deltaPctVsPrev !== null && (
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[10px] font-extrabold',
+                  kpis.deltaPctVsPrev <= 0
+                    ? 'bg-emerald-500/15 text-emerald-700'
+                    : 'bg-red-500/15 text-red-700',
+                )}
+                title={`Même période en ${kpis.prevYear} : ${kmFmt(kpis.prevCommuteKm || 0)}`}
+              >
+                {kpis.deltaPctVsPrev > 0 ? `+${kpis.deltaPctVsPrev}%` : `${kpis.deltaPctVsPrev}%`} vs {kpis.prevYear}
+              </span>
+            )}
+          </div>
           <div className="mt-1 text-[11px] text-muted-foreground">
             Sur {kpis.totalAllKm > 0 ? kmFmt(kpis.totalAllKm) : '0 km'} totaux pointés
           </div>

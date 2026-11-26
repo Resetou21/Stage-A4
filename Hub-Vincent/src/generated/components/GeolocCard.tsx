@@ -716,7 +716,7 @@ export default function GeolocCard() {
     const totalDays = olderThan6MonthsWeeks.reduce((s, w) => s + w.dayCount, 0);
     if (
       !window.confirm(
-        `Archiver ${olderThan6MonthsWeeks.length} semaine(s) de plus de 6 mois (${totalDays} lignes journalières) dans l’archive Monday ?\n\nLes données restent récupérables dans les Archives Monday sans aucune limite et libèrent instantanément votre quota d’éléments actifs.`
+        `Archiver ${olderThan6MonthsWeeks.length} semaine(s) de plus de 13 mois (${totalDays} lignes journalières) dans l’archive Monday ?\n\nVous conservez ainsi une année complète active pour les indicateurs Mensuel / Trimestriel / Annuel, et les anciennes données restent récupérables dans les Archives Monday sans limite.`
       )
     ) {
       return;
@@ -1628,7 +1628,7 @@ export default function GeolocCard() {
                         )}
                         {wk.isOlderThan6Months && (
                           <span className="rounded-full bg-amber-600 px-1.5 py-0.2 text-[9px] font-extrabold text-white">
-                            &gt;6m
+                            &gt;13m
                           </span>
                         )}
                       </button>
@@ -1652,10 +1652,10 @@ export default function GeolocCard() {
                   disabled={archivingOldDetails}
                   onClick={handleArchiveOldDetails}
                   className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-500/25 cursor-pointer disabled:opacity-50"
-                  title="Archive sur Monday les semaines de plus de 6 mois pour libérer le quota actif (données conservées en archive sans limite)"
+                  title="Archive sur Monday les semaines de plus de 13 mois (conserve 1 an complet actif pour les indicateurs annuels)"
                 >
                   {archivingOldDetails ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
-                  <span>Archiver &gt; 6 mois ({olderThan6MonthsWeeks.length})</span>
+                  <span>Archiver &gt; 13 mois ({olderThan6MonthsWeeks.length})</span>
                 </button>
               )}
 

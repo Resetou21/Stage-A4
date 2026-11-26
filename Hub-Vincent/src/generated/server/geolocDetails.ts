@@ -338,7 +338,8 @@ export const getMondayDetailWeeksList = createServerFn({ method: 'GET' })
       cursor = page.cursor ?? null;
     }
 
-    const sixMonthsAgo = new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
+    // Seuil d'archivage fixé à 13 mois (~395j) pour conserver une année complète active (Mensuel/Trimestriel/Annuel)
+    const archiveCutoff = new Date(Date.now() - 395 * 86400000).toISOString().slice(0, 10);
     const byWeek = new Map<
       string,
       MondayDetailWeekSummary & { plates: Set<string> }
@@ -381,7 +382,7 @@ export const getMondayDetailWeeksList = createServerFn({ method: 'GET' })
       .map(({ plates, ...rest }) => ({
         ...rest,
         vehicleCount: plates.size,
-        isOlderThan6Months: Boolean(rest.maxDate && rest.maxDate < sixMonthsAgo),
+        isOlderThan6Months: Boolean(rest.maxDate && rest.maxDate < archiveCutoff),
       }))
       .sort((a, b) => b.weekId.localeCompare(a.weekId));
 
@@ -925,7 +926,18 @@ export const getCommuteKmRecords = createServerFn({ method: 'GET' })
           }`
         : `query ($b: [ID!], $cols: [String!]) {
             boards(ids: $b) {
-              items_page(limit: 500) {
+              items_page(
+                limit: 500,
+                query_params: {
+                  rules: [
+                    {
+                      column_id: "${GEOLOC_DETAILS_COLS.trajetsExclus}",
+                      compare_value: [0],
+                      operator: greater_than
+                    }
+                  ]
+                }
+              ) {
                 cursor
                 items {
                   id
@@ -1009,7 +1021,7 @@ export const getCommuteKmRecords = createServerFn({ method: 'GET' })
           source: 'monday',
         });
       }
-    } while (cursor && pages < 10);
+    } while (cursor && pages < 25);
 
     return records;
   });
