@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Ruda:wght@500;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@reference "../index.css";
+
+:root {
+  --radius: 0.75rem;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+
+  --font-heading: "Ruda", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --spacing-unit: 0.25rem;
+
+  --background: 200 40% 98.5%;
+  --foreground: 205 55% 26%;
+  --card: 0 0% 100%;
+  --card-foreground: 205 55% 26%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 205 55% 26%;
+  --primary: 199 70% 54%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 199 70% 95%;
+  --secondary-foreground: 202 52% 35%;
+  --muted: 200 35% 95%;
+  --muted-foreground: 202 25% 45%;
+  --accent: 37 92% 59%;
+  --accent-foreground: 205 55% 20%;
+  --destructive: 0 72% 50%;
+  --border: 199 55% 85%;
+  --input: 199 55% 85%;
+  --ring: 199 70% 54%;
+
+  --brand-blue: 202 52% 47%;
+  --brand-orange: 22 69% 50%;
+  --brand-yellow: 37 92% 59%;
+  --success: 145 55% 40%;
+
+  --chart-1: 199 70% 54%;
+  --chart-2: 37 92% 59%;
+  --chart-3: 22 69% 50%;
+  --chart-4: 202 52% 47%;
+  --chart-5: 199 60% 75%;
+
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 205 55% 26%;
+  --sidebar-primary: 199 70% 54%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 199 70% 95%;
+  --sidebar-accent-foreground: 202 52% 35%;
+  --sidebar-border: 199 55% 85%;
+  --sidebar-ring: 199 70% 54%;
+}
+
+.dark {
+  --background: 205 40% 12%;
+  --foreground: 200 40% 96%;
+  --card: 205 35% 16%;
+  --card-foreground: 200 40% 96%;
+  --popover: 205 35% 16%;
+  --popover-foreground: 200 40% 96%;
+  --primary: 199 70% 54%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 205 30% 22%;
+  --secondary-foreground: 200 40% 96%;
+  --muted: 205 30% 20%;
+  --muted-foreground: 200 20% 70%;
+  --accent: 37 92% 59%;
+  --accent-foreground: 205 55% 20%;
+  --destructive: 0 72% 55%;
+  --border: 205 25% 28%;
+  --input: 205 25% 28%;
+  --ring: 199 70% 54%;
+
+  --brand-blue: 202 52% 55%;
+  --brand-orange: 22 69% 55%;
+  --brand-yellow: 37 92% 62%;
+  --success: 145 55% 50%;
+
+  --chart-1: 199 70% 54%;
+  --chart-2: 37 92% 59%;
+  --chart-3: 22 69% 50%;
+  --chart-4: 202 52% 55%;
+  --chart-5: 199 60% 75%;
+
+  --sidebar: 205 35% 16%;
+  --sidebar-foreground: 200 40% 96%;
+  --sidebar-primary: 199 70% 54%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 205 30% 22%;
+  --sidebar-accent-foreground: 200 40% 96%;
+  --sidebar-border: 205 25% 28%;
+  --sidebar-ring: 199 70% 54%;
+}
+
+body { font-family: var(--font-body); }
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); }
