@@ -47,7 +47,7 @@ export default function CustomizeHubModal({
   const CARD_LABEL_OVERRIDE: Partial<Record<HubKey, string>> = {
     facturation: 'Facturation & Fournisseurs',
     commercial: 'Clients (Commerce & Contacts)',
-    communication: 'Espace Salariés & RH',
+    communication: 'Enchantement Salarié',
   };
 
   const allowedHubsOrder = prefs.hubOrder.filter((k) => GROUPED_DISPLAY_KEYS.includes(k) && isCardAllowed(k));

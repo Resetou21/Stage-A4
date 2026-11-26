@@ -524,18 +524,18 @@ export default function App() {
       if (canSeeSalariesRh) {
         cards.push({
           key: 'communication',
-          title: 'Espace Salariés & RH',
-          description: 'Annuaire centralisé Pole RH, dossiers de suivi salarié et préparation groupes WhatsApp',
+          title: 'Enchantement Salarié',
+          description: 'Annuaire centralisé Enchantement salarié, dossiers d’accompagnement et préparation groupes WhatsApp',
           image: getDef('communication').image,
           accentColor: '#0E7042',
           bgLight: '#E6F9F1',
-          badge: ENABLE_SALARIES_RH_HUB ? 'Pole RH' : 'Aperçu privé',
+          badge: ENABLE_SALARIES_RH_HUB ? 'Enchantement salarié' : 'Aperçu privé',
           defaultView: 'salaries_rh',
           icon: Users,
           items: [
             {
               id: 'salaries_rh',
-              title: 'Espace Salariés & Dossiers RH',
+              title: 'Enchantement Salarié & Dossiers',
               badge: ENABLE_SALARIES_RH_HUB ? 'Nouveau' : 'Privé (Guillaume)',
               badgeColor: '#0E7042',
               description: 'Annuaire salariés, suivi messages transmis & cadrage groupes diffusion',

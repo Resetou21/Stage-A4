@@ -26,7 +26,7 @@ Il est chargé automatiquement à chaque session et pour chaque agent intervenan
 
 | Hub | Dossier Local | App ID Monday | Version ID CDN | URL de Production Live |
 | :--- | :--- | :--- | :--- | :--- |
-| **Hub Global (Portail Multi-Hubs)** | `Hub-Global-Facility` | `12725463` | `20198685` | `https://vc3836eac4f6291fd8303416d13f25813.cdn2.monday.app` |
+| **Hub Global (Portail Multi-Hubs)** | `Hub-Global-Facility` | `12725463` | `20500380` | `https://v298446e1525d36d3d322f957b4290909.cdn2.monday.app` |
 | **Hub Responsable de Secteur** (unifié toutes animatrices) | `Backup-Hub-de-natacha-code` | `12538620` | `19760498` | `https://v4f02898b5089caaa1aab8b5114da62ee.cdn2.monday.app` |
 | **ERP Parc Matériel** (Atelier / Parc Machines) | `ERP-Monday` | `12514584` | `20004306` | `https://vb0e51dbd8fbf57664b5ec275468cb683.cdn2.monday.app` |
 | **Hub Facturation & Flotte (Christine)** | `Hub-Christine` | `12742359` | `20267872` | `https://v22ee6623695ca4f24afdcef705ad37ad.cdn2.monday.app` |
@@ -233,11 +233,21 @@ Lors de la validation d'une fiche de contrôle dans le Hub :
   * **Wellborne** : Ignorer les lignes antérieures au 15/05, temporisation anti-surcharge (pause 1s / 50 requêtes).
   * Affichage des 3 dernières factures scannées sous l'outil d'importation.
 
-### D. Flotte, Coûts Fixes & Immatriculations (Vincent)
+### D. Flotte, Coûts Fixes, Géolocalisation & Immatriculations (Vincent)
 * **Coûts fixes mensuels (`Data sur véhicule` -> groupe `Fixe`)** :
   * Chaque nouveau mois, réplication des véhicules actifs du parc avec leur montant mensuel HT dans le groupe `Fixe`. Si un véhicule est restitué, arrêt automatique de la charge fixe le mois suivant.
+* **Synthèse Géolocalisation (`📍 Synthèse Géolocalisation` — Board ID `5108497111`, workspace `🚗Suivi véhicules` `5824035`)** :
+  * Architecture hybride (Option 3) dans **Hub-Vincent** (`GeolocCard.tsx` + `geolocParser.ts` + `geoloc.ts`) : exploration complète en mémoire des 32 onglets / 1 110+ trajets bruts Excel (`.xlsx`) avec timeline journalière et recherche globale d'adresses + archivage propre sur Monday (1 groupe par semaine, 1 ligne par véhicule = ~39 lignes/semaine, anti-doublon par `Semaine + Immatriculation`, liaison automatique `board_relation_mm9dnt7z` vers `❎Suivi du parc véhicules` `5092005027`).
 * **Harmonisation stricte des Immatriculations** :
-  * Toutes les liaisons (contrôles visuels, interventions atelier, consommations carburant/bornes, charges fixes) doivent obligatoirement s'appuyer sur la **plaque d'immatriculation officielle** (format `AA-123-AA`) et non sur un simple numéro de flotte interne, afin d'éliminer tout biais dans le top des consommations importantes.
+  * Toutes les liaisons (contrôles visuels, interventions atelier, consommations carburant/bornes, charges fixes, géolocalisation) doivent obligatoirement s'appuyer sur la **plaque d'immatriculation officielle** (format `AA-123-AA`) et non sur un simple numéro de flotte interne, afin d'éliminer tout biais dans le top des consommations importantes.
+
+### E. Feuille de Route Enchantement Salarié & RH / Groupes WhatsApp (À finaliser après réunion du 01/12 & arrivée compte Mélanie)
+* **Espace déjà créé dans le Hub Global (`SalariesHubView.tsx`)** : branché sur `Enchantement salarié` (`8288835`, ex-`Pole RH`) → `👥 Liste des Salariés` (`5108574616`) & `📚 Accompagnements & Messages WhatsApp` (`5108574626`). Socle partagé pour RH, Animatrices et Hub Véhicules.
+* **Prochaine étape (après validation mardi 01/12)** :
+  * Tableau `📣 Groupes de Diffusion Salariés` relié à `👥 Liste des Salariés` (création/modification réservée exclusivement à **Mélanie (RH)** + Admins, pastille d'information chez les autres utilisateurs).
+  * Retrait automatique des salariés `Sorti` de tous leurs groupes + vue d'affectation des nouveaux salariés pour Mélanie.
+  * Envoi WhatsApp multi-salariés ou par groupe + case à cocher **« Message suivi »** (pastille info) remontant dans le **Dossier Salarié RH**.
+  * Suivi chez l'expéditeur du nombre de **Reçus / Non lus + liste nominative des non lus** (mode gratuit `wa.me` manuel ou automatique via Meta WhatsApp Business API selon décision Direction).
 
 
 

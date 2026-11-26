@@ -273,7 +273,7 @@ export default function SalariesHubView({ monday }: SalariesHubViewProps) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <h1 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '21px', fontWeight: 900, color: '#FFFFFF' }}>
-                  Espace Salariés &amp; RH
+                  Enchantement Salarié
                 </h1>
                 <span
                   style={{
@@ -286,7 +286,7 @@ export default function SalariesHubView({ monday }: SalariesHubViewProps) {
                     fontWeight: 800,
                   }}
                 >
-                  Pole RH • En direct Monday
+                  Enchantement salarié • En direct Monday
                 </span>
               </div>
               <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'rgba(255,255,255,0.88)' }}>
@@ -462,7 +462,7 @@ export default function SalariesHubView({ monday }: SalariesHubViewProps) {
             {loading ? (
               <div style={{ padding: '36px 0', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
                 <Loader2 size={22} className="animate-spin" style={{ margin: '0 auto 8px' }} />
-                Chargement de l’annuaire Pole RH...
+                Chargement de l’annuaire Enchantement salarié...
               </div>
             ) : (
               <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #E2EFF7' }}>
@@ -566,7 +566,7 @@ export default function SalariesHubView({ monday }: SalariesHubViewProps) {
             >
               <ShieldCheck size={16} color="#0E7042" style={{ flexShrink: 0 }} />
               <span>
-                <strong>Confidentialité RGPD :</strong> Cet annuaire centralisé dans <em>Pole RH</em> sert à la fois aux <strong>messages WhatsApp</strong> (Hub Animatrices) et au <strong>pointage conducteurs</strong> (Hub Véhicules), sans stocker de données de paie sensibles (IBAN, n° sécu, salaires).
+                <strong>Source unique &amp; RGPD :</strong> Cet annuaire centralisé dans <em>Enchantement salarié</em> sert de socle partagé pour le <strong>Pôle RH</strong>, les <strong>messages WhatsApp</strong> (Hub Animatrices) et le <strong>pointage conducteurs</strong> (Hub Véhicules), sans stocker de données de paie sensibles (IBAN, n° sécu, salaires).
               </span>
             </div>
           </div>

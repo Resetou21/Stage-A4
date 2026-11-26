@@ -384,7 +384,7 @@ const WIDGET_RULES: WidgetRuleCard[] = [
     hubLabel: 'Animatrices',
     accentColor: '#0E7042',
     widgetTitle: 'Rappels Communication & Accompagnement WhatsApp',
-    boardName: 'Communication animatrices / Liste des Salariés (Pole RH)',
+    boardName: 'Communication animatrices / Liste des Salariés (Enchantement salarié)',
     boardId: '5044808167',
     filters: [
       {
@@ -506,7 +506,7 @@ const WIDGET_RULES: WidgetRuleCard[] = [
         connector: 'et',
         column: 'Sélecteur Salariés (Pointage)',
         operator: 'Alimenté par',
-        values: [{ label: 'Liste des Salariés (Pole RH) — hors statut « Sorti »', color: '#3989B7' }],
+        values: [{ label: 'Liste des Salariés (Enchantement salarié) — hors statut « Sorti »', color: '#3989B7' }],
       },
       {
         connector: 'et',
