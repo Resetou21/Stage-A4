@@ -559,19 +559,87 @@ export default function GeolocCard() {
     [loadingMondayWeekId],
   );
 
-  // Charge automatiquement la dernière semaine archivée depuis Monday quand on ouvre l'onglet Détails & Pointages
+  // Synchronise automatiquement la semaine sélectionnée dans Synthèse Monday vers Détails & Pointages
   useEffect(() => {
-    if (
-      mainTab === 'explorer' &&
-      !workbook &&
-      !loadingMondayWeekId &&
-      mondayDetailWeeks.length > 0 &&
-      !autoLoadedMondayRef.current
-    ) {
+    if (mainTab !== 'explorer' || loadingMondayWeekId || mondayDetailWeeks.length === 0) return;
+
+    // Si un Excel local fraîchement importé (non-archive) est déjà ouvert, on ne l'écrase pas
+    const isLocalImportOpen = Boolean(workbook && !workbook.fileName?.startsWith('Archive Monday'));
+    if (isLocalImportOpen) return;
+
+    const desiredWeekId =
+      selectedHistoryWeek && selectedHistoryWeek !== 'latest' && selectedHistoryWeek !== 'all'
+        ? selectedHistoryWeek
+        : mondayDetailWeeks[0].weekId;
+
+    const hasDesired = mondayDetailWeeks.some((w) => w.weekId === desiredWeekId);
+    const targetWeekId = hasDesired ? desiredWeekId : mondayDetailWeeks[0].weekId;
+
+    if (!workbook && !autoLoadedMondayRef.current) {
       autoLoadedMondayRef.current = true;
-      handleLoadMondayDetailWeek(mondayDetailWeeks[0].weekId, { silent: true });
+      handleLoadMondayDetailWeek(targetWeekId, { silent: true });
+    } else if (workbook && workbook.weekId !== targetWeekId && hasDesired) {
+      handleLoadMondayDetailWeek(targetWeekId, { silent: true });
     }
-  }, [mainTab, workbook, loadingMondayWeekId, mondayDetailWeeks, handleLoadMondayDetailWeek]);
+  }, [mainTab, workbook, selectedHistoryWeek, loadingMondayWeekId, mondayDetailWeeks, handleLoadMondayDetailWeek]);
+
+  // Options unifiées du sélecteur de semaine dans Détails & Pointages (Archives Monday + Imports locaux non archivés)
+  const unifiedDetailWeekOptions = useMemo(() => {
+    const mondayIds = new Set(mondayDetailWeeks.map((w) => w.weekId));
+    const opts: Array<{
+      value: string;
+      label: string;
+      sublabel: string;
+      badgeColor: string;
+      searchTokens: string[];
+    }> = [];
+
+    for (const wk of mondayDetailWeeks) {
+      opts.push({
+        value: `monday::${wk.weekId}`,
+        label: wk.groupTitle || wk.weekId,
+        sublabel: `${wk.vehicleCount} véh. · ${wk.dayCount} j.${wk.pointedCount > 0 ? ` · ${wk.pointedCount} pt.` : ''}${wk.nonCompliantCount > 0 ? ` · ${wk.nonCompliantCount} écart(s)` : ''}`,
+        badgeColor: wk.nonCompliantCount > 0 ? '#dc2626' : wk.isOlderThan6Months ? '#d97706' : '#00c875',
+        searchTokens: [wk.weekId, wk.groupTitle],
+      });
+    }
+
+    for (const item of savedWorkbooks) {
+      if (mondayIds.has(item.weekId)) continue;
+      opts.push({
+        value: `local::${item.weekId}`,
+        label: `${item.weekLabel} (Excel local)`,
+        sublabel: `${item.totalTrips} trajets · à archiver sur Monday`,
+        badgeColor: '#D66927',
+        searchTokens: [item.weekId, item.weekLabel, item.fileName],
+      });
+    }
+
+    return opts;
+  }, [mondayDetailWeeks, savedWorkbooks]);
+
+  const currentUnifiedWeekValue = useMemo(() => {
+    if (!workbook) return '';
+    const isArchive = Boolean(workbook.fileName?.startsWith('Archive Monday'));
+    if (isArchive || mondayDetailWeeks.some((w) => w.weekId === workbook.weekId)) {
+      return `monday::${workbook.weekId}`;
+    }
+    return `local::${workbook.weekId}`;
+  }, [workbook, mondayDetailWeeks]);
+
+  const handleUnifiedWeekChange = (val: string) => {
+    if (!val) return;
+    if (val.startsWith('monday::')) {
+      const weekId = val.slice('monday::'.length);
+      if (history?.weeks.some((w) => w.weekId === weekId)) {
+        setSelectedHistoryWeek(weekId);
+      }
+      handleLoadMondayDetailWeek(weekId, { silent: false });
+    } else if (val.startsWith('local::')) {
+      const weekId = val.slice('local::'.length);
+      handleSelectSavedWorkbook(weekId);
+    }
+  };
 
   const handleOpenVehicleDetailsFromHistory = (weekId: string, plate: string) => {
     if (workbook && workbook.weekId === weekId) {
@@ -1652,72 +1720,59 @@ export default function GeolocCard() {
       )}
 
       {/* =========================================================================
-          ONGLET 2 : EXPLORATEUR EXCEL COMPLET (32 ONGLETS & 1 110+ TRAJETS)
+          ONGLET 2 : DÉTAILS & POINTAGES (ARCHIVES MONDAY + IMPORT EXCEL GPS)
          ========================================================================= */}
       {mainTab === 'explorer' && (
         <div className="mt-5 space-y-5">
-          {/* Semaines détaillées & Pointages archivés sur Monday (5108589918) — rechargeables sans Excel */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[var(--radius-xl)] border border-primary/25 bg-primary/[0.03] px-3.5 py-2.5">
-            <div className="flex flex-wrap items-center gap-2 min-w-0">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-primary shrink-0">
-                <Cloud className="h-3.5 w-3.5" />
-                Détails &amp; Pointages Monday ({mondayDetailWeeks.length} sem.) :
-              </span>
-
-              {mondayDetailWeeks.length === 0 ? (
-                <span className="text-[11px] text-muted-foreground">
-                  Aucune semaine détaillée archivée pour l’instant. Importez un Excel puis cliquez sur « Archiver détails &amp; pointages » ou enregistrez une journée.
-                </span>
+          {/* Barre de pilotage unifiée : Sélecteur de semaine synchronisé + actions discrètes */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+              {unifiedDetailWeekOptions.length > 0 ? (
+                <SearchableSelect
+                  size="sm"
+                  clearable={false}
+                  searchable={unifiedDetailWeekOptions.length > 6}
+                  searchPlaceholder="Rechercher une semaine..."
+                  icon={<Calendar className="h-3.5 w-3.5 text-primary" />}
+                  className="w-full min-w-0 sm:w-72"
+                  dropdownClassName="w-full max-w-[calc(100vw-2.5rem)] sm:min-w-[300px]"
+                  value={currentUnifiedWeekValue}
+                  onChange={handleUnifiedWeekChange}
+                  options={unifiedDetailWeekOptions}
+                />
               ) : (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {mondayDetailWeeks.map((wk) => {
-                    const isActive = workbook?.weekId === wk.weekId;
-                    const isLoading = loadingMondayWeekId === wk.weekId;
-                    return (
-                      <button
-                        key={wk.weekId}
-                        type="button"
-                        disabled={Boolean(loadingMondayWeekId)}
-                        onClick={() => handleLoadMondayDetailWeek(wk.weekId)}
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer disabled:opacity-60',
-                          isActive
-                            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
-                            : wk.isOlderThan6Months
-                              ? 'border-amber-500/40 bg-amber-500/10 text-amber-800 hover:border-amber-500'
-                              : 'border-border bg-card text-foreground hover:border-primary/60',
-                        )}
-                        title={`Recharger ${wk.groupTitle} depuis Monday (${wk.vehicleCount} véhicules · ${wk.dayCount} jours · ${wk.pointedCount} pointés)`}
-                      >
-                        {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
-                        <span>{wk.weekId}</span>
-                        <span className={cn('text-[10px] font-normal', isActive ? 'text-primary-foreground/85' : 'text-muted-foreground')}>
-                          {wk.dayCount}j{wk.pointedCount > 0 ? ` · ${wk.pointedCount} pt.` : ''}
-                        </span>
-                        {wk.nonCompliantCount > 0 && (
-                          <span className="rounded-full bg-red-600 px-1.5 py-0.2 text-[9px] font-extrabold text-white">
-                            {wk.nonCompliantCount} écart{wk.nonCompliantCount > 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {wk.isOlderThan6Months && (
-                          <span className="rounded-full bg-amber-600 px-1.5 py-0.2 text-[9px] font-extrabold text-white">
-                            &gt;13m
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Aucune semaine archivée — importez un Excel GPS pour commencer.
+                </span>
+              )}
+
+              {loadingMondayWeekId && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement…
+                </span>
+              )}
+
+              {workbook && workbook.fileName?.startsWith('Archive Monday') && !loadingMondayWeekId && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>{workbook.activeVehicles}</strong> véh. ·{' '}
+                    <strong>{workbook.totalTrips.toLocaleString('fr-FR')}</strong> trajets ·{' '}
+                    <strong>{kmFmt(workbook.totalKm)}</strong>
+                  </span>
+                </span>
               )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <span
-                className="rounded-full border border-border bg-card px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground"
-                title="Quota Monday Enterprise : 100 000 éléments actifs par tableau (archives illimitées)"
-              >
-                {mondayDetailTotalItems.toLocaleString('fr-FR')} / 100 000 actifs
-              </span>
+              {mondayDetailTotalItems > 0 && (
+                <span
+                  className="rounded-full border border-border bg-background px-2.5 py-1 font-mono text-[10px] font-bold text-muted-foreground"
+                  title="Quota Monday Enterprise : 100 000 éléments actifs par tableau (archives illimitées)"
+                >
+                  {mondayDetailTotalItems.toLocaleString('fr-FR')} / 100 000 actifs
+                </span>
+              )}
 
               {olderThan6MonthsWeeks.length > 0 && (
                 <button
@@ -1736,7 +1791,7 @@ export default function GeolocCard() {
                 href={GEOLOC_DETAILS_BOARD_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-foreground hover:border-primary hover:text-primary"
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[11px] font-bold text-foreground hover:border-primary hover:text-primary"
                 title="Ouvrir le tableau Monday Pointage & Détails Journaliers GPS"
               >
                 <span>Tableau Pointages</span>
@@ -1745,209 +1800,168 @@ export default function GeolocCard() {
             </div>
           </div>
 
-          {/* Historique local des fichiers Excel importés (IndexedDB) */}
-          {savedWorkbooks.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[var(--radius-xl)] border border-border bg-background/80 px-3.5 py-2.5">
-              <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground shrink-0">
-                  <History className="h-3.5 w-3.5 text-primary" />
-                  Imports Excel mémorisés ({savedWorkbooks.length}) :
-                </span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {savedWorkbooks.map((item) => {
-                    const isActive = workbook?.weekId === item.weekId;
-                    return (
-                      <div
-                        key={item.weekId}
-                        className={cn(
-                          'inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-1 text-[11px] font-bold transition',
-                          isActive
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border bg-card text-foreground hover:border-primary/50',
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleSelectSavedWorkbook(item.weekId)}
-                          className="inline-flex items-center gap-1.5 cursor-pointer"
-                          title={`${item.fileName} — importé le ${new Date(item.importedAt).toLocaleString('fr-FR')}`}
-                        >
-                          <FileSpreadsheet className="h-3 w-3 shrink-0" />
-                          <span>{item.weekLabel}</span>
-                          <span className="text-[10px] font-normal text-muted-foreground">
-                            ({item.totalTrips} traj.)
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSavedWorkbook(item.weekId);
-                          }}
-                          className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive cursor-pointer"
-                          title="Retirer de l'historique local"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <span className="text-[10px] text-muted-foreground hidden xl:inline">
-                Stocké localement dans ce navigateur · Synthèse partagée dans « Synthèse Monday »
-              </span>
-            </div>
-          )}
-
           {!workbook ? (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] border-2 border-dashed border-primary/40 bg-primary/5 px-6 py-14 text-center transition hover:border-primary hover:bg-primary/10"
-            >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-card text-primary shadow-sm">
-                {parsing ? <Loader2 className="h-7 w-7 animate-spin" /> : <FileSpreadsheet className="h-7 w-7" />}
+            loadingMondayWeekId ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-14">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-xs font-medium text-muted-foreground">Chargement des trajets et pointages depuis Monday…</p>
               </div>
-              <div>
-                <p className="text-base font-extrabold text-foreground">
-                  Glissez votre export GPS hebdomadaire (.xlsx) ici
-                </p>
-                <p className="mt-1 max-w-lg text-xs text-muted-foreground">
-                  Ex : <code className="font-mono font-semibold">Trajets 2026-11-02 - 2026-11-08.xlsx</code>.
-                  Tous les onglets véhicules sont analysés instantanément dans votre navigateur (horaires 1er départ / dernière arrivée, amplitude, timelines visuelles, recherche d’adresses et enregistrement sur Monday).
-                </p>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] border-2 border-dashed border-primary/40 bg-primary/5 px-6 py-14 text-center transition hover:border-primary hover:bg-primary/10"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-card text-primary shadow-sm">
+                  {parsing ? <Loader2 className="h-7 w-7 animate-spin" /> : <FileSpreadsheet className="h-7 w-7" />}
+                </div>
+                <div>
+                  <p className="text-base font-extrabold text-foreground">
+                    Glissez votre export GPS hebdomadaire (.xlsx) ici
+                  </p>
+                  <p className="mt-1 max-w-lg text-xs text-muted-foreground">
+                    Ex : <code className="font-mono font-semibold">Trajets 2026-11-02 - 2026-11-08.xlsx</code>.
+                    Tous les onglets véhicules sont analysés instantanément et archivés sur Monday pour toute l’équipe.
+                  </p>
+                </div>
+                <span className="mt-1 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-xs">
+                  <Upload className="h-4 w-4" /> Choisir un fichier Excel
+                </span>
               </div>
-              <span className="mt-1 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-xs">
-                <Upload className="h-4 w-4" /> Choisir un fichier Excel
-              </span>
-            </div>
+            )
           ) : (
             <>
-              {/* Bannière fichier chargé + Bouton Synchro Monday */}
-              <div className="rounded-[var(--radius-xl)] border border-primary/30 bg-primary/5 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-extrabold text-primary-foreground">
-                        <Calendar className="h-3 w-3" /> {workbook.weekLabel}
-                      </span>
-                      <span className="truncate text-xs font-semibold text-muted-foreground">{workbook.fileName}</span>
-                    </div>
-                    <p className="mt-1.5 text-xs font-medium text-foreground">
-                      <strong>{workbook.totalVehicles}</strong> véhicules ({workbook.activeVehicles} actifs) ·{' '}
-                      <strong>{workbook.matchedDetailSheets}</strong> onglets détaillés ·{' '}
-                      <strong>{workbook.totalTrips.toLocaleString('fr-FR')}</strong> trajets ·{' '}
-                      <strong>{kmFmt(workbook.totalKm)}</strong> au total
-                      {syncPreview && (
-                        <span className="ml-2 text-emerald-700 font-semibold">
-                          ({syncPreview.linkedCount}/{syncPreview.total} reliés au Parc)
-                        </span>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Contrôles Synchro Monday */}
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    {syncPreview && syncPreview.newCount > 0 ? (
-                      <button
-                        type="button"
-                        disabled={syncing || syncingDetails}
-                        onClick={() => handleSyncToMonday(false)}
-                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 cursor-pointer disabled:opacity-60"
-                      >
-                        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        <span>Synthèse Monday (+{syncPreview.newCount})</span>
-                      </button>
-                    ) : (
+              {/* Bannière d'archivage affichée uniquement lors d'un import Excel local (ou pendant une synchro) */}
+              {(!workbook.fileName?.startsWith('Archive Monday') || syncing || syncingDetails) && (
+                <div className="rounded-[var(--radius-xl)] border border-[#D66927]/35 bg-[#D66927]/[0.06] p-4">
+                  <div className="flex flex-col gap-3.5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Synthèse archivée ({syncPreview?.existingCount}/{syncPreview?.total})
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#D66927] px-2.5 py-0.5 text-[11px] font-extrabold text-white">
+                          <FileSpreadsheet className="h-3 w-3" /> Import Excel · {workbook.weekLabel}
                         </span>
+                        <span className="truncate text-xs font-semibold text-muted-foreground">{workbook.fileName}</span>
+                      </div>
+                      <p className="mt-1.5 text-xs font-medium text-foreground">
+                        <strong>{workbook.totalVehicles}</strong> véhicules ({workbook.activeVehicles} actifs) ·{' '}
+                        <strong>{workbook.matchedDetailSheets}</strong> onglets détaillés ·{' '}
+                        <strong>{workbook.totalTrips.toLocaleString('fr-FR')}</strong> trajets ·{' '}
+                        <strong>{kmFmt(workbook.totalKm)}</strong> au total
+                        {syncPreview && (
+                          <span className="ml-2 text-emerald-700 font-semibold">
+                            ({syncPreview.linkedCount}/{syncPreview.total} reliés au Parc)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Contrôles Synchro Monday */}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {syncPreview && syncPreview.newCount > 0 ? (
                         <button
                           type="button"
                           disabled={syncing || syncingDetails}
-                          onClick={() => handleSyncToMonday(true)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted cursor-pointer disabled:opacity-60"
-                          title="Met à jour la synthèse hebdomadaire sans créer de doublons"
+                          onClick={() => handleSyncToMonday(false)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 cursor-pointer disabled:opacity-60"
                         >
-                          <RefreshCw className={cn('h-3.5 w-3.5 text-primary', syncing && 'animate-spin')} />
-                          <span>MAJ synthèse</span>
+                          {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          <span>1. Archiver synthèse (+{syncPreview.newCount})</span>
                         </button>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Synthèse archivée ({syncPreview?.existingCount}/{syncPreview?.total})
+                          </span>
+                          <button
+                            type="button"
+                            disabled={syncing || syncingDetails}
+                            onClick={() => handleSyncToMonday(true)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted cursor-pointer disabled:opacity-60"
+                            title="Met à jour la synthèse hebdomadaire sans créer de doublons"
+                          >
+                            <RefreshCw className={cn('h-3.5 w-3.5 text-primary', syncing && 'animate-spin')} />
+                            <span>MAJ synthèse</span>
+                          </button>
+                        </div>
+                      )}
 
-                    {/* Archivage complet des détails journaliers + trajets + pointages sur Monday (5108589918) */}
-                    {totalWorkbookActiveDays > 0 && (
+                      {totalWorkbookActiveDays > 0 && (
+                        <button
+                          type="button"
+                          disabled={syncing || syncingDetails}
+                          onClick={handleSyncAllDetailsToMonday}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-xs transition hover:brightness-95 cursor-pointer disabled:opacity-60"
+                          title="Enregistre tous les trajets détaillés, exclusions et pointages sur Monday (partagés avec toute l'équipe)"
+                        >
+                          {syncingDetails ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
+                          <span>2. Archiver détails ({totalWorkbookActiveDays} j.)</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         disabled={syncing || syncingDetails}
-                        onClick={handleSyncAllDetailsToMonday}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-xs transition hover:brightness-95 cursor-pointer disabled:opacity-60"
-                        title="Enregistre les détails journaliers, trajets complets, exclusions Domicile-Travail et pointages dans le tableau Monday Pointage & Détails Journaliers GPS (rechargeables depuis n'importe quel PC)"
+                        onClick={() => {
+                          if (mondayDetailWeeks.length > 0) {
+                            handleLoadMondayDetailWeek(mondayDetailWeeks[0].weekId, { silent: true });
+                          } else {
+                            setWorkbook(null);
+                          }
+                        }}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                        title="Fermer cet import et revenir aux archives Monday"
                       >
-                        {syncingDetails ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
-                        <span>Archiver détails ({totalWorkbookActiveDays} j.)</span>
+                        <X className="h-4 w-4" />
                       </button>
-                    )}
-
-                    <button
-                      type="button"
-                      disabled={syncing || syncingDetails}
-                      onClick={() => setWorkbook(null)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
-                      title="Fermer ce fichier"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                    </div>
                   </div>
+
+                  {/* Barre de progression pendant la synchro synthèse */}
+                  {syncing && syncProgress && (
+                    <div className="mt-3 space-y-1.5 rounded-lg border border-primary/20 bg-card p-3">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="flex items-center gap-2 text-foreground">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                          Synchronisation Synthèse Monday : {syncProgress.label}
+                        </span>
+                        <span className="font-mono text-primary">
+                          {syncProgress.current} / {syncProgress.total}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full bg-emerald-500 transition-all duration-150"
+                          style={{
+                            width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 10}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Barre de progression pendant l'archivage des détails journaliers */}
+                  {syncingDetails && detailsSyncProgress && (
+                    <div className="mt-3 space-y-1.5 rounded-lg border border-primary/30 bg-card p-3">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="flex items-center gap-2 text-foreground">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                          Archivage Détails &amp; Pointages Monday : {detailsSyncProgress.label}
+                        </span>
+                        <span className="font-mono text-primary">
+                          {detailsSyncProgress.current} / {detailsSyncProgress.total}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full bg-primary transition-all duration-150"
+                          style={{
+                            width: `${detailsSyncProgress.total > 0 ? (detailsSyncProgress.current / detailsSyncProgress.total) * 100 : 5}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                {/* Barre de progression pendant la synchro synthèse */}
-                {syncing && syncProgress && (
-                  <div className="mt-3 space-y-1.5 rounded-lg border border-primary/20 bg-card p-3">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="flex items-center gap-2 text-foreground">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                        Synchronisation Synthèse Monday : {syncProgress.label}
-                      </span>
-                      <span className="font-mono text-primary">
-                        {syncProgress.current} / {syncProgress.total}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-emerald-500 transition-all duration-150"
-                        style={{
-                          width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 10}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Barre de progression pendant l'archivage des détails journaliers */}
-                {syncingDetails && detailsSyncProgress && (
-                  <div className="mt-3 space-y-1.5 rounded-lg border border-primary/30 bg-card p-3">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="flex items-center gap-2 text-foreground">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                        Archivage Détails &amp; Pointages Monday : {detailsSyncProgress.label}
-                      </span>
-                      <span className="font-mono text-primary">
-                        {detailsSyncProgress.current} / {detailsSyncProgress.total}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-primary transition-all duration-150"
-                        style={{
-                          width: `${detailsSyncProgress.total > 0 ? (detailsSyncProgress.current / detailsSyncProgress.total) * 100 : 5}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
 
               {/* 3 Sous-Vues de l'Explorateur */}
               <div className="flex flex-wrap items-center gap-2">
