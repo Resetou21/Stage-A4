@@ -1,14 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   BookOpen,
-  Database,
+  Calculator,
   ExternalLink,
   Filter,
   Search,
   Shield,
-  Sparkles,
+  Table2,
   X,
-  Zap,
 } from 'lucide-react';
 
 interface DataRulesAuditModalProps {
@@ -19,270 +18,536 @@ interface DataRulesAuditModalProps {
 type AuditCategory =
   | 'all'
   | 'global'
+  | 'commercial'
   | 'secteurs'
   | 'atelier'
   | 'vehicules'
   | 'facturation'
-  | 'contacts'
-  | 'api';
+  | 'contacts';
 
-interface RuleEntry {
+interface FilterRow {
+  connector: 'Où' | 'et' | 'ou';
+  column: string;
+  operator: string;
+  values: Array<{ label: string; color?: string }>;
+}
+
+interface WidgetRuleCard {
   id: string;
   hub: Exclude<AuditCategory, 'all'>;
   hubLabel: string;
   accentColor: string;
-  title: string;
-  boards: Array<{ name: string; id: string; group?: string }>;
-  filters: string[];
-  columnsOrFormulas: string[];
-  cacheOrApiNote: string;
+  widgetTitle: string;
+  boardName: string;
+  boardId: string;
+  filters: FilterRow[];
+  formulaNote?: string;
 }
 
-const AUDIT_RULES: RuleEntry[] = [
-  // ==================== HUB GLOBAL & COMMERCIAL ====================
+const WIDGET_RULES: WidgetRuleCard[] = [
+  // ==================== HUB GLOBAL ====================
   {
-    id: 'global-kpis',
+    id: 'global-chantiers-actifs',
     hub: 'global',
     hubLabel: 'Hub Global',
     accentColor: '#1B4565',
-    title: 'KPIs Accueil & Supervision Globale',
-    boards: [
-      { name: 'Tableau Complet Chantier', id: '1976599627', group: 'topics (en cours)' },
-      { name: 'Visites Clients', id: '1977798116', group: 'Année en cours (>= 01/01)' },
-    ],
+    widgetTitle: 'Chantiers actifs & Répartition par secteur (Accueil)',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
     filters: [
-      'Chantiers filtrés uniquement sur le groupe « topics » (chantiers actifs).',
-      'Visites filtrées côté API Monday via query_params : date_mkrcgy18 >= année en cours.',
-      'Comptage des étoiles (3🌟/2🌟/1🌟/🙁) et 4 alertes recalculé en direct avec les mêmes règles strictes que le Hub Secteurs.',
+      {
+        connector: 'Où',
+        column: 'Groupe',
+        operator: 'Est',
+        values: [{ label: 'Liste des chantiers en cours', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Animateur',
+        operator: 'Regroupé par',
+        values: [
+          { label: 'Natacha THOMAS', color: '#3989B7' },
+          { label: 'Ketty PAULIN', color: '#39A9DC' },
+          { label: 'Emilie TOBIE', color: '#D66927' },
+        ],
+      },
     ],
-    columnsOrFormulas: [
-      'color_mkrbk3jy (Animateur)',
-      'color_mkzyz3ay / x621 / cd34 (C1/C2/C3)',
-      'date_mkzy6s01 (Dernier contrôle)',
-      'boolean_mkzad1h + text_mkzbnbe9 (RDV 2 mois)',
-      'status = "Globalement bon" (Satisfaction %)',
-    ],
-    cacheOrApiNote: 'Cache localStorage 15 min · Iframes Keep-Alive (0 appel au changement de Hub)',
   },
   {
-    id: 'global-commercial',
+    id: 'global-satisfaction',
     hub: 'global',
+    hubLabel: 'Hub Global',
+    accentColor: '#0E7042',
+    widgetTitle: 'Taux de satisfaction client (Année en cours)',
+    boardName: 'Visites clients',
+    boardId: '1977798116',
+    filters: [
+      {
+        connector: 'Où',
+        column: 'Date de visite',
+        operator: 'Est supérieure ou égale à',
+        values: [{ label: '1er janvier de l’année en cours', color: '#3989B7' }],
+      },
+      {
+        connector: 'et',
+        column: 'Qualité de la prestation',
+        operator: 'N’est pas',
+        values: [{ label: 'Vide', color: '#64748B' }],
+      },
+    ],
+    formulaNote: 'Satisfaction (%) = Nombre de visites « Globalement bon » ÷ Nombre total de visites notées × 100.',
+  },
+  {
+    id: 'global-permissions',
+    hub: 'global',
+    hubLabel: 'Hub Global',
+    accentColor: '#1B4565',
+    widgetTitle: 'Affichage des Hubs par collaborateur (Oui / Non)',
+    boardName: '🔐 Autorisations Hubs',
+    boardId: '5108553085',
+    filters: [
+      {
+        connector: 'Où',
+        column: 'Adresse e-mail (ou Nom)',
+        operator: 'Correspond à',
+        values: [{ label: 'L’utilisateur connecté sur Monday', color: '#1B4565' }],
+      },
+      {
+        connector: 'et',
+        column: 'Case du Hub concerné',
+        operator: 'Est',
+        values: [{ label: 'Cochée (Oui)', color: '#00C875' }],
+      },
+    ],
+    formulaNote: 'Masque ou affiche les tuiles dans le Hub Global. Les vrais droits lecture/écriture (Membre vs Observateur) restent protégés par Monday.',
+  },
+
+  // ==================== HUB COMMERCIAL ====================
+  {
+    id: 'comm-gains-pertes',
+    hub: 'commercial',
     hubLabel: 'Hub Commercial',
     accentColor: '#B87414',
-    title: 'Hub Commercial & Portefeuille Chantiers',
-    boards: [{ name: 'Tableau Complet Chantier', id: '1976599627', group: 'Tous les groupes (actifs + arrêtés)' }],
+    widgetTitle: 'Gains & Pertes de chantiers (par année)',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
     filters: [
-      'Gains année N : colonne « ➕ chantiers » (date_mkx4mzcy) dans l’année sélectionnée.',
-      'Pertes année N : colonne « ➖ chantiers » (date_mkx4kna3) dans l’année sélectionnée.',
-      'Filtre Secteur inclut « Non assigné » pour les lignes sans animateur renseigné.',
-      'Lecture légère : id + text uniquement (sans blobs JSON value) sur 14 colonnes filtrées.',
+      {
+        connector: 'Où',
+        column: 'Groupe',
+        operator: 'Inclut',
+        values: [
+          { label: 'Chantiers en cours', color: '#00C875' },
+          { label: 'Chantiers arrêtés', color: '#E2445C' },
+        ],
+      },
+      {
+        connector: 'et',
+        column: 'Date « + chantiers » (Gain)',
+        operator: 'Est dans',
+        values: [{ label: 'L’année sélectionnée', color: '#00C875' }],
+      },
+      {
+        connector: 'ou',
+        column: 'Date « - chantiers » (Perte)',
+        operator: 'Est dans',
+        values: [{ label: 'L’année sélectionnée', color: '#E2445C' }],
+      },
     ],
-    columnsOrFormulas: [
-      'color_mkx443a0 (💶 CA annuel)',
-      'numeric_mkxwwma1 (Heures/mois)',
-      'color_mm0y5esk (Provenance)',
-      'color_mm0v1k6a / dropdown_mkx4e64m (Activité)',
-      'dropdown_mkx4bmvr (Raison arrêt)',
-    ],
-    cacheOrApiNote: 'Préchargement silencieux + Cache localStorage 15 min + dédoublonnage in-flight',
-  },
-  {
-    id: 'global-perms-roadmap',
-    hub: 'global',
-    hubLabel: 'Hub Global',
-    accentColor: '#1B4565',
-    title: 'Autorisations Hubs (Oui/Non) & Boîte à Idées',
-    boards: [
-      { name: '🔐 Autorisations Hubs', id: '5108553085' },
-      { name: 'Boîte à Idées / Roadmap', id: '5105479748', group: 'group_mm7y1vv8 (Livrées)' },
-    ],
-    filters: [
-      'Autorisations : correspondance par e-mail (prioritaire) puis par nom ; les cases décochées masquent les tuiles dans le Hub Global (la vraie sécurité lecture/écriture reste gérée par Monday).',
-      'Boîte à Idées : requête filtrée sur 8 colonnes exactes + 5 derniers commentaires (updates).',
-      'Carrousel Actualités : lit les 8 dernières idées livrées (group_mm7y1vv8) avec garde cache 10 min.',
-    ],
-    columnsOrFormulas: [
-      'text_mm9ec0yk (E-mail) + 7 colonnes boolean_mm9e*',
-      'file_mm7wtnz1, dropdown_mm978xpa, short_text2v8w5gvp',
-      'color_mm7yntfh, status, multi_selectp70jvoio, date_mm7yphvc',
-    ],
-    cacheOrApiNote: 'Permissions cache 5 min · News cache 10 min · Roadmap cache 2 min',
+    formulaNote: 'Ventilation croisée par Tranche de CA annuel, Volume d’heures / mois, Provenance, Activité et Secteur (y compris « Non assigné »).',
   },
 
   // ==================== HUB ANIMATRICES / SECTEURS ====================
   {
-    id: 'secteurs-alertes',
+    id: 'secteurs-alerte-3-insatisfaits',
+    hub: 'secteurs',
+    hubLabel: 'Animatrices',
+    accentColor: '#E2445C',
+    widgetTitle: 'Alerte — Clients insatisfaits (3 contrôles de suite)',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
+    filters: [
+      {
+        connector: 'Où',
+        column: 'Groupe',
+        operator: 'Est',
+        values: [{ label: 'Liste des chantiers en cours', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Animateur',
+        operator: 'Est',
+        values: [{ label: 'L’animatrice sélectionnée', color: '#3989B7' }],
+      },
+      {
+        connector: 'et',
+        column: 'Dernier contrôle (C1)',
+        operator: 'Est',
+        values: [
+          { label: 'Bases non respectées', color: '#FDAB3D' },
+          { label: 'Plan d’action urgent', color: '#E2445C' },
+        ],
+      },
+      {
+        connector: 'et',
+        column: 'Avant-dernier contrôle (C2)',
+        operator: 'Est',
+        values: [
+          { label: 'Bases non respectées', color: '#FDAB3D' },
+          { label: 'Plan d’action urgent', color: '#E2445C' },
+        ],
+      },
+      {
+        connector: 'et',
+        column: '3e contrôle avant (C3)',
+        operator: 'Est',
+        values: [
+          { label: 'Bases non respectées', color: '#FDAB3D' },
+          { label: 'Plan d’action urgent', color: '#E2445C' },
+        ],
+      },
+    ],
+    formulaNote: 'Aussi déclenché si la colonne « Alerte 2 » est supérieure à 0. Jamais compté si un seul contrôle est mauvais.',
+  },
+  {
+    id: 'secteurs-alerte-2mois-insatisfait',
+    hub: 'secteurs',
+    hubLabel: 'Animatrices',
+    accentColor: '#D66927',
+    widgetTitle: 'Alerte — Contrôle insatisfaisant sans vérification (> 2 mois)',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
+    filters: [
+      {
+        connector: 'Où',
+        column: 'Groupe',
+        operator: 'Est',
+        values: [{ label: 'Liste des chantiers en cours', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Dernier contrôle (C1)',
+        operator: 'Est',
+        values: [
+          { label: 'Bases non respectées', color: '#FDAB3D' },
+          { label: 'Plan d’action urgent', color: '#E2445C' },
+        ],
+      },
+      {
+        connector: 'et',
+        column: 'Date du dernier contrôle',
+        operator: 'Est antérieure à',
+        values: [{ label: 'Il y a 2 mois', color: '#D66927' }],
+      },
+    ],
+    formulaNote: 'Également inclus si la colonne « Alerte 3 » vaut 1.',
+  },
+  {
+    id: 'secteurs-alerte-11mois',
+    hub: 'secteurs',
+    hubLabel: 'Animatrices',
+    accentColor: '#F7AC37',
+    widgetTitle: 'Alerte — Chantiers non vus depuis 11 mois',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
+    filters: [
+      {
+        connector: 'Où',
+        column: 'Groupe',
+        operator: 'Est',
+        values: [{ label: 'Liste des chantiers en cours', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Animateur',
+        operator: 'Est',
+        values: [{ label: 'L’animatrice sélectionnée', color: '#3989B7' }],
+      },
+      {
+        connector: 'et',
+        column: 'Date du dernier contrôle',
+        operator: 'Est antérieure ou égale à',
+        values: [{ label: 'Il y a 11 mois', color: '#F7AC37' }],
+      },
+    ],
+  },
+  {
+    id: 'secteurs-visites-2mois',
     hub: 'secteurs',
     hubLabel: 'Animatrices',
     accentColor: '#3989B7',
-    title: 'Centre d’Alertes & Contrôles Qualité (Règles Vibe strictes)',
-    boards: [
-      { name: 'Tableau Complet Chantier', id: '1976599627', group: 'topics (en cours)' },
-      { name: 'Visites Clients', id: '1977798116' },
-      { name: 'Sous-éléments Plans d’Action', id: '1978388826' },
-    ],
+    widgetTitle: 'Alerte — Visites des 2 mois (nouveaux chantiers)',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
     filters: [
-      'Filtré par profil animatrice (Natacha THOMAS, Ketty PAULIN, Emilie TOBIE) via color_mkrbk3jy.',
-      'Alerte Clients insatisfaits (3× suite) : Alerte 2 > 0 OU (isBad(C1) ET isBad(C2) ET isBad(C3)) — JAMAIS sur C1 seul !',
-      'Alerte Contrôle > 2 mois : Alerte 3 = 1 OU (isBad(C1) ET date contrôle > 2 mois).',
-      'Alerte Non vus > 11 mois : dernierContrle <= 11 mois sur groupe topics.',
-      'Alerte Visites 2 mois : text_mkzbnbe9 non vide ET boolean_mkzad1h !== true.',
+      {
+        connector: 'Où',
+        column: 'Groupe',
+        operator: 'Est',
+        values: [{ label: 'Liste des chantiers en cours', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Texte d’alerte animatrice',
+        operator: 'N’est pas',
+        values: [{ label: 'Vide', color: '#64748B' }],
+      },
+      {
+        connector: 'et',
+        column: 'Case « RDV 2 mois »',
+        operator: 'Est',
+        values: [{ label: 'Non cochée', color: '#D66927' }],
+      },
     ],
-    columnsOrFormulas: [
-      'isBad(x) = "Bases non respectées" || "Plan d’action urgent"',
-      '3🌟 = C1+C2+C3 "Globalement bon" | 2🌟 = C1+C2 | 1🌟 = C1',
-      'Satisfaction % = (Visites "Globalement bon" / Total notées) × 100',
+  },
+  {
+    id: 'secteurs-etoiles',
+    hub: 'secteurs',
+    hubLabel: 'Animatrices',
+    accentColor: '#00C875',
+    widgetTitle: 'Jauges Étoiles (3🌟 · 2🌟 · 1🌟 · 🙁)',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
+    filters: [
+      {
+        connector: 'Où',
+        column: '3 Étoiles 🌟🌟🌟',
+        operator: 'Lorsque',
+        values: [{ label: 'C1 + C2 + C3 = Globalement bon', color: '#00C875' }],
+      },
+      {
+        connector: 'ou',
+        column: '2 Étoiles 🌟🌟',
+        operator: 'Lorsque',
+        values: [{ label: 'C1 + C2 = Globalement bon (pas C3)', color: '#39A9DC' }],
+      },
+      {
+        connector: 'ou',
+        column: '1 Étoile 🌟',
+        operator: 'Lorsque',
+        values: [{ label: 'C1 = Globalement bon (pas C2)', color: '#F7AC37' }],
+      },
+      {
+        connector: 'ou',
+        column: 'Insatisfait 🙁',
+        operator: 'Lorsque',
+        values: [{ label: 'C1 = Bases non respectées ou Plan d’action urgent', color: '#E2445C' }],
+      },
     ],
-    cacheOrApiNote: 'Pagination next_items_page · 100 % colonnes filtrées · Cache 5 min + sessionStorage',
   },
   {
     id: 'secteurs-inventaires',
     hub: 'secteurs',
     hubLabel: 'Animatrices',
     accentColor: '#3989B7',
-    title: 'Inventaires Consommables, Stocks à Récupérer & Économies',
-    boards: [
-      { name: 'Inventaires Consommables', id: '5105902205', group: 'topics (à faire) / group_mm8adwxm (réalisés)' },
-    ],
+    widgetTitle: 'Inventaires consommables à faire & Actions à mener',
+    boardName: 'Inventaires consommables',
+    boardId: '5105902205',
     filters: [
-      'Inventaires à faire : chantiers avec contrat consommables, boolean_mm84z0a4 !== true et date > 182 jours (ou jamais fait).',
-      'Actions suite inventaire (group_mm8adwxm) : dédupliqué par chantier (ligne la plus récente uniquement). Affiché si À Récupérer > 0 (rcuprationRalise !== true) OU Avenant > 0 (avenantRalis !== true).',
-      'Validation : crée la ligne d’historique dans group_mm8adwxm et archive l’ancienne ligne « à faire ».',
+      {
+        connector: 'Où',
+        column: 'À faire — Groupe',
+        operator: 'Est',
+        values: [{ label: 'Inventaire des consommables', color: '#3989B7' }],
+      },
+      {
+        connector: 'et',
+        column: 'Inventaire validé OK',
+        operator: 'Est',
+        values: [{ label: 'Non coché', color: '#D66927' }],
+      },
+      {
+        connector: 'et',
+        column: 'Date du dernier inventaire',
+        operator: 'Dépasse',
+        values: [{ label: '182 jours (6 mois) ou jamais fait', color: '#F7AC37' }],
+      },
+      {
+        connector: 'ou',
+        column: 'Actions suite inventaire — Groupe',
+        operator: 'Est',
+        values: [{ label: 'Inventaires réalisés (ligne la plus récente par chantier)', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Récupération ou Avenant',
+        operator: 'Est',
+        values: [{ label: 'Quantité > 0 et case non cochée', color: '#D66927' }],
+      },
     ],
-    columnsOrFormulas: [
-      'Stock Mini = max(1, arrondi((Contrat / 12) × 2))',
-      'À Récupérer = max(0, Inventaire − Stock Mini)',
-      'Avenant = min(À Récupérer, arrondi(Contrat × 0,25))',
-      'Éco Directe = Σ(À Récupérer × PU HT) | Éco 12m = Σ(Avenant × PU HT)',
-    ],
-    cacheOrApiNote: 'Formules recalculées en dur en secours des colonnes formula_* Monday',
+    formulaNote:
+      'Stock Mini = (Contrat ÷ 12) × 2 (minimum 1) · À Récupérer = Inventaire − Stock Mini · Avenant = minimum entre À Récupérer et 25 % du Contrat · Économies = Quantité × Prix Unitaire HT.',
   },
   {
-    id: 'secteurs-whatsapp-comm',
+    id: 'secteurs-messages-whatsapp',
     hub: 'secteurs',
     hubLabel: 'Animatrices',
     accentColor: '#0E7042',
-    title: 'Accompagnement Salariés WhatsApp & Communication Interne',
-    boards: [
-      { name: '👥 Liste des Salariés (Pole RH)', id: '5108574616' },
-      { name: '📚 Accompagnements & Messages WhatsApp', id: '5108574626' },
-      { name: 'Communication Animatrices', id: '5044808167', group: 'group_mkzb19j1' },
-    ],
+    widgetTitle: 'Rappels Communication & Accompagnement WhatsApp',
+    boardName: 'Communication animatrices / Liste des Salariés (Pole RH)',
+    boardId: '5044808167',
     filters: [
-      'Annuaire RH : exclut automatiquement les salariés dont Statut RH = "Sorti" (color_mm9ea1d9).',
-      'Import Excel mensuel RH : filtre RGPD strict (garde uniquement Nom, Téléphone, Langue, Secteur, Chantier, Statut).',
-      'Modèles partagés stockés dans 5108574626 avec Statut envoi = "Modèle" ; traduction auto MyMemory si langue ≠ Français.',
-      'Rappels Communication : messages attribués à l’animatrice avec boolean_mkwrnzkb (Vu) !== true.',
+      {
+        connector: 'Où',
+        column: 'Messages — Personne concernée',
+        operator: 'Est',
+        values: [{ label: 'L’animatrice sélectionnée', color: '#3989B7' }],
+      },
+      {
+        connector: 'et',
+        column: 'Case « Vu »',
+        operator: 'Est',
+        values: [{ label: 'Non cochée', color: '#D66927' }],
+      },
+      {
+        connector: 'et',
+        column: 'Annuaire WhatsApp — Statut RH',
+        operator: 'N’est pas',
+        values: [{ label: 'Sorti', color: '#E2445C' }],
+      },
     ],
-    columnsOrFormulas: [
-      'text_mm9esavp (Tél), color_mm9enz2j (Langue), color_mm9ea1d9 (Statut RH)',
-      'long_text_mm9efr78 (Synthèse FR), long_text_mm9er6mr (Traduit)',
-      'color_mkzat86a (Personne concernée), boolean_mkwrnzkb (Vu)',
-    ],
-    cacheOrApiNote: 'Mini-cache 45 s sur Communication Animatrices (invalidé instantanément au clic Vu)',
+    formulaNote: 'Modèles partagés enregistrés avec le statut « Modèle ». Traduction automatique déclenchée dès que la langue RH du salarié est différente de « Français ».',
   },
 
   // ==================== ERP ATELIER ====================
   {
-    id: 'atelier-erp',
+    id: 'atelier-controle-reparation',
     hub: 'atelier',
     hubLabel: 'ERP Atelier',
     accentColor: '#39A9DC',
-    title: 'Parc Machines, Fiches de Contrôle & Réparations Curatives',
-    boards: [
-      { name: 'Liste des machines', id: '5106585240' },
-      { name: 'Référentiel - Points de contrôle', id: '5107261391' },
-      { name: 'Fiche de Contrôle', id: '5107262948' },
-      { name: 'Réparation machines', id: '5106693291' },
-    ],
+    widgetTitle: 'Contrôles techniques & Bascule automatique en Réparation',
+    boardName: 'Fiche de Contrôle ➔ Réparation machines',
+    boardId: '5106693291',
     filters: [
-      'Référentiel groupé par type machine (Autolaveuse, Monobrosse, Aspirateur, Haute pression, Chariot).',
-      'Flux Contrôle ➔ Réparation : si ≥ 1 point est Non Conforme (NC), création auto d’un ticket curatif « À traiter » dans 5106693291 + compte-rendu HTML en update.',
-      'Checklist Réparation : dès que tous les sous-points défaillants sont cochés, bascule auto en « Réparée / Conforme ».',
-      'Heures compteur : synchronisées simultanément sur la fiche (numeric_mm8v3mw) et sur la machine (numeric_mm8v97ja).',
+      {
+        connector: 'Où',
+        column: 'Point de contrôle machine',
+        operator: 'Est noté',
+        values: [{ label: 'Non Conforme (NC)', color: '#E2445C' }],
+      },
+      {
+        connector: 'et',
+        column: 'Action automatique à la validation',
+        operator: 'Crée',
+        values: [{ label: 'Un ticket Curatif « À traiter » + compte-rendu détaillé', color: '#39A9DC' }],
+      },
+      {
+        connector: 'et',
+        column: 'Checklist de réparation',
+        operator: 'Lorsque',
+        values: [{ label: 'Tous les points défaillants sont cochés ➔ Passe en « Réparée / Conforme »', color: '#00C875' }],
+      },
     ],
-    columnsOrFormulas: [
-      'boolean_mm8tv8zy (Préventive) + 12 mois boolean_mm8tw6vh..4bz2',
-      'color_mm8tmqfc (État Vert/Orange/Rouge), color_mm8vp2nd (Statut suivi)',
-      'board_relation_mm8gc4mh (Lien machine), text_mm8vhwst (Description panne)',
-    ],
-    cacheOrApiNote: 'Moteur unifié monday.ts : cache 3 min mémoire + sessionStorage, queue 5, retry auto, invalidation à chaque mutation',
+    formulaNote: 'Les heures compteur saisies dans la fiche mettent aussi à jour automatiquement la fiche machine dans « Liste des machines ».',
   },
 
   // ==================== HUB VÉHICULES & GPS ====================
   {
-    id: 'vehicules-parc-couts',
+    id: 'vehicules-parc',
     hub: 'vehicules',
     hubLabel: 'Hub Véhicules',
     accentColor: '#1B4565',
-    title: 'Parc Véhicules, Coûts Flotte, Charges Fixes & Contrôles Visuels',
-    boards: [
-      { name: '❎Suivi du parc véhicules', id: '5092005027', group: 'topics (En service)' },
-      { name: 'Data sur véhicule', id: '5092124669', group: 'Fixe / Chargemap / Carburant / Interventions' },
-      { name: 'Data wellborne', id: '5106822028' },
-      { name: 'Contrôle visuel véhicule', id: '5093072539' },
-    ],
+    widgetTitle: 'Parc actif, Coûts fixes mensuels & Top consommations (6 mois)',
+    boardName: '❎Suivi du parc véhicules / Data sur véhicule',
+    boardId: '5092005027',
     filters: [
-      'Harmonisation stricte de toutes les dépenses et contrôles sur la plaque officielle AA-123-AA (text_mm839fsd) — jamais sur un simple numéro interne.',
-      'Véhicules en service : groupe « topics » uniquement ; arrêt automatique des coûts fixes mensuels dès restitution.',
-      'Top consommations : agrégé sur les 6 derniers mois glissants (Carburant + Chargemap + Wellborne).',
+      {
+        connector: 'Où',
+        column: 'Statut du véhicule — Groupe',
+        operator: 'Est',
+        values: [{ label: 'Véhicules en service', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Liaison des factures & contrôles',
+        operator: 'Toujours par',
+        values: [{ label: 'Plaque d’immatriculation officielle (AA-123-AA)', color: '#1B4565' }],
+      },
+      {
+        connector: 'et',
+        column: 'Top consommations',
+        operator: 'Période',
+        values: [{ label: '6 derniers mois glissants (Carburant + Chargemap + Wellborne)', color: '#3989B7' }],
+      },
     ],
-    columnsOrFormulas: [
-      'parcCache.ts : 1 seule requête mutualisée (au lieu de 4) pour 5092005027',
-      'numeric_mm0r8ag0 (Montant HT), date4 (Date)',
-      'Catégories auto : Camion (FUSO/CANTER/MAXITY), Électrique (ELECT), Thermique',
-    ],
-    cacheOrApiNote: 'Cache localStorage 30 min (Overview/Finance) + cache API 10 min sessionStorage',
+    formulaNote: 'Coûts fixes mensuels : recopiés chaque nouveau mois uniquement pour les véhicules encore en service (arrêt automatique dès qu’un véhicule est restitué).',
   },
   {
-    id: 'vehicules-geoloc',
+    id: 'vehicules-geoloc-exclusions',
     hub: 'vehicules',
     hubLabel: 'Hub Véhicules (GPS)',
     accentColor: '#D66927',
-    title: 'Géolocalisation GPS, Exclusions Domicile ↔ Travail & Pointage Salariés',
-    boards: [
-      { name: '📍 Synthèse Géolocalisation', id: '5108497111', group: '1 groupe / semaine (~39 lignes)' },
-      { name: '🗂️ Pointage & Détails Journaliers GPS', id: '5108589918', group: '1 groupe / semaine (~175 lignes)' },
-      { name: '👥 Liste des Salariés (Pole RH)', id: '5108574616' },
-    ],
+    widgetTitle: 'Géolocalisation — Alertes, Exclusions Domicile ↔ Travail & Pointage',
+    boardName: '🗂️ Pointage & Détails Journaliers GPS',
+    boardId: '5108589918',
     filters: [
-      'Alertes GPS : Hors horaires (< 04h30 ou > 19h30), Week-end (Sam/Dim), Vie privée (adresse contenant "vie privée"), Inactif (0 trajet / 0 km).',
-      'Règle Exclure (Domicile ↔ Travail) : si le 1er trajet est exclu → début utile = heure d’ARRIVÉE sur le 1er site ; si le dernier trajet est exclu → fin utile = heure de DÉPART du dernier site ; km & conduite retirés.',
-      'Pointage multi-salariés : alimenté par Pole RH (5108574616, hors Sorti) + conducteurs GPS ; écart horaire signé (±15, ±30, ±60… min).',
-      'Compression Trajets JSON : auto-adaptée sous 1 940 car. (limite Monday = 2 000 car.) ; bouton « Archiver > 6 mois » libère le quota actif (100 000 items) sans rien perdre.',
+      {
+        connector: 'Où',
+        column: 'Alerte « Hors horaires »',
+        operator: 'Déclenchée si',
+        values: [{ label: 'Trajet avant 04h30 ou après 19h30', color: '#D66927' }],
+      },
+      {
+        connector: 'ou',
+        column: 'Alerte « Week-end »',
+        operator: 'Déclenchée si',
+        values: [{ label: 'Trajet le Samedi ou le Dimanche', color: '#9333EA' }],
+      },
+      {
+        connector: 'et',
+        column: 'Case « Exclure Domicile ↔ Travail »',
+        operator: 'Si cochée',
+        values: [
+          { label: '1er trajet exclu ➔ début utile = arrivée 1er site', color: '#00C875' },
+          { label: 'Dernier trajet exclu ➔ fin utile = départ dernier site', color: '#00C875' },
+        ],
+      },
+      {
+        connector: 'et',
+        column: 'Sélecteur Salariés (Pointage)',
+        operator: 'Alimenté par',
+        values: [{ label: 'Liste des Salariés (Pole RH) — hors statut « Sorti »', color: '#3989B7' }],
+      },
+      {
+        connector: 'et',
+        column: 'Archivage automatique (> 6 mois)',
+        operator: 'Cible',
+        values: [{ label: 'Les semaines de plus de 180 jours (archives illimitées Monday)', color: '#F7AC37' }],
+      },
     ],
-    columnsOrFormulas: [
-      'Anti-doublon Synthèse : Semaine + Plaque normalisée + lien auto board_relation_mm9dnt7z',
-      'Anti-doublon Détails : Plaque + Date (1 ligne = 1 véhicule × 1 jour)',
-      'Statut Pointage : Non pointé | Conforme | Écart horaire (Écart total signé)',
-    ],
-    cacheOrApiNote: 'Batching GraphQL ×10 (Synthèse 39→4 appels · Détails 175→~18 appels, 10× plus rapide)',
+    formulaNote: '1 ligne = 1 véhicule × 1 journée (~175 lignes/semaine, tous les trajets conservés) · Écart horaire signé (+15/+30/+60 min en plus ou −15/−30/−60 min en moins).',
   },
 
   // ==================== FACTURATION CHRISTINE ====================
   {
-    id: 'facturation-christine',
+    id: 'facturation-imports',
     hub: 'facturation',
     hubLabel: 'Facturation (Christine)',
     accentColor: '#1B4565',
-    title: 'Imports Factures Énergie (Total, Chargemap, Wellborne) & Saisie Véhicules',
-    boards: [
-      { name: 'Data sur véhicule', id: '5092124669' },
-      { name: 'Data wellborne', id: '5106822028' },
-      { name: 'Facture TOTAL / Chargemap', id: '5092674084' },
-    ],
+    widgetTitle: 'Imports factures Énergie (Total, Chargemap, Wellborne)',
+    boardName: 'Data sur véhicule / Data wellborne',
+    boardId: '5092124669',
     filters: [
-      'Chargemap : dédoublonnage strict multi-critères avec prévisualisation avant écriture.',
-      'TotalEnergies : gestion des 2 factures mensuelles (quinzaines du 15 et du 30).',
-      'Wellborne : ignore automatiquement les lignes antérieures au 15/05 ; envoi groupé jusqu’à 50 lignes par requête GraphQL.',
-      'Saisie manuelle : véhicules triés alphabétiquement, Date & Montant HT obligatoires, création de tags à la volée.',
+      {
+        connector: 'Où',
+        column: 'Import Chargemap',
+        operator: 'Applique',
+        values: [{ label: 'Dédoublonnage strict avant création des lignes', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Import TotalEnergies',
+        operator: 'Gère',
+        values: [{ label: '2 factures par mois (quinzaines du 15 et du 30)', color: '#3989B7' }],
+      },
+      {
+        connector: 'et',
+        column: 'Import Wellborne — Date',
+        operator: 'Est postérieure au',
+        values: [{ label: '15 mai (lignes antérieures ignorées automatiquement)', color: '#D66927' }],
+      },
     ],
-    columnsOrFormulas: [
-      '64/64 requêtes filtrées par column_values(ids: [...])',
-      'Batching GraphQL Wellborne : 50 create_item / appel',
-      'Traçabilité des 3 dernières factures scannées + UsersBadge',
-    ],
-    cacheOrApiNote: 'Cache 10 min mémoire + sessionStorage · File d’attente MAX_CONCURRENT = 5',
+    formulaNote: 'Saisie manuelle factures véhicules : liste des véhicules triée par ordre alphabétique, Date et Montant HT obligatoires.',
   },
 
   // ==================== CONTACTS LÉA ====================
@@ -291,55 +556,36 @@ const AUDIT_RULES: RuleEntry[] = [
     hub: 'contacts',
     hubLabel: 'Contacts (Léa)',
     accentColor: '#D66927',
-    title: 'Annuaire Interlocuteurs Clients & Exports Excel Chartés',
-    boards: [{ name: 'Tableau Complet Chantier', id: '1976599627', group: 'topics (en cours)' }],
+    widgetTitle: 'Annuaire Interlocuteurs & Exports Excel',
+    boardName: 'Tableau complet chantier',
+    boardId: '1976599627',
     filters: [
-      'Lecture seule uniquement (0 mutation) sur les chantiers actifs.',
-      'Extraction propre des interlocuteurs, téléphones, e-mails, villes, codes postaux et secteurs.',
-      'Export ExcelJS aux couleurs officielles Groupe Facility (#39A9DC / #3989B7) avec filtres automatiques.',
+      {
+        connector: 'Où',
+        column: 'Groupe',
+        operator: 'Est',
+        values: [{ label: 'Liste des chantiers en cours', color: '#00C875' }],
+      },
+      {
+        connector: 'et',
+        column: 'Mode d’accès',
+        operator: 'Est',
+        values: [{ label: 'Lecture seule (aucune modification sur Monday)', color: '#3989B7' }],
+      },
     ],
-    columnsOrFormulas: [
-      'dropdown_mkrb9ma (Interlocuteur), dropdown_mkrbfhrg (Tél), dropdown_mkrbwbya (E-mail)',
-      'color_mkrbk3jy (Animateur), color_mkrb1yqe (Ville), numeric_mkrba3xc (CP)',
-    ],
-    cacheOrApiNote: 'Ultra léger : 3 points d’appel API · Cache 10 min mémoire + sessionStorage',
-  },
-
-  // ==================== ARCHITECTURE & QUOTAS API ====================
-  {
-    id: 'api-architecture',
-    hub: 'api',
-    hubLabel: 'Perf & API',
-    accentColor: '#0E7042',
-    title: 'Architecture Multi-Hubs, Quotas Monday Enterprise & Optimisations Actives',
-    boards: [
-      { name: 'Hub Global (App 12725463)', id: '5108553085' },
-      { name: 'Pointage & Détails GPS', id: '5108589918' },
-    ],
-    filters: [
-      'Quota API Monday Enterprise : 25 000 appels / jour (usage normal équipe estimé à 150–500 appels/jour, soit < 2 %).',
-      'Quota Tableau Monday Enterprise : 100 000 éléments actifs / tableau (archives illimitées, ne comptent pas dans les 100 000).',
-      'Sécurité : toutes les requêtes s’exécutent avec le compte Monday connecté (Observateur = lecture seule garantie par Monday).',
-    ],
-    columnsOrFormulas: [
-      'Keep-Alive iframes Hub Global : 0 appel API au changement d’onglet',
-      'Batching GraphQL : ×10 GPS (Hub Véhicules), ×50 Wellborne (Christine)',
-      'Cache 2 niveaux (mémoire + sessionStorage/localStorage) sur les 6 Hubs',
-      'Retry automatique avec backoff sur erreurs complexité / rate-limit',
-    ],
-    cacheOrApiNote: '100 % des 6 Hubs sauvegardés sur GitHub (Resetou21/Stage-A4 · main)',
+    formulaNote: 'Regroupe Interlocuteur, Téléphone, E-mail, Ville, Code postal et Animateur avec export Excel aux couleurs Groupe Facility.',
   },
 ];
 
 const TABS: Array<{ id: AuditCategory; label: string }> = [
   { id: 'all', label: 'Tous les Hubs' },
-  { id: 'global', label: 'Global & Comm.' },
+  { id: 'global', label: 'Hub Global' },
+  { id: 'commercial', label: 'Commercial' },
   { id: 'secteurs', label: 'Animatrices' },
   { id: 'atelier', label: 'ERP Atelier' },
   { id: 'vehicules', label: 'Véhicules & GPS' },
   { id: 'facturation', label: 'Facturation' },
   { id: 'contacts', label: 'Contacts' },
-  { id: 'api', label: 'Perf & Quotas' },
 ];
 
 export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditModalProps) {
@@ -348,16 +594,15 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
 
   const filteredRules = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return AUDIT_RULES.filter((r) => {
+    return WIDGET_RULES.filter((r) => {
       if (activeTab !== 'all' && r.hub !== activeTab) return false;
       if (!q) return true;
       const hay = [
         r.hubLabel,
-        r.title,
-        ...r.boards.map((b) => `${b.name} ${b.id} ${b.group || ''}`),
-        ...r.filters,
-        ...r.columnsOrFormulas,
-        r.cacheOrApiNote,
+        r.widgetTitle,
+        r.boardName,
+        r.formulaNote || '',
+        ...r.filters.map((f) => `${f.column} ${f.operator} ${f.values.map((v) => v.label).join(' ')}`),
       ]
         .join(' ')
         .toLowerCase();
@@ -381,7 +626,7 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
         onClick={(e) => e.stopPropagation()}
         className="modal-spring-in"
         style={{
-          width: '1080px',
+          width: '1040px',
           maxWidth: '100%',
           maxHeight: '100%',
           backgroundColor: '#FFFFFF',
@@ -426,7 +671,7 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '16.5px', fontWeight: 900, color: '#FFFFFF' }}>
-                  Référentiel Filtres, Tableaux &amp; Règles de Calcul
+                  Filtres &amp; Règles Appliquées sur tous les Hubs
                 </h2>
                 <span
                   style={{
@@ -440,15 +685,14 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
                     color: '#FEF6E7',
                     fontSize: '10px',
                     fontWeight: 800,
-                    letterSpacing: '0.03em',
                   }}
                 >
                   <Shield size={10} />
                   ADMIN UNIQUEMENT
                 </span>
               </div>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,0.82)' }}>
-                Transparence complète sur les sources Monday, filtres appliqués, formules métier et optimisations API des 6 Hubs (0 appel API).
+              <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,0.84)' }}>
+                Visualisez clairement quels tableaux et quels filtres sont appliqués pour obtenir chaque chiffre, alerte et tableau dans vos Hubs.
               </p>
             </div>
           </div>
@@ -474,7 +718,7 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
           </button>
         </div>
 
-        {/* Barre filtres + onglets Hub */}
+        {/* Barre recherche + onglets Hub */}
         <div
           style={{
             padding: '12px 22px',
@@ -493,7 +737,7 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un tableau, ID, formule, filtre (ex: Alerte 2, 5108589918, Wellborne)..."
+                placeholder="Rechercher un indicateur ou filtre (ex : 11 mois, étoiles, Domicile, Wellborne...)"
                 style={{
                   width: '100%',
                   padding: '7px 10px 7px 32px',
@@ -507,8 +751,9 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
               />
             </div>
 
-            <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#3989B7' }}>
-              {filteredRules.length} bloc{filteredRules.length > 1 ? 's' : ''} documenté{filteredRules.length > 1 ? 's' : ''}
+            <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#3989B7', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <Filter size={12} />
+              {filteredRules.length} vue{filteredRules.length > 1 ? 's' : ''} filtrée{filteredRules.length > 1 ? 's' : ''}
             </span>
           </div>
 
@@ -538,143 +783,229 @@ export default function DataRulesAuditModal({ isOpen, onClose }: DataRulesAuditM
           </div>
         </div>
 
-        {/* Liste des règles */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {filteredRules.map((rule) => (
+        {/* Cartes de filtres visuels façon Dashboard Monday */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#FAFCFE' }}>
+          {filteredRules.map((card) => (
             <div
-              key={rule.id}
+              key={card.id}
               style={{
                 borderRadius: '14px',
                 border: '1px solid #D7EAF5',
-                borderLeft: `4px solid ${rule.accentColor}`,
                 backgroundColor: '#FFFFFF',
-                padding: '14px 16px',
-                boxShadow: '0 2px 8px rgba(27, 69, 101, 0.04)',
+                overflow: 'hidden',
+                boxShadow: '0 2px 10px rgba(27, 69, 101, 0.05)',
               }}
             >
-              {/* En-tête carte */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              {/* Bandeau titre du widget (style tableau de bord) */}
+              <div
+                style={{
+                  padding: '11px 16px',
+                  backgroundColor: '#F4F9FC',
+                  borderBottom: '1px solid #E2EFF7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '10px',
+                  flexWrap: 'wrap',
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span
                     style={{
                       padding: '2px 9px',
                       borderRadius: '999px',
-                      backgroundColor: `${rule.accentColor}15`,
-                      color: rule.accentColor,
-                      border: `1px solid ${rule.accentColor}35`,
+                      backgroundColor: `${card.accentColor}16`,
+                      color: card.accentColor,
+                      border: `1px solid ${card.accentColor}38`,
                       fontSize: '10.5px',
                       fontWeight: 800,
                     }}
                   >
-                    {rule.hubLabel}
+                    {card.hubLabel}
                   </span>
                   <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '14px', fontWeight: 800, color: '#1B4565' }}>
-                    {rule.title}
+                    {card.widgetTitle}
                   </h3>
                 </div>
 
-                <span
+                {/* Pilule Tableau source (style sélecteur Tableau Monday) */}
+                <a
+                  href={`https://groupefacility.monday.com/boards/${card.boardId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ouvrir ce tableau sur Monday"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    padding: '3px 9px',
-                    borderRadius: '999px',
-                    backgroundColor: '#E6F9F1',
-                    color: '#0E7042',
-                    border: '1px solid #A7F3D0',
-                    fontSize: '10.5px',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #39A9DC',
+                    backgroundColor: '#FFFFFF',
+                    color: '#1B4565',
+                    fontSize: '11.5px',
                     fontWeight: 700,
+                    textDecoration: 'none',
                   }}
                 >
-                  <Zap size={11} />
-                  {rule.cacheOrApiNote}
-                </span>
-              </div>
-
-              {/* Tableaux Monday sources cliquables */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Database size={12} color="#3989B7" /> Sources :
-                </span>
-                {rule.boards.map((b) => (
-                  <a
-                    key={`${rule.id}-${b.id}-${b.name}`}
-                    href={`https://groupefacility.monday.com/boards/${b.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Table2 size={13} color="#39A9DC" />
+                  <span>{card.boardName}</span>
+                  <span
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      padding: '3px 9px',
-                      borderRadius: '7px',
-                      backgroundColor: '#F4F9FC',
-                      border: '1px solid #D7EAF5',
-                      color: '#1B4565',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      textDecoration: 'none',
+                      justifyContent: 'center',
+                      minWidth: '18px',
+                      height: '18px',
+                      padding: '0 5px',
+                      borderRadius: '999px',
+                      backgroundColor: '#39A9DC',
+                      color: '#FFFFFF',
+                      fontSize: '10px',
+                      fontWeight: 800,
                     }}
                   >
-                    <span>{b.name}</span>
-                    <code style={{ fontSize: '10px', color: '#3989B7', fontWeight: 800 }}>#{b.id}</code>
-                    {b.group && (
-                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 600 }}>({b.group})</span>
-                    )}
-                    <ExternalLink size={10} color="#64748B" />
-                  </a>
-                ))}
+                    {card.filters.length}
+                  </span>
+                  <ExternalLink size={11} color="#64748B" />
+                </a>
               </div>
 
-              {/* Filtres & règles métier */}
-              <div
-                style={{
-                  backgroundColor: '#F8FBFD',
-                  borderRadius: '10px',
-                  border: '1px solid #E6F2F8',
-                  padding: '10px 12px',
-                  marginBottom: '10px',
-                }}
-              >
-                <div style={{ fontSize: '10.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#3989B7', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Filter size={11} /> Filtres &amp; conditions appliquées
-                </div>
-                <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#1E293B', lineHeight: 1.45 }}>
-                  {rule.filters.map((f, i) => (
-                    <li key={i}>{f}</li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Colonnes clés & formules */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Sparkles size={11} color="#D66927" /> Colonnes / Formules :
-                </span>
-                {rule.columnsOrFormulas.map((cf, i) => (
-                  <code
-                    key={i}
+              {/* Corps : Lignes de filtres visuels façon "Où / et / ou" de Monday */}
+              <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {card.filters.map((f, idx) => (
+                  <div
+                    key={idx}
                     style={{
-                      padding: '2px 7px',
-                      borderRadius: '6px',
-                      backgroundColor: '#F1F5F9',
-                      border: '1px solid #E2E8F0',
-                      color: '#334155',
-                      fontSize: '10.5px',
-                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap',
                     }}
                   >
-                    {cf}
-                  </code>
+                    {/* Connecteur Où / et / ou */}
+                    <span
+                      style={{
+                        width: '36px',
+                        textAlign: 'right',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        color: f.connector === 'ou' ? '#D66927' : '#64748B',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {f.connector}
+                    </span>
+
+                    {/* Boîte Colonne */}
+                    <span
+                      style={{
+                        padding: '5px 11px',
+                        borderRadius: '7px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        color: '#1B4565',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        minWidth: '170px',
+                      }}
+                    >
+                      {f.column}
+                    </span>
+
+                    {/* Boîte Opérateur */}
+                    <span
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '7px',
+                        border: '1px solid #E2E8F0',
+                        backgroundColor: '#F8FAFC',
+                        color: '#475569',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {f.operator}
+                    </span>
+
+                    {/* Boîte Valeur(s) en pilules colorées */}
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '5px',
+                        padding: '4px 8px',
+                        borderRadius: '7px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        flex: 1,
+                        minWidth: '180px',
+                      }}
+                    >
+                      {f.values.map((val, vIdx) => {
+                        const dotColor = val.color || '#3989B7';
+                        return (
+                          <span
+                            key={vIdx}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '2px 9px',
+                              borderRadius: '6px',
+                              backgroundColor: '#EBF6FC',
+                              color: '#1B4565',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: '7px',
+                                height: '7px',
+                                borderRadius: '999px',
+                                backgroundColor: dotColor,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span>{val.label}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ))}
+
+                {/* Note de calcul / règle métier en français simple */}
+                {card.formulaNote && (
+                  <div
+                    style={{
+                      marginTop: '6px',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      backgroundColor: '#FEF9EE',
+                      border: '1px solid #FDE68A',
+                      color: '#92400E',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '7px',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <Calculator size={14} color="#D66927" style={{ marginTop: '2px', flexShrink: 0 }} />
+                    <span>{card.formulaNote}</span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
 
           {filteredRules.length === 0 && (
             <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
-              Aucune règle ne correspond à « {search} ».
+              Aucun filtre trouvé pour « {search} ».
             </div>
           )}
         </div>
