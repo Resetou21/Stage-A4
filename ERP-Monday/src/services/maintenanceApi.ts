@@ -1,4 +1,4 @@
-import monday from './monday';
+import monday, { clearErpApiCache } from './monday';
 import type { ParsedSupplierOrder } from './supplierPdfParser';
 import type { Machine } from '../types';
 
@@ -4244,6 +4244,58 @@ export async function createNewMachine(
   } catch (err: any) {
     console.error('Erreur création nouvelle machine:', err);
     return { success: false, error: err?.message || 'Erreur réseau ou permission' };
+  }
+}
+
+/**
+ * Archive (supprime du parc actif) une machine sur Monday (Liste des machines)
+ * et archive optionnellement ses tickets de réparation encore ouverts pour garder le plan d'action propre.
+ */
+export async function archiveMachineFromParc(
+  machineId: string,
+  openRepairTicketIds: string[] = []
+): Promise<{ success: boolean; archivedRepairs: number; error?: string }> {
+  try {
+    const res: any = await (monday as any).api(
+      `mutation ArchiveMachine($itemId: ID!) {
+        archive_item(item_id: $itemId) {
+          id
+        }
+      }`,
+      {
+        variables: { itemId: machineId },
+      }
+    );
+
+    if (!res?.data?.archive_item?.id) {
+      return { success: false, archivedRepairs: 0, error: formatMondayError(res) };
+    }
+
+    let archivedRepairs = 0;
+    for (const ticketId of openRepairTicketIds) {
+      if (!ticketId) continue;
+      try {
+        const tRes: any = await (monday as any).api(
+          `mutation ArchiveOpenRepair($itemId: ID!) {
+            archive_item(item_id: $itemId) {
+              id
+            }
+          }`,
+          {
+            variables: { itemId: ticketId },
+          }
+        );
+        if (tRes?.data?.archive_item?.id) archivedRepairs++;
+      } catch {
+        // continue même si un ticket a déjà été archivé
+      }
+    }
+
+    clearErpApiCache();
+    return { success: true, archivedRepairs };
+  } catch (err: any) {
+    console.error('Erreur suppression/archivage machine:', err);
+    return { success: false, archivedRepairs: 0, error: err?.message || 'Erreur réseau ou permission' };
   }
 }
 

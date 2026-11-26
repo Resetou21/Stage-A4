@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import frLocale from '@fullcalendar/core/locales/fr';
-import monday from './services/monday';
+import monday, { clearErpApiCache } from './services/monday';
 import type { Machine, PlanningItem, PlanningEventDetail } from './types';
 import { InspectionForm } from './components/InspectionForm';
 import { MaintenanceMatrix } from './components/MaintenanceMatrix';
 import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
 import { AtelierAlertsSection } from './components/AtelierAlertsSection';
 import { CreateMachineModal } from './components/CreateMachineModal';
+import { DeleteMachineModal } from './components/DeleteMachineModal';
 import { isRealCleaningMachine } from './components/MachineSelect';
 import { SearchableSelect } from './components/SearchableSelect';
 import { FacilitySelect } from './components/FacilitySelect';
@@ -52,6 +53,7 @@ import {
   Car,
   MapPin,
   Plus,
+  Trash2,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -186,8 +188,9 @@ export const App = () => {
   const [replacementMachineId, setReplacementMachineId] = useState<string>('');
   const [isReassigning, setIsReassigning] = useState<boolean>(false);
 
-  // Modal d'ajout d'une nouvelle machine au parc
+  // Modal d'ajout et de suppression d'une machine au parc
   const [isCreateMachineModalOpen, setIsCreateMachineModalOpen] = useState<boolean>(false);
+  const [isDeleteMachineModalOpen, setIsDeleteMachineModalOpen] = useState<boolean>(false);
 
   // Notifications
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -1260,33 +1263,58 @@ export const App = () => {
             );
           })()}
 
-          {/* Bouton d'action directe : Ajouter une machine au parc */}
-          <button
-            type="button"
-            onClick={() => setIsCreateMachineModalOpen(true)}
-            style={{
-              marginLeft: 'auto',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '9px 18px',
-              borderRadius: '12px',
-              border: 'none',
-              backgroundColor: '#00C875',
-              color: '#FFFFFF',
-              fontSize: '13px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              boxShadow: '0 3px 12px rgba(0, 200, 117, 0.35)',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease',
-            }}
-            title="Ajouter une nouvelle machine directement sur le tableau Monday Liste des machines"
-          >
-            <Plus size={16} strokeWidth={3} />
-            <span className="desktop-tab-label">➕ Ajouter une machine</span>
-            <span className="mobile-tab-label">➕ Machine</span>
-          </button>
+          {/* Boutons d'action directe : Ajouter / Supprimer une machine du parc */}
+          <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setIsDeleteMachineModalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 14px',
+                borderRadius: '12px',
+                border: '1.5px solid #FECACA',
+                backgroundColor: '#FEF2F2',
+                color: '#DC2626',
+                fontSize: '12.5px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+              }}
+              title="Retirer / archiver une machine du parc actif sur Monday"
+            >
+              <Trash2 size={15} />
+              <span className="desktop-tab-label">Supprimer</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCreateMachineModalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 18px',
+                borderRadius: '12px',
+                border: 'none',
+                backgroundColor: '#00C875',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 3px 12px rgba(0, 200, 117, 0.35)',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+              }}
+              title="Ajouter une nouvelle machine directement sur le tableau Monday Liste des machines"
+            >
+              <Plus size={16} strokeWidth={3} />
+              <span className="desktop-tab-label">➕ Ajouter une machine</span>
+              <span className="mobile-tab-label">➕ Machine</span>
+            </button>
+          </div>
         </div>
 
         {canScrollTabsRight && (
@@ -2719,7 +2747,39 @@ export const App = () => {
           onClose={() => setIsCreateMachineModalOpen(false)}
           onSuccess={async (newMachineName) => {
             setSuccessMessage(`Machine "${newMachineName}" ajoutée avec succès au parc et sur Monday !`);
+            clearErpApiCache();
+            try {
+              localStorage.removeItem('parc_machines_cache_v1');
+              localStorage.removeItem('parc_machines_cache_ts_v1');
+            } catch {}
             await fetchMachines();
+          }}
+        />
+      )}
+
+      {/* Modal de suppression / archivage d'une machine du parc */}
+      {isDeleteMachineModalOpen && (
+        <DeleteMachineModal
+          machines={machines}
+          repairTickets={repairTickets}
+          onClose={() => setIsDeleteMachineModalOpen(false)}
+          onSuccess={async (deletedMachineId, deletedMachineName, archivedTicketIds) => {
+            setMachines((prev) => prev.filter((m) => String(m.id) !== deletedMachineId));
+            if (archivedTicketIds.length > 0) {
+              const idSet = new Set(archivedTicketIds);
+              setRepairTickets((prev) => prev.filter((t) => !idSet.has(String(t.id))));
+            }
+            clearErpApiCache();
+            try {
+              localStorage.removeItem('parc_machines_cache_v1');
+              localStorage.removeItem('parc_machines_cache_ts_v1');
+              localStorage.removeItem('parc_repairs_cache_v1');
+              localStorage.removeItem('parc_repairs_cache_ts_v1');
+            } catch {}
+            setSuccessMessage(
+              `Machine "${deletedMachineName}" retirée du parc et archivée sur Monday${archivedTicketIds.length > 0 ? ` (${archivedTicketIds.length} ticket(s) ouvert(s) archivé(s))` : ''} !`
+            );
+            await Promise.all([fetchMachines(), loadMaintenanceData()]);
           }}
         />
       )}
