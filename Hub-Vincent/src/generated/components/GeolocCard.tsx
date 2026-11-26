@@ -517,31 +517,80 @@ export default function GeolocCard() {
   };
 
   // ==================== POINTAGE & ARCHIVAGE DÉTAILS JOURNALIERS (5108589918) ====================
-  const handleLoadMondayDetailWeek = async (weekId: string) => {
-    if (loadingMondayWeekId) return;
-    setLoadingMondayWeekId(weekId);
-    try {
-      const payload = await loadMondayWeekDetails({ data: { weekId } });
-      setDayAnnotations((prev) => ({ ...prev, ...payload.annotationsByKey }));
-      if (payload.reconstructedWorkbook) {
-        setWorkbook(payload.reconstructedWorkbook);
-        setMainTab('explorer');
-        setExplorerSubTab('vehicle');
-        const firstActive =
-          payload.reconstructedWorkbook.vehicles.find((v) => v.trips.length > 0) ||
-          payload.reconstructedWorkbook.vehicles[0];
-        setSelectedVehiclePlate(firstActive?.plate || '');
-        setExpandedDays({});
-        toast.success(`Semaine ${payload.weekLabel} rechargée depuis Monday !`, {
-          description: `${payload.reconstructedWorkbook.totalVehicles} véhicules · ${payload.reconstructedWorkbook.totalTrips} trajets · exclusions & pointages restaurés.`,
-        });
-      } else {
-        toast.info('Aucun détail de trajet trouvé pour cette semaine sur Monday.');
+  const autoLoadedMondayRef = useRef(false);
+
+  const handleLoadMondayDetailWeek = useCallback(
+    async (weekId: string, opts?: { targetPlate?: string; silent?: boolean }) => {
+      if (loadingMondayWeekId) return;
+      setLoadingMondayWeekId(weekId);
+      try {
+        const payload = await loadMondayWeekDetails({ data: { weekId } });
+        setDayAnnotations((prev) => ({ ...prev, ...payload.annotationsByKey }));
+        if (payload.reconstructedWorkbook) {
+          setWorkbook(payload.reconstructedWorkbook);
+          setMainTab('explorer');
+          setExplorerSubTab('vehicle');
+          const targetKey = opts?.targetPlate ? normalizePlateKey(opts.targetPlate) : '';
+          const matched = targetKey
+            ? payload.reconstructedWorkbook.vehicles.find((v) => normalizePlateKey(v.plate) === targetKey)
+            : null;
+          const firstActive =
+            matched ||
+            payload.reconstructedWorkbook.vehicles.find((v) => v.trips.length > 0) ||
+            payload.reconstructedWorkbook.vehicles[0];
+          setSelectedVehiclePlate(firstActive?.plate || '');
+          setExpandedDays({});
+          if (!opts?.silent) {
+            toast.success(`Semaine ${payload.weekLabel} rechargée depuis Monday !`, {
+              description: `${payload.reconstructedWorkbook.totalVehicles} véhicules · ${payload.reconstructedWorkbook.totalTrips} trajets · exclusions & pointages restaurés.`,
+            });
+          }
+        } else if (!opts?.silent) {
+          toast.info('Aucun détail de trajet trouvé pour cette semaine sur Monday.');
+        }
+      } catch (err: any) {
+        if (!opts?.silent) {
+          toast.error('Impossible de charger cette semaine depuis Monday', { description: err?.message });
+        }
+      } finally {
+        setLoadingMondayWeekId(null);
       }
-    } catch (err: any) {
-      toast.error('Impossible de charger cette semaine depuis Monday', { description: err?.message });
-    } finally {
-      setLoadingMondayWeekId(null);
+    },
+    [loadingMondayWeekId],
+  );
+
+  // Charge automatiquement la dernière semaine archivée depuis Monday quand on ouvre l'onglet Détails & Pointages
+  useEffect(() => {
+    if (
+      mainTab === 'explorer' &&
+      !workbook &&
+      !loadingMondayWeekId &&
+      mondayDetailWeeks.length > 0 &&
+      !autoLoadedMondayRef.current
+    ) {
+      autoLoadedMondayRef.current = true;
+      handleLoadMondayDetailWeek(mondayDetailWeeks[0].weekId, { silent: true });
+    }
+  }, [mainTab, workbook, loadingMondayWeekId, mondayDetailWeeks, handleLoadMondayDetailWeek]);
+
+  const handleOpenVehicleDetailsFromHistory = (weekId: string, plate: string) => {
+    if (workbook && workbook.weekId === weekId) {
+      const targetKey = normalizePlateKey(plate);
+      const matched = workbook.vehicles.find((v) => normalizePlateKey(v.plate) === targetKey);
+      if (matched) setSelectedVehiclePlate(matched.plate);
+      setExpandedDays({});
+      setMainTab('explorer');
+      setExplorerSubTab('vehicle');
+      return;
+    }
+    const hasDetails = mondayDetailWeeks.some((w) => w.weekId === weekId);
+    if (hasDetails) {
+      handleLoadMondayDetailWeek(weekId, { targetPlate: plate });
+    } else {
+      setMainTab('explorer');
+      toast.info(`Les trajets détaillés de la semaine ${weekId} ne sont pas encore archivés sur Monday.`, {
+        description: 'Importez l’Excel GPS de cette semaine puis cliquez sur « Archiver détails ».',
+      });
     }
   };
 
@@ -1016,7 +1065,7 @@ export default function GeolocCard() {
   return (
     <div
       id="section-geoloc"
-      className="relative rounded-[var(--radius-lg)] border border-border bg-card p-4 pt-8 sm:p-8"
+      className="relative w-full max-w-full overflow-x-hidden rounded-[var(--radius-lg)] border border-border bg-card p-3.5 pt-8 sm:p-8"
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -1100,20 +1149,20 @@ export default function GeolocCard() {
         </div>
       </div>
 
-      {/* Sélecteur de mode : Historique Monday vs Explorateur Excel (32 onglets) */}
+      {/* Sélecteur de mode : Synthèse Monday vs Détails & Pointages vs Km Domicile-Travail */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-        <div className="inline-flex rounded-[var(--radius-md)] border border-border bg-muted/50 p-1">
+        <div className="flex w-full flex-wrap gap-1 rounded-[var(--radius-md)] border border-border bg-muted/50 p-1 sm:inline-flex sm:w-auto">
           <button
             type="button"
             onClick={() => setMainTab('history')}
             className={cn(
-              'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer',
+              'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer sm:flex-none sm:px-3.5',
               mainTab === 'history'
                 ? 'bg-card text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <Database className="h-3.5 w-3.5 text-primary" />
+            <Database className="h-3.5 w-3.5 shrink-0 text-primary" />
             <span>Synthèse Monday</span>
             {history && (
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold text-primary">
@@ -1126,26 +1175,30 @@ export default function GeolocCard() {
             type="button"
             onClick={() => setMainTab('explorer')}
             className={cn(
-              'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer',
+              'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer sm:flex-none sm:px-3.5',
               mainTab === 'explorer'
                 ? 'bg-card text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-[#D66927]" />
-            <span>Explorateur Excel (Onglets &amp; Trajets)</span>
-            {workbook && (
+            <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 text-[#D66927]" />
+            <span>Détails &amp; Pointages</span>
+            {workbook ? (
               <span className="rounded-full bg-[#D66927]/15 px-2 py-0.5 text-[10px] font-extrabold text-[#D66927]">
                 {workbook.totalTrips.toLocaleString('fr-FR')} trajets
               </span>
-            )}
+            ) : mondayDetailWeeks.length > 0 ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold text-primary">
+                {mondayDetailWeeks.length} sem.
+              </span>
+            ) : null}
           </button>
 
           <button
             type="button"
             onClick={() => setMainTab('commute')}
             className={cn(
-              'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer',
+              'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer sm:flex-none sm:px-3.5',
               mainTab === 'commute'
                 ? 'bg-card text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground',
@@ -1478,13 +1531,22 @@ export default function GeolocCard() {
                                     <span className="text-xs font-semibold text-muted-foreground">{r.conducteur}</span>
                                     <AlertBadge status={r.alerte} />
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedHistoryId(null)}
-                                    className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-bold text-muted-foreground hover:text-foreground cursor-pointer"
-                                  >
-                                    <ChevronUp className="h-3.5 w-3.5" /> Replier
-                                  </button>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenVehicleDetailsFromHistory(r.semaine, r.plate)}
+                                      className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow-xs transition hover:brightness-95 cursor-pointer"
+                                    >
+                                      <Route className="h-3.5 w-3.5" /> Voir tous les trajets
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedHistoryId(null)}
+                                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-bold text-muted-foreground hover:text-foreground cursor-pointer"
+                                    >
+                                      <ChevronUp className="h-3.5 w-3.5" /> Replier
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-5">
                                   <div className="rounded-lg border border-border bg-card px-2.5 py-1.5">
@@ -1549,14 +1611,25 @@ export default function GeolocCard() {
                                 <AlertBadge status={r.alerte} />
                               </td>
                               <td className="px-2 py-2.5 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedHistoryId(r.id)}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:border-primary hover:text-primary cursor-pointer"
-                                  title="Voir le récapitulatif jour par jour"
-                                >
-                                  <ChevronDown className="h-4 w-4" />
-                                </button>
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenVehicleDetailsFromHistory(r.semaine, r.plate)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[10px] font-bold text-primary hover:bg-primary hover:text-primary-foreground transition cursor-pointer"
+                                    title="Ouvrir directement les trajets et pointages détaillés de ce véhicule"
+                                  >
+                                    <span>Trajets</span>
+                                    <ArrowRight className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedHistoryId(r.id)}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:border-primary hover:text-primary cursor-pointer"
+                                    title="Voir le récapitulatif jour par jour"
+                                  >
+                                    <ChevronDown className="h-4 w-4" />
+                                  </button>
+                                </div>
                               </td>
                             </>
                           )}
@@ -2099,16 +2172,16 @@ export default function GeolocCard() {
               {explorerSubTab === 'vehicle' && selectedVehicle && (
                 <div className="space-y-4">
                   {/* Sélecteur rapide de véhicule */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-xl)] border border-border bg-background p-3.5">
-                    <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
-                      <label className="text-xs font-bold text-muted-foreground shrink-0">Onglet véhicule :</label>
+                  <div className="flex flex-col gap-3 rounded-[var(--radius-xl)] border border-border bg-background p-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
+                      <label className="text-xs font-bold text-muted-foreground shrink-0">Véhicule :</label>
                       <SearchableSelect
                         size="sm"
                         clearable={false}
                         searchable={true}
                         searchPlaceholder="Rechercher plaque, conducteur, alerte..."
-                        className="w-full max-w-[460px]"
-                        dropdownClassName="min-w-[340px]"
+                        className="w-full min-w-0 sm:max-w-[460px]"
+                        dropdownClassName="w-full max-w-[calc(100vw-2.5rem)] sm:min-w-[340px]"
                         value={selectedVehicle.plate}
                         onChange={(val) => {
                           setSelectedVehiclePlate(val);

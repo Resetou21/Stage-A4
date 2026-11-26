@@ -100,6 +100,63 @@ function parseLongTextVal(cv: { text?: string; value?: string } | undefined): st
   return '';
 }
 
+/**
+ * Parseur rétrocompatible + tolérant aux anciens JSON tronqués à 2000 car.
+ * Supporte :
+ *  - Format objet v1 : [{ id, s?, e?, sm, em, sa, ea, km, d, p?, ex? }]
+ *  - Format tuple v2 ultra-compact : [[sm, em, km, d, sa, ea, flags]] (flags: 1=private, 2=excluded)
+ */
+export function parseStoredTripsJson(raw: string): CompactStoredTrip[] {
+  if (!raw || !raw.trim()) return [];
+  const trimmed = raw.trim();
+
+  const normalizeItems = (arr: any[]): CompactStoredTrip[] => {
+    const out: CompactStoredTrip[] = [];
+    for (let i = 0; i < arr.length; i++) {
+      const item = arr[i];
+      if (Array.isArray(item) && item.length >= 4) {
+        const flags = Number(item[6]) || 0;
+        out.push({
+          id: typeof item[7] === 'string' && item[7] ? item[7] : `${i}`,
+          sm: Number(item[0]) || 0,
+          em: Number(item[1]) || 0,
+          km: Number(item[2]) || 0,
+          d: Number(item[3]) || 0,
+          sa: typeof item[4] === 'string' ? item[4] : '',
+          ea: typeof item[5] === 'string' ? item[5] : '',
+          ...(flags & 1 ? { p: 1 as const } : {}),
+          ...(flags & 2 ? { ex: 1 as const } : {}),
+        });
+      } else if (item && typeof item === 'object') {
+        out.push(item as CompactStoredTrip);
+      }
+    }
+    return out;
+  };
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) return normalizeItems(parsed);
+  } catch {
+    // Récupération gracieuse des anciens JSON tronqués à 2000 caractères par Monday :
+    // on remonte jusqu'au dernier objet/tuple complet avant la coupure.
+    const isTupleFormat = trimmed.startsWith('[[');
+    const closingChar = isTupleFormat ? ']' : '}';
+    let cut = trimmed.lastIndexOf(closingChar);
+    while (cut > 1) {
+      const candidate = `${trimmed.slice(0, cut + 1)}]`;
+      try {
+        const recovered = JSON.parse(candidate);
+        if (Array.isArray(recovered)) return normalizeItems(recovered);
+      } catch {
+        // continuer à reculer
+      }
+      cut = trimmed.lastIndexOf(closingChar, cut - 1);
+    }
+  }
+  return [];
+}
+
 export function serializeTripsCompact(trips: GeoTrip[], excludedSet: Set<string>): string {
   const MAX_LEN = 1940; // Limite colonne long_text Monday = 2000 caractères
   const addrCaps = [55, 38, 26, 18, 12];
@@ -111,8 +168,8 @@ export function serializeTripsCompact(trips: GeoTrip[], excludedSet: Set<string>
       em: t.endMinutes,
       sa: t.startAddress.slice(0, cap),
       ea: t.endAddress.slice(0, cap),
-      km: t.distanceKm,
-      d: t.durationSec,
+      km: Math.round(t.distanceKm * 100) / 100,
+      d: Math.round(t.durationSec),
       ...(t.isPrivate ? { p: 1 as const } : {}),
       ...(excludedSet.has(t.id) ? { ex: 1 as const } : {}),
     }));
@@ -120,19 +177,41 @@ export function serializeTripsCompact(trips: GeoTrip[], excludedSet: Set<string>
     if (raw.length <= MAX_LEN) return raw;
   }
 
-  // Ultime repli (journée exceptionnelle > 20 trajets) : IDs courts + adresses 10 car.
-  const minimal = trips.map((t, i) => ({
-    id: `${i}`,
-    sm: t.startMinutes,
-    em: t.endMinutes,
-    sa: t.startAddress.slice(0, 10),
-    ea: t.endAddress.slice(0, 10),
-    km: t.distanceKm,
-    d: t.durationSec,
-    ...(t.isPrivate ? { p: 1 as const } : {}),
-    ...(excludedSet.has(t.id) ? { ex: 1 as const } : {}),
-  }));
-  return JSON.stringify(minimal).slice(0, MAX_LEN);
+  // Format tuple v2 ultra-compact : [sm, em, km, d, sa, ea, flags]
+  // Permet de stocker 45+ trajets dans une journée sans jamais dépasser 1940 caractères.
+  for (const cap of [24, 14, 8, 0]) {
+    const tuples = trips.map((t) => {
+      const flags = (t.isPrivate ? 1 : 0) | (excludedSet.has(t.id) ? 2 : 0);
+      const base: (number | string)[] = [
+        Math.round(t.startMinutes),
+        Math.round(t.endMinutes),
+        Math.round(t.distanceKm * 100) / 100,
+        Math.round(t.durationSec),
+      ];
+      if (cap > 0 || flags > 0) {
+        base.push(cap > 0 ? t.startAddress.slice(0, cap) : '');
+        base.push(cap > 0 ? t.endAddress.slice(0, cap) : '');
+        if (flags > 0) base.push(flags);
+      }
+      return base;
+    });
+    const raw = JSON.stringify(tuples);
+    if (raw.length <= MAX_LEN) return raw;
+  }
+
+  // Ultime garde-fou (journée extrême > 70 trajets) : garder un JSON toujours 100% valide
+  const safe: (number | string)[][] = [];
+  for (const t of trips) {
+    const flags = (t.isPrivate ? 1 : 0) | (excludedSet.has(t.id) ? 2 : 0);
+    const entry: (number | string)[] =
+      flags > 0
+        ? [Math.round(t.startMinutes), Math.round(t.endMinutes), Math.round(t.distanceKm * 100) / 100, Math.round(t.durationSec), '', '', flags]
+        : [Math.round(t.startMinutes), Math.round(t.endMinutes), Math.round(t.distanceKm * 100) / 100, Math.round(t.durationSec)];
+    const candidate = JSON.stringify([...safe, entry]);
+    if (candidate.length > MAX_LEN) break;
+    safe.push(entry);
+  }
+  return JSON.stringify(safe);
 }
 
 /**
@@ -493,43 +572,39 @@ export const loadMondayWeekDetails = createServerFn({ method: 'GET' })
       const dayLabel = formatDayLabel(date, dow);
 
       if (rawTrips) {
-        try {
-          const parsed: CompactStoredTrip[] = JSON.parse(rawTrips);
-          if (Array.isArray(parsed)) {
-            const minToHHMM = (m: number) =>
-              `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
-            parsed.forEach((ct, idx) => {
-              const sStr = ct.s || minToHHMM(ct.sm);
-              const eStr = ct.e || minToHHMM(ct.em);
-              const tid = ct.id || `${plate}_${date}_${sStr}_${idx}`;
-              if (ct.ex) excludedIds.push(tid);
-              dayTrips.push({
-                id: tid,
-                plate,
-                vehicleLabel,
-                driverName,
-                fleet: 'Monday Archive',
-                date,
-                dayOfWeek: dow,
-                dayLabel,
-                isWeekend,
-                startTime: sStr,
-                startTimeFull: `${sStr}:00`,
-                startMinutes: ct.sm,
-                endTime: eStr,
-                endTimeFull: `${eStr}:00`,
-                endMinutes: ct.em,
-                startAddress: ct.sa || '—',
-                endAddress: ct.ea || '—',
-                distanceKm: Number(ct.km) || 0,
-                durationSec: Number(ct.d) || 0,
-                durationLabel: formatSecondsToDuration(Number(ct.d) || 0),
-                isPrivate: Boolean(ct.p),
-              });
+        const parsed = parseStoredTripsJson(rawTrips);
+        if (parsed.length > 0) {
+          const minToHHMM = (m: number) =>
+            `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+          parsed.forEach((ct, idx) => {
+            const sStr = ct.s || minToHHMM(ct.sm);
+            const eStr = ct.e || minToHHMM(ct.em);
+            const tid = ct.id || `${plate}_${date}_${sStr}_${idx}`;
+            if (ct.ex) excludedIds.push(tid);
+            dayTrips.push({
+              id: tid,
+              plate,
+              vehicleLabel,
+              driverName,
+              fleet: 'Monday Archive',
+              date,
+              dayOfWeek: dow,
+              dayLabel,
+              isWeekend,
+              startTime: sStr,
+              startTimeFull: `${sStr}:00`,
+              startMinutes: ct.sm,
+              endTime: eStr,
+              endTimeFull: `${eStr}:00`,
+              endMinutes: ct.em,
+              startAddress: ct.sa || '—',
+              endAddress: ct.ea || '—',
+              distanceKm: Number(ct.km) || 0,
+              durationSec: Number(ct.d) || 0,
+              durationLabel: formatSecondsToDuration(Number(ct.d) || 0),
+              isPrivate: Boolean(ct.p),
             });
-          }
-        } catch {
-          // ignore
+          });
         }
       }
 
@@ -981,26 +1056,20 @@ export const getCommuteKmRecords = createServerFn({ method: 'GET' })
         const excludedTrips: CommuteTripDetail[] = [];
 
         if (rawTrips) {
-          try {
-            const parsed: CompactStoredTrip[] = JSON.parse(rawTrips);
-            if (Array.isArray(parsed)) {
-              for (const ct of parsed) {
-                const km = Number(ct.km) || 0;
-                totalDayKm += km;
-                if (ct.ex) {
-                  commuteKm += km;
-                  excludedTrips.push({
-                    startTime: ct.s || minToHHMM(ct.sm),
-                    endTime: ct.e || minToHHMM(ct.em),
-                    startAddress: ct.sa || '—',
-                    endAddress: ct.ea || '—',
-                    km: Math.round(km * 100) / 100,
-                  });
-                }
-              }
+          const parsed = parseStoredTripsJson(rawTrips);
+          for (const ct of parsed) {
+            const km = Number(ct.km) || 0;
+            totalDayKm += km;
+            if (ct.ex) {
+              commuteKm += km;
+              excludedTrips.push({
+                startTime: ct.s || minToHHMM(ct.sm),
+                endTime: ct.e || minToHHMM(ct.em),
+                startAddress: ct.sa || '—',
+                endAddress: ct.ea || '—',
+                km: Math.round(km * 100) / 100,
+              });
             }
-          } catch {
-            // ignore
           }
         }
 
