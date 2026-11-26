@@ -19,7 +19,8 @@ export type ViewId =
   | 'comm_lea'
   | 'comm_alertes'
   | 'direction_vincent'
-  | 'commercial_contrats';
+  | 'commercial_contrats'
+  | 'salaries_rh';
 
 export const PERMISSIONS_BOARD_ID = 5108553085;
 export const PERMISSIONS_BOARD_URL = `https://groupefacility.monday.com/boards/${PERMISSIONS_BOARD_ID}`;
@@ -140,4 +141,5 @@ export const VIEW_TO_HUB_KEY: Record<ViewId, HubKey | null> = {
   comm_alertes: 'communication',
   direction_vincent: 'direction',
   commercial_contrats: 'commercial',
+  salaries_rh: 'direction',
 };

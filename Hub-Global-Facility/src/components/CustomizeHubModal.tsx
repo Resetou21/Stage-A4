@@ -32,16 +32,18 @@ export default function CustomizeHubModal({
 }: CustomizeHubModalProps) {
   if (!isOpen) return null;
 
-  // Les 5 cartes-pôles du menu principal (Facturation+Fournisseurs regroupés, Clients = Commerce+Contacts)
-  const GROUPED_DISPLAY_KEYS: HubKey[] = ['secteurs', 'atelier', 'facturation', 'commercial', 'direction'];
+  // Les 6 cartes-pôles du menu principal (Facturation+Fournisseurs, Clients = Commerce+Contacts, Espace Salariés & RH)
+  const GROUPED_DISPLAY_KEYS: HubKey[] = ['secteurs', 'atelier', 'facturation', 'commercial', 'direction', 'communication'];
   const isCardAllowed = (k: HubKey): boolean => {
     if (k === 'facturation') return permissions.facturation || permissions.fournisseurs;
     if (k === 'commercial') return permissions.commercial || permissions.communication;
+    if (k === 'communication') return permissions.direction;
     return permissions[k];
   };
   const CARD_LABEL_OVERRIDE: Partial<Record<HubKey, string>> = {
     facturation: 'Facturation & Fournisseurs',
     commercial: 'Clients (Commerce & Contacts)',
+    communication: 'Espace Salariés & RH',
   };
 
   const allowedHubsOrder = prefs.hubOrder.filter((k) => GROUPED_DISPLAY_KEYS.includes(k) && isCardAllowed(k));

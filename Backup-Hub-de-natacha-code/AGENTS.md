@@ -241,5 +241,13 @@ Lors de la validation d'une fiche de contrôle dans le Hub :
 * **Harmonisation stricte des Immatriculations** :
   * Toutes les liaisons (contrôles visuels, interventions atelier, consommations carburant/bornes, charges fixes, géolocalisation) doivent obligatoirement s'appuyer sur la **plaque d'immatriculation officielle** (format `AA-123-AA`) et non sur un simple numéro de flotte interne, afin d'éliminer tout biais dans le top des consommations importantes.
 
+### E. Feuille de Route Espace Salariés & RH / Groupes WhatsApp (À finaliser après réunion du 01/12 & arrivée compte Mélanie)
+* **Espace déjà créé dans le Hub Global (`SalariesHubView.tsx`)** : branché sur `Pole RH` (`8288835`) → `👥 Liste des Salariés` (`5108574616`) & `📚 Accompagnements & Messages WhatsApp` (`5108574626`).
+* **Prochaine étape (après validation mardi 01/12)** :
+  * Tableau `📣 Groupes de Diffusion Salariés` relié à `👥 Liste des Salariés` (création/modification réservée exclusivement à **Mélanie (RH)** + Admins, pastille d'information chez les autres utilisateurs).
+  * Retrait automatique des salariés `Sorti` de tous leurs groupes + vue d'affectation des nouveaux salariés pour Mélanie.
+  * Envoi WhatsApp multi-salariés ou par groupe + case à cocher **« Message suivi »** (pastille info) remontant dans le **Dossier Salarié RH**.
+  * Suivi chez l'expéditeur du nombre de **Reçus / Non lus + liste nominative des non lus** (mode gratuit `wa.me` manuel ou automatique via Meta WhatsApp Business API selon décision Direction).
+
 
 

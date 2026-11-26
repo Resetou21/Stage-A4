@@ -56,6 +56,7 @@ import PermissionsModal from './components/PermissionsModal';
 import DataRulesAuditModal from './components/DataRulesAuditModal';
 import RoadmapModal from './components/RoadmapModal';
 import CommercialHubView from './components/CommercialHubView';
+import SalariesHubView from './components/SalariesHubView';
 import { prefetchCommercialData } from './services/commercialService';
 
 const monday = mondaySdk();
@@ -130,6 +131,7 @@ const VALID_VIEWS: ViewId[] = [
   'comm_lea',
   'direction_vincent',
   'commercial_contrats',
+  'salaries_rh',
 ];
 
 const getInitialView = (): ViewId => {
@@ -507,6 +509,28 @@ export default function App() {
             title: 'Hub Véhicules — Flotte & Géolocalisation',
             description: 'Coûts flotte, géolocalisation GPS, pointages & non-qualité',
             icon: Landmark,
+          },
+        ],
+      });
+
+      cards.push({
+        key: 'communication',
+        title: 'Espace Salariés & RH',
+        description: 'Annuaire centralisé Pole RH, dossiers de suivi salarié et préparation groupes WhatsApp',
+        image: getDef('communication').image,
+        accentColor: '#0E7042',
+        bgLight: '#E6F9F1',
+        badge: 'Pole RH',
+        defaultView: 'salaries_rh',
+        icon: Users,
+        items: [
+          {
+            id: 'salaries_rh',
+            title: 'Espace Salariés & Dossiers RH',
+            badge: 'Nouveau',
+            badgeColor: '#0E7042',
+            description: 'Annuaire salariés, suivi messages transmis & cadrage groupes diffusion',
+            icon: Users,
           },
         ],
       });
@@ -2560,6 +2584,10 @@ export default function App() {
 
         {currentView === 'commercial_contrats' && (
           <CommercialHubView monday={monday} />
+        )}
+
+        {currentView === 'salaries_rh' && (
+          <SalariesHubView monday={monday} />
         )}
 
         {/* Modales */}
