@@ -1026,11 +1026,17 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
                 <input
                   type="number"
+                  inputMode="numeric"
                   placeholder="Ex : 1450 (laisser vide si machine sans compteur)..."
                   value={heuresCompteur !== undefined ? heuresCompteur : ''}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.', ','].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   onChange={(e) => {
-                    const v = e.target.value.trim();
-                    setHeuresCompteur(v !== '' ? Number(v) : undefined);
+                    const digits = e.target.value.replace(/\D/g, '');
+                    setHeuresCompteur(digits !== '' ? Number(digits) : undefined);
                   }}
                   min={0}
                   step={1}
