@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  ENABLE_SALARIES_RH_HUB,
   HUB_DEFINITIONS,
   HubKey,
   VIEW_TO_HUB_KEY,
@@ -131,7 +132,7 @@ const VALID_VIEWS: ViewId[] = [
   'comm_lea',
   'direction_vincent',
   'commercial_contrats',
-  'salaries_rh',
+  ...(ENABLE_SALARIES_RH_HUB ? (['salaries_rh'] as ViewId[]) : []),
 ];
 
 const getInitialView = (): ViewId => {
@@ -513,27 +514,29 @@ export default function App() {
         ],
       });
 
-      cards.push({
-        key: 'communication',
-        title: 'Espace Salariés & RH',
-        description: 'Annuaire centralisé Pole RH, dossiers de suivi salarié et préparation groupes WhatsApp',
-        image: getDef('communication').image,
-        accentColor: '#0E7042',
-        bgLight: '#E6F9F1',
-        badge: 'Pole RH',
-        defaultView: 'salaries_rh',
-        icon: Users,
-        items: [
-          {
-            id: 'salaries_rh',
-            title: 'Espace Salariés & Dossiers RH',
-            badge: 'Nouveau',
-            badgeColor: '#0E7042',
-            description: 'Annuaire salariés, suivi messages transmis & cadrage groupes diffusion',
-            icon: Users,
-          },
-        ],
-      });
+      if (ENABLE_SALARIES_RH_HUB) {
+        cards.push({
+          key: 'communication',
+          title: 'Espace Salariés & RH',
+          description: 'Annuaire centralisé Pole RH, dossiers de suivi salarié et préparation groupes WhatsApp',
+          image: getDef('communication').image,
+          accentColor: '#0E7042',
+          bgLight: '#E6F9F1',
+          badge: 'Pole RH',
+          defaultView: 'salaries_rh',
+          icon: Users,
+          items: [
+            {
+              id: 'salaries_rh',
+              title: 'Espace Salariés & Dossiers RH',
+              badge: 'Nouveau',
+              badgeColor: '#0E7042',
+              description: 'Annuaire salariés, suivi messages transmis & cadrage groupes diffusion',
+              icon: Users,
+            },
+          ],
+        });
+      }
     }
 
     return cards;
@@ -2586,7 +2589,7 @@ export default function App() {
           <CommercialHubView monday={monday} />
         )}
 
-        {currentView === 'salaries_rh' && (
+        {ENABLE_SALARIES_RH_HUB && currentView === 'salaries_rh' && (
           <SalariesHubView monday={monday} />
         )}
 

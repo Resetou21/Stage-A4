@@ -25,6 +25,9 @@ export type ViewId =
 export const PERMISSIONS_BOARD_ID = 5108553085;
 export const PERMISSIONS_BOARD_URL = `https://groupefacility.monday.com/boards/${PERMISSIONS_BOARD_ID}`;
 
+// Feature flag : passer à true dès que l'on souhaite afficher l'Espace Salariés & RH sur l'accueil
+export const ENABLE_SALARIES_RH_HUB = false;
+
 export const PERMISSIONS_COLUMN_IDS = {
   email: 'text_mm9ec0yk',
   secteurs: 'boolean_mm9e8xy4',

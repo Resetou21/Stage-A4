@@ -9,7 +9,7 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import { HUB_DEFINITIONS, HubKey } from '../config/hubPermissions';
+import { ENABLE_SALARIES_RH_HUB, HUB_DEFINITIONS, HubKey } from '../config/hubPermissions';
 import { UserHubPermissions } from '../services/permissionsService';
 import { getDefaultUserPrefs, UserHubPrefs } from '../services/userPrefsService';
 
@@ -32,8 +32,10 @@ export default function CustomizeHubModal({
 }: CustomizeHubModalProps) {
   if (!isOpen) return null;
 
-  // Les 6 cartes-pôles du menu principal (Facturation+Fournisseurs, Clients = Commerce+Contacts, Espace Salariés & RH)
-  const GROUPED_DISPLAY_KEYS: HubKey[] = ['secteurs', 'atelier', 'facturation', 'commercial', 'direction', 'communication'];
+  // Cartes-pôles du menu principal (Facturation+Fournisseurs, Clients = Commerce+Contacts ; Espace Salariés & RH activable via feature flag)
+  const GROUPED_DISPLAY_KEYS: HubKey[] = ENABLE_SALARIES_RH_HUB
+    ? ['secteurs', 'atelier', 'facturation', 'commercial', 'direction', 'communication']
+    : ['secteurs', 'atelier', 'facturation', 'commercial', 'direction'];
   const isCardAllowed = (k: HubKey): boolean => {
     if (k === 'facturation') return permissions.facturation || permissions.fournisseurs;
     if (k === 'commercial') return permissions.commercial || permissions.communication;
