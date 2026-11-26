@@ -20,6 +20,7 @@ interface CustomizeHubModalProps {
   permissions: UserHubPermissions;
   prefs: UserHubPrefs;
   onUpdatePrefs: (next: UserHubPrefs) => void;
+  canSeeSalariesRh?: boolean;
 }
 
 export default function CustomizeHubModal({
@@ -29,11 +30,12 @@ export default function CustomizeHubModal({
   permissions,
   prefs,
   onUpdatePrefs,
+  canSeeSalariesRh = ENABLE_SALARIES_RH_HUB,
 }: CustomizeHubModalProps) {
   if (!isOpen) return null;
 
   // Cartes-pôles du menu principal (Facturation+Fournisseurs, Clients = Commerce+Contacts ; Espace Salariés & RH activable via feature flag)
-  const GROUPED_DISPLAY_KEYS: HubKey[] = ENABLE_SALARIES_RH_HUB
+  const GROUPED_DISPLAY_KEYS: HubKey[] = canSeeSalariesRh
     ? ['secteurs', 'atelier', 'facturation', 'commercial', 'direction', 'communication']
     : ['secteurs', 'atelier', 'facturation', 'commercial', 'direction'];
   const isCardAllowed = (k: HubKey): boolean => {

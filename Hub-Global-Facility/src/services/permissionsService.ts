@@ -38,6 +38,16 @@ export const createEmptyPermissions = (): UserHubPermissions => ({
   commercial: false,
 });
 
+export const isGuillaumeUser = (userName?: string, userEmail?: string): boolean => {
+  const n = (userName || '').toLowerCase().trim();
+  const e = (userEmail || '').toLowerCase().trim();
+  return (
+    e.includes('guillaume.daniel') ||
+    e.includes('gdaniel') ||
+    (n.includes('guillaume') && n.includes('daniel'))
+  );
+};
+
 export const isAdminUser = (userName?: string, userEmail?: string): boolean => {
   const n = (userName || '').toLowerCase().trim();
   const e = (userEmail || '').toLowerCase().trim();

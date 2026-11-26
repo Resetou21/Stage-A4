@@ -25,8 +25,10 @@ export type ViewId =
 export const PERMISSIONS_BOARD_ID = 5108553085;
 export const PERMISSIONS_BOARD_URL = `https://groupefacility.monday.com/boards/${PERMISSIONS_BOARD_ID}`;
 
-// Feature flag : passer à true dès que l'on souhaite afficher l'Espace Salariés & RH sur l'accueil
+// Feature flag : passer à true dès que l'on souhaite afficher l'Espace Salariés & RH à la Direction / RH
 export const ENABLE_SALARIES_RH_HUB = false;
+// Aperçu privé uniquement pour le compte Guillaume Daniel (invisible pour Laurent & les autres utilisateurs)
+export const ENABLE_SALARIES_RH_PREVIEW_GUILLAUME = true;
 
 export const PERMISSIONS_COLUMN_IDS = {
   email: 'text_mm9ec0yk',

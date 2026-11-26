@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import {
   ENABLE_SALARIES_RH_HUB,
+  ENABLE_SALARIES_RH_PREVIEW_GUILLAUME,
   HUB_DEFINITIONS,
   HubKey,
   VIEW_TO_HUB_KEY,
@@ -40,6 +41,7 @@ import {
   createEmptyPermissions,
   fetchUserPermissions,
   isAdminUser,
+  isGuillaumeUser,
   UserHubPermissions,
 } from './services/permissionsService';
 import {
@@ -132,7 +134,7 @@ const VALID_VIEWS: ViewId[] = [
   'comm_lea',
   'direction_vincent',
   'commercial_contrats',
-  ...(ENABLE_SALARIES_RH_HUB ? (['salaries_rh'] as ViewId[]) : []),
+  'salaries_rh',
 ];
 
 const getInitialView = (): ViewId => {
@@ -337,7 +339,12 @@ export default function App() {
     void saveUserPrefs(monday, userKey, next);
   };
 
-  // Construction des 5 pôles unifiés (regroupement Facturation+Fournisseurs et Clients=Commerce+Contacts)
+  // Visibilité Espace Salariés & RH : publique si ENABLE_SALARIES_RH_HUB, sinon aperçu privé Guillaume uniquement
+  const canSeeSalariesRh =
+    ENABLE_SALARIES_RH_HUB ||
+    (ENABLE_SALARIES_RH_PREVIEW_GUILLAUME && isGuillaumeUser(userName, userEmail));
+
+  // Construction des pôles unifiés (regroupement Facturation+Fournisseurs et Clients=Commerce+Contacts)
   const allHubCards: HubCardData[] = useMemo(() => {
     const defByKey = new Map(HUB_DEFINITIONS.map((d) => [d.key, d]));
     const getDef = (k: HubKey) => defByKey.get(k)!;
@@ -514,7 +521,7 @@ export default function App() {
         ],
       });
 
-      if (ENABLE_SALARIES_RH_HUB) {
+      if (canSeeSalariesRh) {
         cards.push({
           key: 'communication',
           title: 'Espace Salariés & RH',
@@ -522,14 +529,14 @@ export default function App() {
           image: getDef('communication').image,
           accentColor: '#0E7042',
           bgLight: '#E6F9F1',
-          badge: 'Pole RH',
+          badge: ENABLE_SALARIES_RH_HUB ? 'Pole RH' : 'Aperçu privé',
           defaultView: 'salaries_rh',
           icon: Users,
           items: [
             {
               id: 'salaries_rh',
               title: 'Espace Salariés & Dossiers RH',
-              badge: 'Nouveau',
+              badge: ENABLE_SALARIES_RH_HUB ? 'Nouveau' : 'Privé (Guillaume)',
               badgeColor: '#0E7042',
               description: 'Annuaire salariés, suivi messages transmis & cadrage groupes diffusion',
               icon: Users,
@@ -540,7 +547,7 @@ export default function App() {
     }
 
     return cards;
-  }, [stats, curYear, permissions]);
+  }, [stats, curYear, permissions, canSeeSalariesRh]);
 
   // Hubs autorisés uniquement (déjà filtrés finement par permission individuelle ci-dessus)
   const authorizedHubCards = allHubCards;
@@ -2589,7 +2596,7 @@ export default function App() {
           <CommercialHubView monday={monday} />
         )}
 
-        {ENABLE_SALARIES_RH_HUB && currentView === 'salaries_rh' && (
+        {canSeeSalariesRh && currentView === 'salaries_rh' && (
           <SalariesHubView monday={monday} />
         )}
 
@@ -2609,6 +2616,7 @@ export default function App() {
           permissions={permissions}
           prefs={prefs}
           onUpdatePrefs={handleUpdatePrefs}
+          canSeeSalariesRh={canSeeSalariesRh}
         />
 
         {isAdmin && (
