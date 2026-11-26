@@ -25,6 +25,10 @@ import {
   X,
   History,
   Trash2,
+  Archive,
+  Cloud,
+  CloudUpload,
+  UserCheck,
 } from 'lucide-react';
 import {
   Bar,
@@ -40,7 +44,7 @@ import { toast } from 'sonner';
 import {
   parseGeolocWorkbook,
   normalizePlateKey,
-  formatMinutesToDuration,
+  formatMinutesToHHMM,
   type GeoAlertStatus,
   type GeoVehicleSummary,
   type GeoWorkbookResult,
@@ -59,6 +63,21 @@ import {
   type MondayGeolocHistory,
   type MondayGeolocRecord,
 } from '@generated/server/geoloc';
+import {
+  GEOLOC_DETAILS_BOARD_URL,
+  getRhEmployeeNames,
+  getMondayDetailWeeksList,
+  loadMondayWeekDetails,
+  ensureDetailsWeekGroup,
+  upsertDailyDetailRow,
+  archiveDetailsOlderThan6Months,
+  computeUsefulDayMetrics,
+  computePointageStatus,
+  serializeTripsCompact,
+  type DayAnnotationState,
+  type MondayDetailWeekSummary,
+} from '@generated/server/geolocDetails';
+import GeolocDayDetailCard from './GeolocDayDetailCard';
 import SearchableSelect from '@components/SearchableSelect';
 import { createSpreadsheet, createTheme, useXlsxExport } from '@/skills/xlsx-export';
 import { cn } from '@lib/utils';
@@ -113,81 +132,6 @@ function AlertBadge({ status }: { status: GeoAlertStatus }) {
   );
 }
 
-// Timeline horizontale 03:00 -> 22:00 pour une journée d'un véhicule
-function DayTimelineBar({ day }: { day: GeoVehicleSummary['days'][number] }) {
-  const MIN_START = 3 * 60; // 03:00
-  const MAX_END = 22 * 60; // 22:00
-  const SPAN = MAX_END - MIN_START;
-  const ticks = [4, 7, 10, 13, 16, 19, 22];
-
-  return (
-    <div className="mt-2">
-      <div className="relative h-5 w-full overflow-hidden rounded-md border border-border/70 bg-muted/40">
-        {/* Repères horaires verticaux */}
-        {ticks.map((h) => {
-          const leftPct = ((h * 60 - MIN_START) / SPAN) * 100;
-          return (
-            <div
-              key={h}
-              className="pointer-events-none absolute top-0 bottom-0 border-l border-border/50"
-              style={{ left: `${leftPct}%` }}
-            />
-          );
-        })}
-
-        {/* Barre d'amplitude de fond */}
-        {day.amplitudeMin > 0 && (
-          <div
-            className="pointer-events-none absolute top-1.5 bottom-1.5 rounded bg-primary/12"
-            style={{
-              left: `${Math.max(0, Math.min(100, ((day.firstDepartureMin - MIN_START) / SPAN) * 100))}%`,
-              width: `${Math.max(
-                0.8,
-                Math.min(
-                  100,
-                  ((Math.min(day.lastArrivalMin, MAX_END) - Math.max(day.firstDepartureMin, MIN_START)) / SPAN) * 100,
-                ),
-              )}%`,
-            }}
-          />
-        )}
-
-        {/* Segments de trajets */}
-        {day.trips.map((t) => {
-          const s = Math.max(MIN_START, Math.min(MAX_END, t.startMinutes));
-          const e = Math.max(s + 3, Math.min(MAX_END, t.endMinutes));
-          const leftPct = ((s - MIN_START) / SPAN) * 100;
-          const widthPct = Math.max(0.7, ((e - s) / SPAN) * 100);
-          const colorClass = t.isPrivate
-            ? 'bg-sky-500'
-            : t.isWeekend
-              ? 'bg-purple-500'
-              : t.startMinutes < 270 || t.endMinutes > 1170
-                ? 'bg-[#D66927]'
-                : 'bg-[#39A9DC]';
-          return (
-            <div
-              key={t.id}
-              className={cn('absolute top-0.5 bottom-0.5 rounded-[3px] transition-opacity hover:opacity-80', colorClass)}
-              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-              title={`${t.startTime} → ${t.endTime} (${t.distanceKm} km · ${t.durationLabel})\n${t.startAddress} → ${t.endAddress}`}
-            />
-          );
-        })}
-      </div>
-      <div className="relative mt-0.5 flex justify-between text-[9px] font-mono text-muted-foreground select-none">
-        <span>03h</span>
-        <span>07h</span>
-        <span>10h</span>
-        <span>13h</span>
-        <span>16h</span>
-        <span>19h</span>
-        <span>22h</span>
-      </div>
-    </div>
-  );
-}
-
 export default function GeolocCard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { exportToXlsx } = useXlsxExport();
@@ -225,9 +169,52 @@ export default function GeolocCard() {
   const [tripVehicleFilter, setTripVehicleFilter] = useState<string>('all');
   const [tripVisibleCount, setTripVisibleCount] = useState(60);
 
-  // État synchronisation vers Monday
+  // État synchronisation vers Monday (Synthèse 5108497111)
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; label: string } | null>(null);
+
+  // Pointage multi-salariés + exclusions Domicile ↔ Travail + archivage détails Monday (5108589918)
+  const [rhEmployees, setRhEmployees] = useState<string[]>([]);
+  const [mondayDetailWeeks, setMondayDetailWeeks] = useState<MondayDetailWeekSummary[]>([]);
+  const [mondayDetailTotalItems, setMondayDetailTotalItems] = useState<number>(0);
+  const [loadingMondayWeekId, setLoadingMondayWeekId] = useState<string | null>(null);
+  const [dayAnnotations, setDayAnnotations] = useState<Record<string, DayAnnotationState>>({});
+  const [savingDayKey, setSavingDayKey] = useState<string | null>(null);
+  const [syncingDetails, setSyncingDetails] = useState(false);
+  const [detailsSyncProgress, setDetailsSyncProgress] = useState<{ current: number; total: number; label: string } | null>(null);
+  const [archivingOldDetails, setArchivingOldDetails] = useState(false);
+
+  const refreshMondayDetailsList = useCallback(async () => {
+    try {
+      const res = await getMondayDetailWeeksList({ data: {} });
+      setMondayDetailWeeks(res.weeks);
+      setMondayDetailTotalItems(res.totalActiveItems);
+    } catch (err) {
+      console.error('Erreur liste détails journaliers Monday:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    getRhEmployeeNames({ data: {} })
+      .then((names) => setRhEmployees(names))
+      .catch(() => {});
+    refreshMondayDetailsList();
+  }, [refreshMondayDetailsList]);
+
+  // Charger automatiquement les exclusions & pointages déjà sauvegardés sur Monday pour la semaine ouverte
+  useEffect(() => {
+    if (!workbook?.weekId) return;
+    let cancelled = false;
+    loadMondayWeekDetails({ data: { weekId: workbook.weekId } })
+      .then((payload) => {
+        if (cancelled) return;
+        setDayAnnotations((prev) => ({ ...prev, ...payload.annotationsByKey }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [workbook?.weekId]);
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -448,6 +435,233 @@ export default function GeolocCard() {
     }
   };
 
+  // ==================== POINTAGE & ARCHIVAGE DÉTAILS JOURNALIERS (5108589918) ====================
+  const handleLoadMondayDetailWeek = async (weekId: string) => {
+    if (loadingMondayWeekId) return;
+    setLoadingMondayWeekId(weekId);
+    try {
+      const payload = await loadMondayWeekDetails({ data: { weekId } });
+      setDayAnnotations((prev) => ({ ...prev, ...payload.annotationsByKey }));
+      if (payload.reconstructedWorkbook) {
+        setWorkbook(payload.reconstructedWorkbook);
+        setMainTab('explorer');
+        setExplorerSubTab('vehicle');
+        const firstActive =
+          payload.reconstructedWorkbook.vehicles.find((v) => v.trips.length > 0) ||
+          payload.reconstructedWorkbook.vehicles[0];
+        setSelectedVehiclePlate(firstActive?.plate || '');
+        setExpandedDays({});
+        toast.success(`Semaine ${payload.weekLabel} rechargée depuis Monday !`, {
+          description: `${payload.reconstructedWorkbook.totalVehicles} véhicules · ${payload.reconstructedWorkbook.totalTrips} trajets · exclusions & pointages restaurés.`,
+        });
+      } else {
+        toast.info('Aucun détail de trajet trouvé pour cette semaine sur Monday.');
+      }
+    } catch (err: any) {
+      toast.error('Impossible de charger cette semaine depuis Monday', { description: err?.message });
+    } finally {
+      setLoadingMondayWeekId(null);
+    }
+  };
+
+  const handleSaveSingleDayToMonday = async (
+    vehicle: GeoVehicleSummary,
+    day: GeoVehicleSummary['days'][number],
+  ) => {
+    if (!workbook) return;
+    const key = `${normalizePlateKey(vehicle.plate)}::${day.date}`;
+    const ann: DayAnnotationState = dayAnnotations[key] ?? { excludedTripIds: [], pointages: [] };
+    setSavingDayKey(key);
+    try {
+      const { groupId } = await ensureDetailsWeekGroup({
+        data: { weekId: workbook.weekId, weekLabel: workbook.weekLabel },
+      });
+      const excludedSet = new Set(ann.excludedTripIds);
+      const metrics = computeUsefulDayMetrics(day, excludedSet);
+      const ptSummary = computePointageStatus(ann.pointages);
+      const trajetsJson = serializeTripsCompact(day.trips, excludedSet);
+
+      const res = await upsertDailyDetailRow({
+        data: {
+          groupId,
+          existingItemId: ann.mondayItemId,
+          weekId: workbook.weekId,
+          date: day.date,
+          plate: vehicle.plate,
+          vehicleLabel: vehicle.vehicleLabel,
+          driverName: vehicle.driverName,
+          statutPointage: ptSummary.status,
+          ecartTotalMin: ptSummary.totalDeltaMin,
+          amplitudeUtileH: metrics.usefulAmplitudeHours,
+          plageUtile: `${metrics.usefulStartLabel} → ${metrics.usefulEndLabel}`,
+          kmUtiles: metrics.usefulKm,
+          trajetsExclus: metrics.excludedCount,
+          pointageJson: JSON.stringify(ann.pointages),
+          trajetsJson,
+        },
+      });
+
+      setDayAnnotations((prev) => ({
+        ...prev,
+        [key]: { ...ann, mondayItemId: res.id },
+      }));
+      toast.success(`Pointage & exclusions enregistrés (${vehicle.plate} · ${day.dayLabel})`, {
+        description:
+          ptSummary.status === 'Écart horaire'
+            ? `Statut : Écart horaire (${ptSummary.totalDeltaMin} min) · Plage utile ${metrics.usefulStartLabel} → ${metrics.usefulEndLabel}`
+            : `Statut : ${ptSummary.status} · Plage utile ${metrics.usefulStartLabel} → ${metrics.usefulEndLabel}`,
+      });
+      refreshMondayDetailsList();
+    } catch (err: any) {
+      toast.error('Erreur lors de la sauvegarde du pointage', { description: err?.message });
+    } finally {
+      setSavingDayKey(null);
+    }
+  };
+
+  const totalWorkbookActiveDays = useMemo(() => {
+    if (!workbook) return 0;
+    return workbook.vehicles.reduce((sum, v) => sum + v.days.length, 0);
+  }, [workbook]);
+
+  const handleSyncAllDetailsToMonday = async () => {
+    if (!workbook || syncingDetails) return;
+    const tasks: Array<{ vehicle: GeoVehicleSummary; day: GeoVehicleSummary['days'][number] }> = [];
+    for (const v of workbook.vehicles) {
+      for (const d of v.days) {
+        if (d.trips.length > 0) tasks.push({ vehicle: v, day: d });
+      }
+    }
+    if (tasks.length === 0) {
+      toast.info('Aucun détail journalier à archiver pour cette semaine.');
+      return;
+    }
+
+    setSyncingDetails(true);
+    try {
+      setDetailsSyncProgress({ current: 0, total: tasks.length, label: `Préparation du groupe ${workbook.weekLabel}…` });
+      const { groupId } = await ensureDetailsWeekGroup({
+        data: { weekId: workbook.weekId, weekLabel: workbook.weekLabel },
+      });
+      const existingPayload = await loadMondayWeekDetails({ data: { weekId: workbook.weekId } });
+      const existingIds = existingPayload.itemIdByKey;
+
+      let created = 0;
+      let updated = 0;
+      const newIds: Record<string, string> = {};
+
+      for (let i = 0; i < tasks.length; i++) {
+        const { vehicle, day } = tasks[i];
+        const key = `${normalizePlateKey(vehicle.plate)}::${day.date}`;
+        const localAnn: DayAnnotationState =
+          dayAnnotations[key] ?? existingPayload.annotationsByKey[key] ?? { excludedTripIds: [], pointages: [] };
+        const existingItemId = localAnn.mondayItemId || existingIds[key];
+
+        setDetailsSyncProgress({
+          current: i + 1,
+          total: tasks.length,
+          label: `${vehicle.plate} · ${day.dayLabel} (${day.trips.length} traj.)`,
+        });
+
+        const excludedSet = new Set<string>(localAnn.excludedTripIds);
+        const metrics = computeUsefulDayMetrics(day, excludedSet);
+        const ptSummary = computePointageStatus(localAnn.pointages);
+        const trajetsJson = serializeTripsCompact(day.trips, excludedSet);
+
+        const res = await upsertDailyDetailRow({
+          data: {
+            groupId,
+            existingItemId,
+            weekId: workbook.weekId,
+            date: day.date,
+            plate: vehicle.plate,
+            vehicleLabel: vehicle.vehicleLabel,
+            driverName: vehicle.driverName,
+            statutPointage: ptSummary.status,
+            ecartTotalMin: ptSummary.totalDeltaMin,
+            amplitudeUtileH: metrics.usefulAmplitudeHours,
+            plageUtile: `${metrics.usefulStartLabel} → ${metrics.usefulEndLabel}`,
+            kmUtiles: metrics.usefulKm,
+            trajetsExclus: metrics.excludedCount,
+            pointageJson: JSON.stringify(localAnn.pointages),
+            trajetsJson,
+          },
+        });
+
+        newIds[key] = res.id;
+        if (res.action === 'created') created++;
+        else updated++;
+
+        await new Promise((r) => setTimeout(r, 55));
+      }
+
+      setDayAnnotations((prev) => {
+        const next = { ...prev };
+        for (const [k, id] of Object.entries(newIds)) {
+          next[k] = { ...(next[k] ?? { excludedTripIds: [], pointages: [] }), mondayItemId: id };
+        }
+        return next;
+      });
+
+      toast.success('Tous les détails journaliers archivés sur Monday !', {
+        description: `${created} créé(s) · ${updated} mis à jour dans « ${workbook.weekLabel} » (rechargeables sans Excel depuis n’importe quel PC).`,
+      });
+      await refreshMondayDetailsList();
+    } catch (err: any) {
+      toast.error('Erreur pendant l’archivage des détails journaliers', {
+        description: err?.message || 'Relancez l’opération : l’anti-doublon reprendra automatiquement.',
+      });
+      await refreshMondayDetailsList();
+    } finally {
+      setSyncingDetails(false);
+      setDetailsSyncProgress(null);
+    }
+  };
+
+  const olderThan6MonthsWeeks = useMemo(
+    () => mondayDetailWeeks.filter((w) => w.isOlderThan6Months && w.groupId),
+    [mondayDetailWeeks],
+  );
+
+  const handleArchiveOldDetails = async () => {
+    if (olderThan6MonthsWeeks.length === 0 || archivingOldDetails) return;
+    const totalDays = olderThan6MonthsWeeks.reduce((s, w) => s + w.dayCount, 0);
+    if (
+      !window.confirm(
+        `Archiver ${olderThan6MonthsWeeks.length} semaine(s) de plus de 6 mois (${totalDays} lignes journalières) dans l’archive Monday ?\n\nLes données restent récupérables dans les Archives Monday sans aucune limite et libèrent instantanément votre quota d’éléments actifs.`
+      )
+    ) {
+      return;
+    }
+    setArchivingOldDetails(true);
+    try {
+      const res = await archiveDetailsOlderThan6Months({
+        data: { groupIds: olderThan6MonthsWeeks.map((w) => w.groupId) },
+      });
+      toast.success(`${res.archivedGroups} groupe(s) archivé(s) sur Monday !`, {
+        description: 'Quota d’éléments actifs libéré · historique toujours consultable dans les Archives Monday.',
+      });
+      await refreshMondayDetailsList();
+    } catch (err: any) {
+      toast.error('Erreur lors de l’archivage des anciennes semaines', { description: err?.message });
+    } finally {
+      setArchivingOldDetails(false);
+    }
+  };
+
+  const mergedEmployeeOptions = useMemo(() => {
+    const set = new Set<string>(rhEmployees);
+    workbook?.vehicles.forEach((v) => {
+      if (v.driverName && v.driverName !== '—') set.add(v.driverName);
+    });
+    Object.values(dayAnnotations).forEach((ann) => {
+      ann.pointages.forEach((p) => {
+        if (p.employeeName.trim()) set.add(p.employeeName.trim());
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [rhEmployees, workbook, dayAnnotations]);
+
   // ==================== DONNÉES FILTRÉES : HISTORIQUE MONDAY ====================
   const activeHistoryWeekRecords = useMemo(() => {
     if (!history) return [];
@@ -540,6 +754,53 @@ export default function GeolocCard() {
       null
     );
   }, [workbook, selectedVehiclePlate]);
+
+  // Recalcul agrégé du véhicule sélectionné quand des trajets Domicile ↔ Travail sont exclus
+  const selectedVehicleUsefulTotals = useMemo(() => {
+    if (!selectedVehicle || selectedVehicle.days.length === 0) return null;
+    let totalUsefulKm = 0;
+    let totalExcludedCount = 0;
+    let totalUsefulAmpMin = 0;
+    let totalUsefulDriveMin = 0;
+    let activeDaysCount = 0;
+    let sumStartMin = 0;
+    let sumEndMin = 0;
+    let pointedDays = 0;
+    let nonCompliantDays = 0;
+
+    for (const d of selectedVehicle.days) {
+      const key = `${normalizePlateKey(selectedVehicle.plate)}::${d.date}`;
+      const ann = dayAnnotations[key];
+      const exSet = new Set(ann?.excludedTripIds ?? []);
+      const m = computeUsefulDayMetrics(d, exSet);
+      totalUsefulKm += m.usefulKm;
+      totalExcludedCount += m.excludedCount;
+      totalUsefulAmpMin += m.usefulAmplitudeMin;
+      totalUsefulDriveMin += m.usefulDriveMin;
+      if (m.usefulTripsCount > 0) {
+        activeDaysCount++;
+        sumStartMin += m.usefulStartMin;
+        sumEndMin += m.usefulEndMin;
+      }
+      if (ann && ann.pointages.length > 0) {
+        const st = computePointageStatus(ann.pointages);
+        if (st.status !== 'Non pointé') pointedDays++;
+        if (st.status === 'Écart horaire') nonCompliantDays++;
+      }
+    }
+
+    return {
+      hasExclusions: totalExcludedCount > 0,
+      totalExcludedCount,
+      usefulKm: Math.round(totalUsefulKm * 10) / 10,
+      avgUsefulAmpHours: activeDaysCount > 0 ? Math.round((totalUsefulAmpMin / activeDaysCount / 60) * 100) / 100 : 0,
+      totalUsefulDriveHours: Math.round((totalUsefulDriveMin / 60) * 100) / 100,
+      avgUsefulStart: activeDaysCount > 0 ? formatMinutesToHHMM(sumStartMin / activeDaysCount) : '—',
+      avgUsefulEnd: activeDaysCount > 0 ? formatMinutesToHHMM(sumEndMin / activeDaysCount) : '—',
+      pointedDays,
+      nonCompliantDays,
+    };
+  }, [selectedVehicle, dayAnnotations]);
 
   const availableTripDays = useMemo(() => {
     if (!workbook) return [];
@@ -1214,6 +1475,95 @@ export default function GeolocCard() {
          ========================================================================= */}
       {mainTab === 'explorer' && (
         <div className="mt-5 space-y-5">
+          {/* Semaines détaillées & Pointages archivés sur Monday (5108589918) — rechargeables sans Excel */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[var(--radius-xl)] border border-primary/25 bg-primary/[0.03] px-3.5 py-2.5">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-primary shrink-0">
+                <Cloud className="h-3.5 w-3.5" />
+                Détails &amp; Pointages Monday ({mondayDetailWeeks.length} sem.) :
+              </span>
+
+              {mondayDetailWeeks.length === 0 ? (
+                <span className="text-[11px] text-muted-foreground">
+                  Aucune semaine détaillée archivée pour l’instant. Importez un Excel puis cliquez sur « Archiver détails &amp; pointages » ou enregistrez une journée.
+                </span>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {mondayDetailWeeks.map((wk) => {
+                    const isActive = workbook?.weekId === wk.weekId;
+                    const isLoading = loadingMondayWeekId === wk.weekId;
+                    return (
+                      <button
+                        key={wk.weekId}
+                        type="button"
+                        disabled={Boolean(loadingMondayWeekId)}
+                        onClick={() => handleLoadMondayDetailWeek(wk.weekId)}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition cursor-pointer disabled:opacity-60',
+                          isActive
+                            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                            : wk.isOlderThan6Months
+                              ? 'border-amber-500/40 bg-amber-500/10 text-amber-800 hover:border-amber-500'
+                              : 'border-border bg-card text-foreground hover:border-primary/60',
+                        )}
+                        title={`Recharger ${wk.groupTitle} depuis Monday (${wk.vehicleCount} véhicules · ${wk.dayCount} jours · ${wk.pointedCount} pointés)`}
+                      >
+                        {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
+                        <span>{wk.weekId}</span>
+                        <span className={cn('text-[10px] font-normal', isActive ? 'text-primary-foreground/85' : 'text-muted-foreground')}>
+                          {wk.dayCount}j{wk.pointedCount > 0 ? ` · ${wk.pointedCount} pt.` : ''}
+                        </span>
+                        {wk.nonCompliantCount > 0 && (
+                          <span className="rounded-full bg-red-600 px-1.5 py-0.2 text-[9px] font-extrabold text-white">
+                            {wk.nonCompliantCount} écart{wk.nonCompliantCount > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {wk.isOlderThan6Months && (
+                          <span className="rounded-full bg-amber-600 px-1.5 py-0.2 text-[9px] font-extrabold text-white">
+                            &gt;6m
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <span
+                className="rounded-full border border-border bg-card px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground"
+                title="Quota Monday Enterprise : 100 000 éléments actifs par tableau (archives illimitées)"
+              >
+                {mondayDetailTotalItems.toLocaleString('fr-FR')} / 100 000 actifs
+              </span>
+
+              {olderThan6MonthsWeeks.length > 0 && (
+                <button
+                  type="button"
+                  disabled={archivingOldDetails}
+                  onClick={handleArchiveOldDetails}
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-500/25 cursor-pointer disabled:opacity-50"
+                  title="Archive sur Monday les semaines de plus de 6 mois pour libérer le quota actif (données conservées en archive sans limite)"
+                >
+                  {archivingOldDetails ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
+                  <span>Archiver &gt; 6 mois ({olderThan6MonthsWeeks.length})</span>
+                </button>
+              )}
+
+              <a
+                href={GEOLOC_DETAILS_BOARD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-foreground hover:border-primary hover:text-primary"
+                title="Ouvrir le tableau Monday Pointage & Détails Journaliers GPS"
+              >
+                <span>Tableau Pointages</span>
+                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+              </a>
+            </div>
+          </div>
+
           {/* Historique local des fichiers Excel importés (IndexedDB) */}
           {savedWorkbooks.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[var(--radius-xl)] border border-border bg-background/80 px-3.5 py-2.5">
@@ -1320,34 +1670,48 @@ export default function GeolocCard() {
                     {syncPreview && syncPreview.newCount > 0 ? (
                       <button
                         type="button"
-                        disabled={syncing}
+                        disabled={syncing || syncingDetails}
                         onClick={() => handleSyncToMonday(false)}
                         className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 cursor-pointer disabled:opacity-60"
                       >
                         {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        <span>Enregistrer sur Monday (+{syncPreview.newCount} lignes)</span>
+                        <span>Synthèse Monday (+{syncPreview.newCount})</span>
                       </button>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Semaine déjà archivée ({syncPreview?.existingCount}/{syncPreview?.total})
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Synthèse archivée ({syncPreview?.existingCount}/{syncPreview?.total})
                         </span>
                         <button
                           type="button"
-                          disabled={syncing}
+                          disabled={syncing || syncingDetails}
                           onClick={() => handleSyncToMonday(true)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted cursor-pointer disabled:opacity-60"
-                          title="Met à jour les valeurs existantes sans créer de doublons"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted cursor-pointer disabled:opacity-60"
+                          title="Met à jour la synthèse hebdomadaire sans créer de doublons"
                         >
                           <RefreshCw className={cn('h-3.5 w-3.5 text-primary', syncing && 'animate-spin')} />
-                          <span>Mettre à jour</span>
+                          <span>MAJ synthèse</span>
                         </button>
                       </div>
                     )}
 
+                    {/* Archivage complet des détails journaliers + trajets + pointages sur Monday (5108589918) */}
+                    {totalWorkbookActiveDays > 0 && (
+                      <button
+                        type="button"
+                        disabled={syncing || syncingDetails}
+                        onClick={handleSyncAllDetailsToMonday}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-xs transition hover:brightness-95 cursor-pointer disabled:opacity-60"
+                        title="Enregistre les détails journaliers, trajets complets, exclusions Domicile-Travail et pointages dans le tableau Monday Pointage & Détails Journaliers GPS (rechargeables depuis n'importe quel PC)"
+                      >
+                        {syncingDetails ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
+                        <span>Archiver détails ({totalWorkbookActiveDays} j.)</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      disabled={syncing}
+                      disabled={syncing || syncingDetails}
                       onClick={() => setWorkbook(null)}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                       title="Fermer ce fichier"
@@ -1357,13 +1721,13 @@ export default function GeolocCard() {
                   </div>
                 </div>
 
-                {/* Barre de progression pendant la synchro */}
+                {/* Barre de progression pendant la synchro synthèse */}
                 {syncing && syncProgress && (
                   <div className="mt-3 space-y-1.5 rounded-lg border border-primary/20 bg-card p-3">
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="flex items-center gap-2 text-foreground">
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                        Synchronisation Monday : {syncProgress.label}
+                        Synchronisation Synthèse Monday : {syncProgress.label}
                       </span>
                       <span className="font-mono text-primary">
                         {syncProgress.current} / {syncProgress.total}
@@ -1374,6 +1738,29 @@ export default function GeolocCard() {
                         className="h-full bg-emerald-500 transition-all duration-150"
                         style={{
                           width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 10}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Barre de progression pendant l'archivage des détails journaliers */}
+                {syncingDetails && detailsSyncProgress && (
+                  <div className="mt-3 space-y-1.5 rounded-lg border border-primary/30 bg-card p-3">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        Archivage Détails &amp; Pointages Monday : {detailsSyncProgress.label}
+                      </span>
+                      <span className="font-mono text-primary">
+                        {detailsSyncProgress.current} / {detailsSyncProgress.total}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-primary transition-all duration-150"
+                        style={{
+                          width: `${detailsSyncProgress.total > 0 ? (detailsSyncProgress.current / detailsSyncProgress.total) * 100 : 5}%`,
                         }}
                       />
                     </div>
@@ -1641,20 +2028,33 @@ export default function GeolocCard() {
                       <AlertBadge status={selectedVehicle.alertStatus} />
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-[#39A9DC]" /> Pro</span>
                       <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-[#D66927]" /> &lt;04h30 / &gt;19h30</span>
                       <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-purple-500" /> Week-end</span>
                       <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs bg-sky-500" /> Vie privée</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-xs border border-dashed border-slate-500 bg-slate-400/50" /> Exclu Domicile</span>
                     </div>
                   </div>
 
-                  {/* Bandeau KPIs du véhicule */}
+                  {/* Bandeau KPIs du véhicule (avec recalcul temps utile si trajets exclus) */}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     <div className="rounded-xl border border-border bg-background p-3">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Distance</p>
-                      <p className="mt-1 font-mono text-lg font-extrabold text-primary">{kmFmt(selectedVehicle.distanceKm)}</p>
-                      <p className="text-[10px] text-muted-foreground">{selectedVehicle.tripCount} trajets</p>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions ? 'Distance utile' : 'Distance'}
+                      </p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-primary">
+                        {kmFmt(
+                          selectedVehicleUsefulTotals?.hasExclusions
+                            ? selectedVehicleUsefulTotals.usefulKm
+                            : selectedVehicle.distanceKm
+                        )}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions
+                          ? `Brut ${kmFmt(selectedVehicle.distanceKm)} (${selectedVehicleUsefulTotals.totalExcludedCount} exclu(s))`
+                          : `${selectedVehicle.tripCount} trajets`}
+                      </p>
                     </div>
                     <div className="rounded-xl border border-border bg-background p-3">
                       <p className="text-[10px] font-bold uppercase text-muted-foreground">Hors horaires</p>
@@ -1664,28 +2064,95 @@ export default function GeolocCard() {
                       <p className="text-[10px] text-muted-foreground">Pro : {kmFmt(selectedVehicle.distanceProKm)}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-background p-3">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">1er départ moy.</p>
-                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">{selectedVehicle.avgFirstDeparture}</p>
-                      <p className="text-[10px] text-muted-foreground">Plus tôt : {selectedVehicle.earliestDeparture}</p>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions ? 'Début utile moy.' : '1er départ moy.'}
+                      </p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions
+                          ? selectedVehicleUsefulTotals.avgUsefulStart
+                          : selectedVehicle.avgFirstDeparture}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions
+                          ? `Brut : ${selectedVehicle.avgFirstDeparture}`
+                          : `Plus tôt : ${selectedVehicle.earliestDeparture}`}
+                      </p>
                     </div>
                     <div className="rounded-xl border border-border bg-background p-3">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Dernière arrivée</p>
-                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">{selectedVehicle.avgLastArrival}</p>
-                      <p className="text-[10px] text-muted-foreground">Plus tard : {selectedVehicle.latestArrival}</p>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions ? 'Fin utile moy.' : 'Dernière arrivée'}
+                      </p>
+                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions
+                          ? selectedVehicleUsefulTotals.avgUsefulEnd
+                          : selectedVehicle.avgLastArrival}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions
+                          ? `Brut : ${selectedVehicle.avgLastArrival}`
+                          : `Plus tard : ${selectedVehicle.latestArrival}`}
+                      </p>
                     </div>
                     <div className="rounded-xl border border-border bg-background p-3">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Amplitude moy.</p>
-                      <p className="mt-1 font-mono text-lg font-extrabold text-[#3989B7]">{hoursFmt(selectedVehicle.avgAmplitudeHours)}</p>
-                      <p className="text-[10px] text-muted-foreground">{selectedVehicle.daysActive} jour(s) roulé(s)</p>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions ? 'Amplitude utile moy.' : 'Amplitude moy.'}
+                      </p>
+                      <p
+                        className={cn(
+                          'mt-1 font-mono text-lg font-extrabold',
+                          selectedVehicleUsefulTotals?.hasExclusions ? 'text-emerald-600' : 'text-[#3989B7]',
+                        )}
+                      >
+                        {hoursFmt(
+                          selectedVehicleUsefulTotals?.hasExclusions
+                            ? selectedVehicleUsefulTotals.avgUsefulAmpHours
+                            : selectedVehicle.avgAmplitudeHours
+                        )}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {selectedVehicleUsefulTotals?.hasExclusions
+                          ? `Brut ${hoursFmt(selectedVehicle.avgAmplitudeHours)} · ${selectedVehicle.daysActive} j.`
+                          : `${selectedVehicle.daysActive} jour(s) roulé(s)`}
+                      </p>
                     </div>
                     <div className="rounded-xl border border-border bg-background p-3">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Conduite / Attente</p>
-                      <p className="mt-1 font-mono text-lg font-extrabold text-foreground">{hoursFmt(selectedVehicle.driveDurationHours)}</p>
-                      <p className="text-[10px] text-muted-foreground">Attente : {hoursFmt(selectedVehicle.waitDurationHours)}</p>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                        {selectedVehicleUsefulTotals && selectedVehicleUsefulTotals.pointedDays > 0
+                          ? 'Pointage semaine'
+                          : 'Conduite / Attente'}
+                      </p>
+                      {selectedVehicleUsefulTotals && selectedVehicleUsefulTotals.pointedDays > 0 ? (
+                        <>
+                          <p
+                            className={cn(
+                              'mt-1 font-mono text-lg font-extrabold',
+                              selectedVehicleUsefulTotals.nonCompliantDays > 0 ? 'text-red-600' : 'text-emerald-600',
+                            )}
+                          >
+                            {selectedVehicleUsefulTotals.pointedDays}/{selectedVehicle.daysActive} j.
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {selectedVehicleUsefulTotals.nonCompliantDays > 0
+                              ? `${selectedVehicleUsefulTotals.nonCompliantDays} jour(s) en écart`
+                              : 'Tous conformes ✓'}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="mt-1 font-mono text-lg font-extrabold text-foreground">
+                            {hoursFmt(
+                              selectedVehicleUsefulTotals?.hasExclusions
+                                ? selectedVehicleUsefulTotals.totalUsefulDriveHours
+                                : selectedVehicle.driveDurationHours
+                            )}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">Attente : {hoursFmt(selectedVehicle.waitDurationHours)}</p>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  {/* Détail jour par jour avec Timeline visuelle */}
+                  {/* Détail jour par jour : Exclusions Domicile ↔ Travail + Pointage Multi-Salariés + Timeline */}
                   {selectedVehicle.days.length === 0 ? (
                     <div className="rounded-xl border border-border bg-background p-8 text-center text-xs text-muted-foreground">
                       Aucun trajet enregistré pour ce véhicule sur cette semaine.
@@ -1693,102 +2160,29 @@ export default function GeolocCard() {
                   ) : (
                     <div className="space-y-3">
                       {selectedVehicle.days.map((day) => {
+                        const dayKey = `${normalizePlateKey(selectedVehicle.plate)}::${day.date}`;
+                        const annotation: DayAnnotationState = dayAnnotations[dayKey] ?? {
+                          excludedTripIds: [],
+                          pointages: [],
+                        };
                         const isOpen = expandedDays[day.date] ?? false;
                         return (
-                          <div
+                          <GeolocDayDetailCard
                             key={day.date}
-                            className={cn(
-                              'rounded-[var(--radius-xl)] border bg-background p-3.5 transition',
-                              day.isWeekend ? 'border-purple-500/35 bg-purple-500/[0.02]' : 'border-border',
-                            )}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span
-                                  className={cn(
-                                    'rounded-md px-2 py-0.5 font-mono text-xs font-extrabold',
-                                    day.isWeekend ? 'bg-purple-500/15 text-purple-700' : 'bg-secondary text-primary',
-                                  )}
-                                >
-                                  {day.dayLabel}
-                                </span>
-                                <span className="font-mono text-xs font-extrabold text-foreground">
-                                  {day.firstDeparture} → {day.lastArrival}
-                                </span>
-                                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
-                                  Ampl. {day.amplitudeLabel}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground">
-                                  Conduite {day.driveLabel} · Arrêts/sites {formatMinutesToDuration(day.onSiteStopMin)}
-                                </span>
-                                {day.privateTripsCount > 0 && (
-                                  <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700">
-                                    {day.privateTripsCount} vie privée
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2.5">
-                                <span className="font-mono text-xs font-bold text-foreground">
-                                  {day.tripCount} trajets · {kmFmt(day.distanceKm)}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setExpandedDays((prev) => ({ ...prev, [day.date]: !isOpen }))
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-foreground hover:border-primary hover:text-primary cursor-pointer"
-                                >
-                                  <span>{isOpen ? 'Masquer trajets' : 'Détail trajets'}</span>
-                                  {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                                </button>
-                              </div>
-                            </div>
-
-                            <DayTimelineBar day={day} />
-
-                            {/* Liste des trajets de la journée */}
-                            {isOpen && (
-                              <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-card">
-                                <table className="w-full min-w-[660px] text-left text-[11px]">
-                                  <thead>
-                                    <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase text-muted-foreground">
-                                      <th className="px-2.5 py-2">Départ</th>
-                                      <th className="px-2.5 py-2">Site / Adresse départ</th>
-                                      <th className="px-2.5 py-2">Arrivée</th>
-                                      <th className="px-2.5 py-2">Site / Adresse arrivée</th>
-                                      <th className="px-2.5 py-2 text-right">Km</th>
-                                      <th className="px-2.5 py-2 text-right">Durée</th>
-                                      <th className="px-2.5 py-2 text-right">Arrêt sur place</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-border/60">
-                                    {day.trips.map((t, idx) => {
-                                      const nextTrip = day.trips[idx + 1];
-                                      const stopGap = nextTrip ? nextTrip.startMinutes - t.endMinutes : null;
-                                      return (
-                                        <tr key={t.id} className={cn(t.isPrivate && 'bg-sky-500/5')}>
-                                          <td className="px-2.5 py-1.5 font-mono font-bold">{t.startTime}</td>
-                                          <td className="px-2.5 py-1.5 max-w-[230px] truncate" title={t.startAddress}>
-                                            {t.startAddress}
-                                          </td>
-                                          <td className="px-2.5 py-1.5 font-mono font-bold">{t.endTime}</td>
-                                          <td className="px-2.5 py-1.5 max-w-[230px] truncate font-medium" title={t.endAddress}>
-                                            {t.endAddress}
-                                          </td>
-                                          <td className="px-2.5 py-1.5 text-right font-mono font-bold">{t.distanceKm}</td>
-                                          <td className="px-2.5 py-1.5 text-right font-mono text-muted-foreground">{t.durationLabel}</td>
-                                          <td className="px-2.5 py-1.5 text-right font-mono text-muted-foreground">
-                                            {stopGap !== null && stopGap > 0 ? formatMinutesToDuration(stopGap) : '—'}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
+                            day={day}
+                            defaultDriverName={selectedVehicle.driverName}
+                            employeeOptions={mergedEmployeeOptions}
+                            annotation={annotation}
+                            isOpen={isOpen}
+                            saving={savingDayKey === dayKey}
+                            onToggleOpen={() =>
+                              setExpandedDays((prev) => ({ ...prev, [day.date]: !isOpen }))
+                            }
+                            onChangeAnnotation={(next) =>
+                              setDayAnnotations((prev) => ({ ...prev, [dayKey]: next }))
+                            }
+                            onSaveDayToMonday={() => handleSaveSingleDayToMonday(selectedVehicle, day)}
+                          />
                         );
                       })}
                     </div>

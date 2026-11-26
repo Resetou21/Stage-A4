@@ -19,6 +19,7 @@ import monday from '../services/monday';
 import type { Machine } from '../types';
 import { MachineSelect } from './MachineSelect';
 import { RepairTicketSelect } from './RepairTicketSelect';
+import { FacilitySelect } from './FacilitySelect';
 import {
   MAINTENANCE_BOARD_IDS,
   RepairTicket,
@@ -841,16 +842,17 @@ export const SupplierImportModal: React.FC<SupplierImportModalProps> = ({
                     </div>
                     <div>
                       <label style={labelStyle}>Statut cible du ticket Monday</label>
-                      <select
+                      <FacilitySelect
                         value={finalStatus}
-                        onChange={(e) => setFinalStatus(e.target.value as any)}
-                        style={inputStyle}
-                      >
-                        <option value="Réparée">✅ Réparée</option>
-                        <option value="En cours de réparation">🔧 En cours de réparation</option>
-                        <option value="En attente de devis">📄 En attente de devis</option>
-                        <option value="À traiter">🚨 À traiter</option>
-                      </select>
+                        onChange={(val) => setFinalStatus(val as any)}
+                        fullWidth
+                        options={[
+                          { value: 'Réparée', label: 'Réparée', dotColor: '#00C875' },
+                          { value: 'En cours de réparation', label: 'En cours de réparation', dotColor: '#39A9DC' },
+                          { value: 'En attente de devis', label: 'En attente de devis', dotColor: '#F7AC37' },
+                          { value: 'À traiter', label: 'À traiter', dotColor: '#E2445C' },
+                        ]}
+                      />
                     </div>
                     <div>
                       <label style={labelStyle}>Coût intervention (€ HT)</label>

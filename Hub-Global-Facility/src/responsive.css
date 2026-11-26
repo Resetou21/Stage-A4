@@ -1,4 +1,4 @@
-/* Hub Global Facility - Styles Responsives Mobile / Tablette / Desktop (Charte 2026) */
+/* Hub Global Facility - Design System, Animations GPU & Responsive (Charte Officielle) */
 
 :root {
   --facility-blue: #39A9DC;
@@ -8,6 +8,7 @@
   --facility-orange: #D66927;
   --facility-bg: #F4F9FC;
   --facility-border: #D7EAF5;
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html, body, #root {
@@ -20,36 +21,382 @@ html, body, #root {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #1B4565;
   background-color: #F4F9FC;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Ruda', system-ui, sans-serif;
 }
 
-/* Sécurité menus déroulants sur tablette / petits écrans desktop */
-.hub-dropdown-panel {
-  max-width: calc(100vw - 24px) !important;
-}
-
-/* Responsive tablettes (861px - 1180px) : compacter la barre de navigation */
-@media (min-width: 861px) and (max-width: 1180px) {
-  .desktop-nav button {
-    padding: 6px 8px !important;
-    font-size: 11.5px !important;
-    gap: 4px !important;
-  }
-  .desktop-actions button {
-    padding: 5px 8px !important;
-    font-size: 11.5px !important;
-  }
-}
-
 * {
   box-sizing: border-box;
 }
 
+/* ============================================ */
+/* KEYFRAMES & MOTEUR D'ANIMATIONS GPU          */
+/* ============================================ */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSpringIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sectionReveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes newsSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes newsProgressFill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes searchDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes heroGlowFloat {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(18px, -12px) scale(1.08);
+    opacity: 0.72;
+  }
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 0.55;
+  }
+}
+
+.modal-backdrop-in {
+  animation: backdropFadeIn 0.2s ease-out both;
+}
+
+.facility-modal-overlay {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .facility-modal-overlay {
+    padding: 12px 12px 82px;
+  }
+}
+
+.modal-spring-in {
+  animation: modalSpringIn 0.28s var(--ease-spring) both;
+  will-change: transform, opacity;
+}
+
+/* Entrée fluide en cascade des sections */
+.reveal-1 { animation: sectionReveal 0.45s var(--ease-spring) 0.02s both; }
+.reveal-2 { animation: sectionReveal 0.48s var(--ease-spring) 0.10s both; }
+.reveal-3 { animation: sectionReveal 0.52s var(--ease-spring) 0.18s both; }
+.reveal-4 { animation: sectionReveal 0.55s var(--ease-spring) 0.26s both; }
+.reveal-5 { animation: sectionReveal 0.58s var(--ease-spring) 0.32s both; }
+
+/* Micro-interactions universelles */
+.ui-btn {
+  transition: transform 0.18s var(--ease-spring), box-shadow 0.2s ease, background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  will-change: transform;
+}
+
+.ui-btn:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+}
+
+.ui-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.live-pulse-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #00C875;
+  animation: pulseDot 2.2s ease-in-out infinite;
+}
+
+/* ============================================ */
+/* HERO GLASSMORPHISM & RECHERCHE               */
+/* ============================================ */
+.hero-ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(48px);
+  animation: heroGlowFloat 9s ease-in-out infinite;
+}
+
+.hero-search-pill {
+  transition: transform 0.22s var(--ease-spring), box-shadow 0.25s ease, border-color 0.2s ease;
+}
+
+.hero-search-pill.is-focused {
+  transform: scale(1.015);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.28), 0 0 0 3px rgba(247, 172, 55, 0.55) !important;
+}
+
+.hero-search-dropdown {
+  animation: searchDropdownIn 0.2s var(--ease-spring) both;
+}
+
+.hero-filter-pill {
+  transition: transform 0.16s var(--ease-spring), background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.hero-filter-pill:hover {
+  transform: translateY(-1px);
+  background-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.hero-filter-pill.is-active:hover {
+  background-color: #FFFFFF !important;
+}
+
+/* Raccourcis circulaires Hero en Glassmorphism */
+.hero-shortcuts-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hero-shortcut-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: 82px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #FFFFFF;
+  transition: transform 0.22s var(--ease-spring);
+}
+
+.hero-shortcut-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1.5px solid rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+  transition: transform 0.24s var(--ease-spring), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.22s ease;
+}
+
+.hero-shortcut-btn:hover .hero-shortcut-circle {
+  transform: translateY(-4px) scale(1.07);
+  background: rgba(247, 172, 55, 0.95);
+  border-color: #FFFFFF;
+  box-shadow: 0 12px 24px rgba(247, 172, 55, 0.38);
+}
+
+.hero-shortcut-btn:hover .hero-shortcut-circle svg {
+  color: #1B4565 !important;
+  stroke: #1B4565 !important;
+}
+
+.hero-shortcut-btn:active .hero-shortcut-circle {
+  transform: scale(0.95);
+}
+
+.hero-shortcut-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #FFFFFF;
+  text-align: center;
+  line-height: 1.2;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(27, 69, 101, 0.52);
+  backdrop-filter: blur(6px);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================ */
+/* CARROUSEL ACTUALITÉS                         */
+/* ============================================ */
+.news-slide-content {
+  animation: newsSlideIn 0.36s var(--ease-spring) both;
+}
+
+/* ============================================ */
+/* CARROUSEL DES HUBS & CARTES VISUELLES        */
+/* ============================================ */
+.hubs-carousel-shell {
+  position: relative;
+}
+
+.hubs-carousel-fade-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 12px;
+  width: 44px;
+  background: linear-gradient(90deg, rgba(244, 249, 252, 0) 0%, rgba(244, 249, 252, 0.92) 100%);
+  pointer-events: none;
+  z-index: 5;
+  transition: opacity 0.2s ease;
+}
+
+.hubs-carousel-track {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  padding: 6px 4px 12px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hubs-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.hub-carousel-card {
+  flex: 0 0 330px;
+  scroll-snap-align: start;
+}
+
+.hubs-grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 20px;
+}
+
+.hub-feature-card {
+  transition: transform 0.28s var(--ease-spring), box-shadow 0.28s ease, border-color 0.22s ease;
+  will-change: transform;
+}
+
+.hub-feature-card:hover {
+  transform: translateY(-5px);
+  border-color: #39A9DC !important;
+  box-shadow: 0 18px 36px rgba(27, 69, 101, 0.13) !important;
+}
+
+.hub-card-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.55s var(--ease-spring);
+  will-change: transform;
+}
+
+.hub-feature-card:hover .hub-card-cover-img {
+  transform: scale(1.07);
+}
+
+.hub-open-pill {
+  transition: transform 0.2s var(--ease-spring), background-color 0.2s ease, color 0.2s ease;
+}
+
+.hub-feature-card:hover .hub-open-pill {
+  background-color: #F7AC37 !important;
+  color: #1B4565 !important;
+  transform: translateX(2px);
+}
+
+.hub-subitem-row {
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.18s var(--ease-spring);
+}
+
+.hub-subitem-row:hover {
+  transform: translateX(2px);
+}
+
+.hub-subitem-arrow {
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.hub-subitem-row:hover .hub-subitem-arrow {
+  transform: translateX(4px);
+}
+
+/* KPI cards hover */
+.kpi-interactive-card {
+  transition: transform 0.22s var(--ease-spring), box-shadow 0.22s ease, border-color 0.2s ease;
+}
+
+.kpi-interactive-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(27, 69, 101, 0.09);
+  border-color: #39A9DC !important;
+}
+
+/* Helpers Desktop/Mobile */
 .desktop-only {
-  display: inline !important;
+  display: inline-flex !important;
 }
 
 .mobile-only {
@@ -64,39 +411,20 @@ h1, h2, h3, h4, h5, h6 {
   display: none !important;
 }
 
-/* 1. Header Desktop vs Mobile */
-.desktop-nav {
-  display: flex !important;
-  align-items: center;
-  gap: 4px;
+.header-btn-label {
+  display: inline;
 }
 
-.desktop-actions {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-}
-
-.mobile-menu-btn {
-  display: none !important;
-}
-
-.mobile-search-btn {
-  display: none !important;
-}
-
-.mobile-dropdown-menu {
-  display: none;
-}
-
-/* 2. Responsive Breakpoint (< 860px) */
+/* ============================================ */
+/* Responsive Mobile / Tablette (< 860px)       */
+/* ============================================ */
 @media (max-width: 860px) {
   .desktop-only {
     display: none !important;
   }
 
   .mobile-only {
-    display: inline !important;
+    display: inline-flex !important;
   }
 
   .desktop-table-container {
@@ -107,82 +435,27 @@ h1, h2, h3, h4, h5, h6 {
     display: flex !important;
   }
 
-  .desktop-nav {
+  .hubs-carousel-fade-right {
     display: none !important;
   }
 
-  .desktop-actions {
+  /* Fluidité 60fps mobile : désactiver les flous ambiants coûteux */
+  .hero-ambient-orb {
     display: none !important;
   }
 
-  /* Masquer le master header sur mobile lorsqu'on consulte un hub spécifique pour laisser 100% de la hauteur au hub */
+  /* Masquer le master header sur mobile lorsqu'on consulte un sous-hub */
   .hub-master-header.in-subview {
     display: none !important;
   }
 
-  .mobile-menu-btn {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
-    border: 1px solid #CBD5E1;
-    background-color: #F8FAFC;
-    color: #0F172A;
-    cursor: pointer;
-    transition: all 0.15s ease;
+  .hub-master-header {
+    padding: 0 12px !important;
+    height: 54px !important;
   }
 
-  .mobile-search-btn {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
-    border: 1px solid #CBD5E1;
-    background-color: #F8FAFC;
-    color: #3989B7;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .mobile-dropdown-menu {
-    display: flex;
-    flex-direction: column;
-    position: absolute;
-    top: 64px;
-    left: 0;
-    right: 0;
-    background-color: #FFFFFF;
-    border-bottom: 2px solid #E2E8F0;
-    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
-    padding: 12px 14px 20px 14px;
-    gap: 8px;
-    z-index: 100;
-    max-height: calc(100vh - 70px);
-    overflow-y: auto;
-  }
-
-  .mobile-menu-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background-color: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    color: #0F172A;
-    font-size: 13px;
-    font-weight: 700;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
-  }
-
-  .mobile-menu-item:active {
-    background-color: #E2E8F0;
+  .header-btn-label {
+    display: none !important;
   }
 
   .mobile-hide {
@@ -190,7 +463,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .hub-subbar {
-    height: 42px !important;
+    height: 44px !important;
     padding: 0 10px !important;
     flex-wrap: nowrap !important;
     overflow: hidden !important;
@@ -204,7 +477,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .subbar-back-btn {
-    padding: 4px 8px !important;
+    padding: 5px 9px !important;
     font-size: 11px !important;
     flex-shrink: 0 !important;
   }
@@ -216,76 +489,93 @@ h1, h2, h3, h4, h5, h6 {
     text-overflow: ellipsis !important;
   }
 
-  /* Conteneur principal & vues */
+  /* Marge inférieure généreuse pour éviter la barre flottante "Recherche rapide" de Monday mobile */
   .hub-main-content {
     padding: 0 !important;
   }
 
   .hub-home-container {
-    padding: 16px 12px 100px 12px !important;
+    padding: 12px 12px 128px 12px !important;
     width: 100% !important;
     max-width: 100vw !important;
     box-sizing: border-box !important;
   }
 
   .hub-view-container {
-    padding: 14px 10px 130px 10px !important;
+    padding: 14px 12px 132px 12px !important;
     width: 100% !important;
     max-width: 100vw !important;
     box-sizing: border-box !important;
   }
 
-  /* Bannière Accueil */
-  .hub-banner-box {
-    padding: 20px 16px !important;
-    border-radius: 14px !important;
-    margin-bottom: 20px !important;
+  /* Hero Intranet sur mobile */
+  .hub-hero-box {
+    padding: 20px 14px 16px !important;
+    border-radius: 18px !important;
+    margin-bottom: 16px !important;
   }
 
-  .hub-banner-title {
-    font-size: 20px !important;
+  .hub-hero-title {
+    font-size: 21px !important;
   }
 
-  .hub-banner-buttons {
-    flex-direction: column !important;
+  /* Raccourcis circulaires swipeables proprement sur mobile */
+  .hero-shortcuts-row {
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
     width: 100% !important;
+    padding: 4px 2px 6px !important;
     gap: 8px !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .hub-banner-buttons button {
-    width: 100% !important;
-    justify-content: center !important;
+  .hero-shortcuts-row::-webkit-scrollbar {
+    display: none;
   }
 
-  /* Grille des 4 KPIs */
+  .hero-shortcut-btn {
+    flex: 0 0 74px !important;
+    width: 74px !important;
+  }
+
+  /* Carrousel tactile des Hubs : 82vw pour voir la carte suivante qui dépasse */
+  .hubs-carousel-track {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    padding-bottom: 8px !important;
+    scrollbar-width: none !important;
+  }
+
+  .hubs-carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hub-carousel-card {
+    flex: 0 0 82vw !important;
+    max-width: 320px !important;
+  }
+
   .hub-kpis-grid {
     grid-template-columns: 1fr !important;
-    gap: 12px !important;
-    margin-bottom: 20px !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
   }
 
-  /* Grille des pôles */
-  .hub-poles-grid {
-    grid-template-columns: 1fr !important;
-    gap: 16px !important;
-  }
-
-  /* Bannière Boîte à Idées & Roadmap */
   .hub-roadmap-banner {
     padding: 18px 14px !important;
-    border-radius: 14px !important;
-    gap: 16px !important;
-    margin-top: 24px !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
+    border-radius: 16px !important;
+    gap: 14px !important;
+    margin-top: 20px !important;
   }
 
   .hub-roadmap-header {
     flex-direction: column !important;
     align-items: flex-start !important;
-    gap: 12px !important;
-    min-width: 0 !important;
-    width: 100% !important;
+    gap: 10px !important;
   }
 
   .hub-roadmap-buttons {
@@ -298,16 +588,12 @@ h1, h2, h3, h4, h5, h6 {
     width: 100% !important;
     justify-content: center !important;
   }
+}
 
-  /* Barre contextuelle secondaire */
-  .hub-subbar {
-    height: auto !important;
-    min-height: 46px !important;
-    padding: 8px 12px !important;
-    gap: 8px !important;
-  }
-
-  .hub-subbar-title {
-    font-size: 11.5px !important;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

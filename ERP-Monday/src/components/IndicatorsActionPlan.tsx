@@ -18,6 +18,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import type { Machine } from '../types';
+import { FacilitySelect } from './FacilitySelect';
 import {
   RealisedControle,
   RepairTicket,
@@ -597,33 +598,20 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
             </h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Archive size={14} color="#3989B7" />
-              <select
-                value={selectedKpiYear === 'all' ? 'all' : String(selectedKpiYear)}
-                onChange={(e) => setSelectedKpiYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                title="Reset annuel au 31 décembre : chaque nouvel exercice démarre à 0 tout en conservant les archives."
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  border: '1.5px solid #D2E9F6',
-                  backgroundColor: '#FAFCFD',
-                  color: '#1B4565',
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  fontFamily: "'Ruda', sans-serif",
-                  cursor: 'pointer',
-                  outline: 'none',
-                }}
-              >
-                {kpiYearOptions.map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y === currentCalendarYear ? `Exercice ${y} (En cours)` : `Archive ${y}`}
-                  </option>
-                ))}
-                <option value="all">Toutes années (Cumulé)</option>
-              </select>
-            </div>
+            <FacilitySelect
+              value={selectedKpiYear === 'all' ? 'all' : String(selectedKpiYear)}
+              onChange={(val) => setSelectedKpiYear(val === 'all' ? 'all' : Number(val))}
+              icon={<Archive size={14} color="#3989B7" />}
+              title="Reset annuel au 31 décembre : chaque nouvel exercice démarre à 0 tout en conservant les archives."
+              minWidth="205px"
+              options={[
+                ...kpiYearOptions.map((y) => ({
+                  value: String(y),
+                  label: y === currentCalendarYear ? `Exercice ${y} (En cours)` : `Archive ${y}`,
+                })),
+                { value: 'all', label: 'Toutes années (Cumulé)' },
+              ]}
+            />
             <button
               type="button"
               onClick={onRefreshData}
@@ -850,41 +838,18 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
             </h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                borderRadius: '14px',
-                border: '1px solid #D2E9F6',
-                backgroundColor: selectedPreventiveYear !== currentCalendarYear ? '#FFF8EC' : '#F8FCFE',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#1B4565',
-              }}
-            >
-              <Archive size={13} color={selectedPreventiveYear !== currentCalendarYear ? '#D66927' : '#39A9DC'} />
-              <span>Année :</span>
-              <select
-                value={selectedPreventiveYear}
-                onChange={(e) => setSelectedPreventiveYear(Number(e.target.value))}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  fontWeight: 800,
-                  color: '#1B4565',
-                  cursor: 'pointer',
-                  outline: 'none',
-                }}
-              >
-                {preventiveYearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y} {y === currentCalendarYear ? '(En cours · RAZ 1er janv.)' : '(Archive)'}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FacilitySelect
+              value={String(selectedPreventiveYear)}
+              onChange={(val) => setSelectedPreventiveYear(Number(val))}
+              icon={<Archive size={13} color={selectedPreventiveYear !== currentCalendarYear ? '#D66927' : '#39A9DC'} />}
+              prefixLabel="Année :"
+              accentTone={selectedPreventiveYear !== currentCalendarYear ? 'amber' : 'default'}
+              minWidth="245px"
+              options={preventiveYearOptions.map((y) => ({
+                value: String(y),
+                label: `${y} ${y === currentCalendarYear ? '(En cours · RAZ 1er janv.)' : '(Archive)'}`,
+              }))}
+            />
             <span style={{ fontSize: '12px', color: '#57778E', fontStyle: 'italic' }}>
               Contrôles saisis vs planning {selectedPreventiveYear}
             </span>
@@ -1789,26 +1754,18 @@ export const IndicatorsActionPlan: React.FC<IndicatorsActionPlanProps> = ({
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         {/* Sélecteur de statut rapide */}
-                        <select
+                        <FacilitySelect
                           value={detailTicket.status}
                           disabled={updatingTicketId === detailTicket.id}
-                          onChange={(e) => handleUpdateTicketStatus(detailTicket, e.target.value)}
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '8px',
-                            border: '1px solid #CBD5E1',
-                            fontSize: '12.5px',
-                            fontWeight: 700,
-                            color: '#1B4565',
-                            backgroundColor: '#FFFFFF',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <option value="À traiter">🔴 À traiter</option>
-                          <option value="En attente de devis">🟠 En attente de devis</option>
-                          <option value="En cours de réparation">🔵 En cours de réparation</option>
-                          <option value="Réparée">🟢 Réparée</option>
-                        </select>
+                          onChange={(val) => handleUpdateTicketStatus(detailTicket, val)}
+                          minWidth="195px"
+                          options={[
+                            { value: 'À traiter', label: 'À traiter', dotColor: '#E2445C' },
+                            { value: 'En attente de devis', label: 'En attente de devis', dotColor: '#F7AC37' },
+                            { value: 'En cours de réparation', label: 'En cours de réparation', dotColor: '#39A9DC' },
+                            { value: 'Réparée', label: 'Réparée', dotColor: '#00C875' },
+                          ]}
+                        />
 
                         {/* Bouton d'action principal */}
                         {!detailReparee ? (

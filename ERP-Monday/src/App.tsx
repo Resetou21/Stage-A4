@@ -11,6 +11,7 @@ import { AtelierAlertsSection } from './components/AtelierAlertsSection';
 import { CreateMachineModal } from './components/CreateMachineModal';
 import { isRealCleaningMachine } from './components/MachineSelect';
 import { SearchableSelect } from './components/SearchableSelect';
+import { FacilitySelect } from './components/FacilitySelect';
 import {
   fetchReferentielPoints,
   fetchRealisedControles,
@@ -1052,54 +1053,8 @@ export const App = () => {
           </div>
         </div>
 
-        {/* Indicateur de date, cloche alertes bidirectionnelles et statut rapide */}
+        {/* Indicateur de date du jour */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {(() => {
-            const unreadIncoming = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
-            return (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('alerts');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '7px',
-                  padding: '8px 14px',
-                  borderRadius: '10px',
-                  border: unreadIncoming > 0 ? '1.5px solid #F7AC37' : '1px solid #E2EEF5',
-                  backgroundColor: unreadIncoming > 0 ? '#FFF8EC' : '#F5F9FC',
-                  color: unreadIncoming > 0 ? '#B86114' : '#1B4565',
-                  fontSize: '12.5px',
-                  fontWeight: 800,
-                  fontFamily: "'Ruda', sans-serif",
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-                title="Accéder directement à l'espace complet des alertes et échanges secteur"
-              >
-                <Bell size={15} color={unreadIncoming > 0 ? '#D66927' : '#39A9DC'} />
-                <span>Alertes Atelier ↔ Secteur</span>
-                {unreadIncoming > 0 && (
-                  <span
-                    style={{
-                      backgroundColor: '#E2445C',
-                      color: '#FFFFFF',
-                      borderRadius: '10px',
-                      padding: '1px 7px',
-                      fontSize: '11px',
-                      fontWeight: 900,
-                    }}
-                  >
-                    {unreadIncoming}
-                  </span>
-                )}
-              </button>
-            );
-          })()}
-
           <div
             className="facility-header-date"
             style={{
@@ -1614,6 +1569,7 @@ export const App = () => {
 
           {/* Grille des 4 Tuiles KPI */}
           <div
+            className="facility-kpi-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
@@ -1626,6 +1582,7 @@ export const App = () => {
               return (
                 <div
                   key={tile.key}
+                  className="facility-kpi-tile"
                   onClick={() => setActiveTile(isActive ? null : tile.key)}
                   style={{
                     cursor: 'pointer',
@@ -1890,32 +1847,23 @@ export const App = () => {
                           );
                         })()}
 
-                        <select
-                          aria-label={`Statut de ${m.name}`}
+                        <FacilitySelect
+                          ariaLabel={`Statut de ${m.name}`}
                           disabled={isUpdating}
+                          compact
+                          minWidth="135px"
                           value={['En service', 'À vérifier', 'En réparation', 'Sortie'].includes(currentStatus) ? currentStatus : ''}
-                          onChange={(e) => {
-                            if (e.target.value) handleChangeMachineStatus(m, e.target.value);
+                          placeholder={currentStatus || 'Statut'}
+                          onChange={(val) => {
+                            if (val) handleChangeMachineStatus(m, val);
                           }}
-                          style={{
-                            padding: '5px 9px',
-                            borderRadius: '8px',
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            border: '1px solid #CBD5E1',
-                            backgroundColor: '#F8FAFC',
-                            color: '#1B4565',
-                            cursor: isUpdating ? 'wait' : 'pointer',
-                          }}
-                        >
-                          {!['En service', 'À vérifier', 'En réparation', 'Sortie'].includes(currentStatus) && (
-                            <option value="">{currentStatus}</option>
-                          )}
-                          <option value="En service">En service</option>
-                          <option value="À vérifier">À vérifier</option>
-                          <option value="En réparation">En réparation</option>
-                          <option value="Sortie">Sortie</option>
-                        </select>
+                          options={[
+                            { value: 'En service', label: 'En service', dotColor: '#00C875' },
+                            { value: 'À vérifier', label: 'À vérifier', dotColor: '#F7AC37' },
+                            { value: 'En réparation', label: 'En réparation', dotColor: '#E2445C' },
+                            { value: 'Sortie', label: 'Sortie', dotColor: '#64748B' },
+                          ]}
+                        />
                       </div>
                     </div>
                   );
@@ -2677,30 +2625,19 @@ export const App = () => {
                 >
                   Choisir la machine remplaçante parmi le parc actif :
                 </label>
-                <select
+                <FacilitySelect
                   value={replacementMachineId}
-                  onChange={(e) => setReplacementMachineId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #C8DCE8',
-                    fontSize: '13px',
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                    color: '#1B4565',
-                    backgroundColor: '#FAFCFD',
-                  }}
-                >
-                  <option value="">-- Sélectionner la machine qui recevra le numéro #{reassigningData.number} --</option>
-                  {activeParcMachines
+                  onChange={setReplacementMachineId}
+                  searchable
+                  fullWidth
+                  placeholder={`-- Sélectionner la machine qui recevra le numéro #${reassigningData.number} --`}
+                  options={activeParcMachines
                     .filter((m) => String(m.id) !== String(reassigningData.machine.id))
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({getColText(m, 'color_mm8t2mn5') || 'Machine'})
-                      </option>
-                    ))}
-                </select>
+                    .map((m) => ({
+                      value: String(m.id),
+                      label: `${m.name} (${getColText(m, 'color_mm8t2mn5') || 'Machine'})`,
+                    }))}
+                />
               </div>
 
               {replacementMachineId && (

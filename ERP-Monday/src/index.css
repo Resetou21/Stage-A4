@@ -644,6 +644,22 @@ h1, h2, h3, h4, h5, h6, .font-title {
     margin-top: 1px !important;
     color: var(--facility-darkblue) !important;
     font-weight: 700 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    display: block !important;
+  }
+
+  /* Tuiles KPI en grille compacte 2x2 sur téléphone pour éviter 4 écrans de scroll */
+  .facility-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+  .facility-kpi-tile {
+    padding: 12px 12px !important;
+    border-radius: 13px !important;
   }
   .fc-daygrid-day-frame {
     min-height: 48px !important;
@@ -666,6 +682,21 @@ h1, h2, h3, h4, h5, h6, .font-title {
   }
   .maintenance-matrix-table-container.desktop-only-table {
     display: none !important;
+  }
+}
+
+/* Optimisation Tablette (641px à 1024px) */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .facility-app-container {
+    padding: 16px 18px 84px !important;
+  }
+  .facility-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+  .facility-tab-btn {
+    padding: 9px 14px !important;
+    font-size: 13px !important;
   }
 }
 

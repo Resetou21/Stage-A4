@@ -60,11 +60,11 @@ export default function App() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
-              VR
+              HV
             </div>
             <div className="min-w-0 leading-tight">
-              <p className="font-[family-name:var(--font-heading)] text-sm font-bold">Vincent Rivière</p>
-              <p className="text-xs text-muted-foreground">Hub personnel</p>
+              <p className="font-[family-name:var(--font-heading)] text-sm font-bold">Hub Véhicules</p>
+              <p className="text-xs text-muted-foreground">Flotte &amp; Géolocalisation</p>
             </div>
           </div>
 
@@ -96,10 +96,10 @@ export default function App() {
       </header>
 
       <main className="relative mx-auto max-w-7xl px-4 py-8 pb-28 sm:px-8 sm:py-14">
-        <h1 className="text-3xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub de Vincent</h1>
+        <h1 className="text-3xl font-extrabold uppercase tracking-tight sm:text-5xl">Hub Véhicules</h1>
         <div className="mt-3 h-1 w-24 rounded-full bg-[hsl(var(--brand-blue))]" />
         <p className="mt-4 max-w-xl text-base font-semibold italic text-primary">
-          Vos informations chantiers, à portée de main.
+          Pilotage parc véhicules, coûts flotte &amp; géolocalisation GPS.
         </p>
 
         <section className="mt-12">

@@ -24,6 +24,7 @@ import {
   updateStockItemOnMonday,
   archiveStockItemOnMonday,
 } from '../services/stockApi';
+import { FacilitySelect } from './FacilitySelect';
 
 export interface SparePart {
   id: string;
@@ -671,29 +672,16 @@ export const StockManagement: React.FC<StockManagementProps> = ({ onLowStockCoun
           </button>
 
           {/* Filtre catégorie */}
-          <select
+          <FacilitySelect
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1.5px solid #D2E9F6',
-              backgroundColor: '#FAFCFD',
-              color: '#1B4565',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              fontFamily: "'Ruda', sans-serif",
-              cursor: 'pointer',
-              outline: 'none',
-            }}
-          >
-            <option value="all">Toutes les catégories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={setCategoryFilter}
+            searchable
+            minWidth="200px"
+            options={[
+              { value: 'all', label: 'Toutes les catégories' },
+              ...categories.map((c) => ({ value: c, label: c })),
+            ]}
+          />
         </div>
       </div>
 

@@ -9,6 +9,7 @@ import InventorySpace from '@generated/components/InventorySpace';
 import ChantiersSpace from '@generated/components/ChantiersSpace';
 import QuickFormsSection from '@generated/components/QuickFormsSection';
 import AtelierCommunicationSpace from '@generated/components/AtelierCommunicationSpace';
+import AccompagnementWhatsAppSpace from '@generated/components/AccompagnementWhatsAppSpace';
 import { callMondayApi, clearBoardCache, monday } from '@api/BoardSDK';
 import { clearChantiersListCache } from '@generated/server/chantiers';
 import { clearVisitsOverviewCache } from '@generated/server/visits';
@@ -324,6 +325,15 @@ export default function App() {
           <div className="mt-2 h-1 w-16 rounded-full bg-[hsl(var(--brand-orange))]" />
           <div className="mt-6">
             <AtelierCommunicationSpace firstName={hubName} />
+          </div>
+        </section>
+
+        {/* Section 5 : Accompagnement Salariés & WhatsApp (Pole RH) */}
+        <section id="accompagnement" className="mt-16 scroll-mt-20">
+          <h2 className="text-2xl font-extrabold uppercase tracking-tight sm:text-3xl">Accompagnement Salariés &amp; WhatsApp</h2>
+          <div className="mt-2 h-1 w-16 rounded-full bg-emerald-500" />
+          <div className="mt-6">
+            <AccompagnementWhatsAppSpace firstName={hubName} />
           </div>
         </section>
       </main>

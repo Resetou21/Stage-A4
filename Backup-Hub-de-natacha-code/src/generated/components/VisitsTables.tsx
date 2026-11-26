@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Check, ExternalLink, Pencil, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, ChevronDown, ExternalLink, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSinglePlanAction, getVisitsDashboard, updatePlanActionStatus, updatePlanActionText } from '@generated/server/visits';
 import { monday } from '@api/BoardSDK';
@@ -72,6 +73,45 @@ function StatutBadge({
     label = 'Non commencé';
   }
 
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number }>({ left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const updatePos = () => {
+      const btn = btnRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const w = 165;
+      const left = Math.max(8, Math.min(rect.left, vw - w - 8));
+      const openUp = vh - rect.bottom < 190 && rect.top > 190;
+      setMenuPos(openUp ? { bottom: vh - rect.top + 6, left } : { top: rect.bottom + 6, left });
+    };
+    updatePos();
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [open]);
+
   if (!onChange) {
     return (
       <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap', style)}>
@@ -80,23 +120,71 @@ function StatutBadge({
     );
   }
 
+  const STATUS_OPTIONS = [
+    { value: 'Non commencé', label: 'Non commencé', dot: '#0EA5E9' },
+    { value: 'En cours', label: 'En cours', dot: '#F59E0B' },
+    { value: 'Bloqué', label: 'Bloqué', dot: '#EF4444' },
+    { value: 'Fait', label: 'Fait', dot: '#10B981' },
+    { value: 'Abandonné', label: 'Abandonné', dot: '#94A3B8' },
+  ];
+
   return (
-    <select
-      value={label}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        'cursor-pointer rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-background focus:outline-none focus:ring-1 focus:ring-ring transition-colors shadow-sm',
-        style
-      )}
-      title="Cliquer pour changer le statut"
-    >
-      <option value="Non commencé">Non commencé</option>
-      <option value="En cours">En cours</option>
-      <option value="Bloqué">Bloqué</option>
-      <option value="Fait">✅ Fait</option>
-      <option value="Abandonné">❌ Abandonné</option>
-    </select>
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={cn(
+          'inline-flex items-center gap-1 cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap transition-colors shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50',
+          style
+        )}
+        title="Cliquer pour changer le statut"
+      >
+        <span>{label}</span>
+        <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: 'fixed',
+              left: menuPos.left,
+              top: menuPos.top,
+              bottom: menuPos.bottom,
+              width: 165,
+              zIndex: 99999,
+            }}
+            className="rounded-xl border border-border bg-popover p-1 shadow-lg"
+          >
+            {STATUS_OPTIONS.map((opt) => {
+              const selected = opt.value === label;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    if (opt.value !== label) onChange(opt.value);
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold transition-colors hover:bg-muted',
+                    selected ? 'bg-primary/10 text-primary' : 'text-foreground'
+                  )}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: opt.dot }} />
+                    <span>{opt.label}</span>
+                  </span>
+                  {selected && <Check className="h-3.5 w-3.5 text-primary" />}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 

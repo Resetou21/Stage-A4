@@ -1185,3 +1185,153 @@ export const getMaintenanceExchanges = createServerFn({ method: 'GET' })
       return { exchanges: [] };
     }
   });
+
+export interface MachineRepairItem {
+  id: string;
+  name: string;
+  machineName: string;
+  site: string;
+  date: string;
+  status: 'À traiter' | 'En attente de devis' | 'En cours de réparation' | 'Réparée' | string;
+  isRepaired: boolean;
+  actionText: string;
+  underWarranty: boolean;
+  fournisseur: string;
+}
+
+export const getChantierMachineRepairs = createServerFn({ method: 'GET' })
+  .validator((data: { chantiers?: string[]; firstName?: string }) => data)
+  .handler(async ({ data }) => {
+    try {
+      const q = `query GetMachineRepairs {
+        boards(ids: [5106693291]) {
+          items_page(limit: 250) {
+            items {
+              id
+              name
+              group {
+                id
+                title
+              }
+              column_values(ids: [
+                "color_mm8vp2nd",
+                "color_mm8g8tmh",
+                "text_mm91y2sn",
+                "board_relation_mm8gc4mh",
+                "date_mm8g4vq6",
+                "text_mm8vhwst",
+                "boolean_mm91achg",
+                "text_mm91mkdz"
+              ]) {
+                id
+                text
+                value
+              }
+            }
+          }
+        }
+      }`;
+
+      const res: any = await callMondayApi(q);
+      const items: any[] = res?.data?.boards?.[0]?.items_page?.items || [];
+      const userChantiers = (data.chantiers || []).map((c) => norm(c)).filter(Boolean);
+
+      const parsed: MachineRepairItem[] = [];
+
+      for (const it of items) {
+        const cols = it.column_values || [];
+        const getCol = (id: string) => cols.find((c: any) => c.id === id)?.text || '';
+
+        const name = String(it.name || '').trim();
+        const siteCol = getCol('text_mm91y2sn') || getCol('color_mm8g8tmh') || '';
+        const machineRel = getCol('board_relation_mm8gc4mh');
+        const statusRaw = getCol('color_mm8vp2nd') || '';
+        const groupTitle = String(it.group?.title || '');
+        const dateStr = getCol('date_mm8g4vq6') || '';
+        const actionText = getCol('text_mm8vhwst') || '';
+        const underWarranty = Boolean(cols.find((c: any) => c.id === 'boolean_mm91achg')?.text === 'v' || cols.find((c: any) => c.id === 'boolean_mm91achg')?.value?.includes('true'));
+        const fournisseur = getCol('text_mm91mkdz') || '';
+
+        // Détection statut réparé
+        const statusNorm = norm(statusRaw);
+        const groupNorm = norm(groupTitle);
+        const isRepaired = statusNorm.includes('repare') || (groupNorm.includes('repare') && !groupNorm.includes('en reparation'));
+
+        // Normalisation statut lisible
+        let displayStatus = 'En cours de réparation';
+        if (isRepaired) {
+          displayStatus = 'Réparée';
+        } else if (statusNorm.includes('devis') || statusNorm.includes('attente')) {
+          displayStatus = 'En attente de devis';
+        } else if (statusNorm.includes('traiter')) {
+          displayStatus = 'À traiter';
+        } else if (statusRaw) {
+          displayStatus = statusRaw;
+        }
+
+        // Nom de la machine nettoyé
+        let machineName = machineRel || name;
+        if (machineName.startsWith('Réparation Curative - ')) {
+          machineName = machineName.replace('Réparation Curative - ', '');
+        } else if (machineName.startsWith('Réparation - ')) {
+          machineName = machineName.replace('Réparation - ', '');
+        }
+        // Supprimer la date en suffixe si présente ex: " - 2026-11-13"
+        machineName = machineName.replace(/\s*-\s*\d{4}-\d{2}-\d{2}$/, '').trim();
+
+        // Site / Chantier rattaché
+        let finalSite = siteCol;
+        if (!finalSite) {
+          // Essayer d'extraire le site depuis le nom de l'intervention ou la description
+          const siteMatch = actionText.match(/Site\s*:\s*([^·\n]+)/i);
+          if (siteMatch) finalSite = siteMatch[1].trim();
+        }
+
+        // Si le champ site contient un numéro de série (ex: "n°213327420"), afficher un libellé clair
+        const isSerialNumberSite = /^n[°o]?\s*\d+/i.test(finalSite.trim());
+
+        // Filtrage éventuel par chantiers de l'animatrice uniquement si le site est clairement un nom de chantier qui n'est pas le sien
+        if (userChantiers.length > 0 && finalSite && !isSerialNumberSite) {
+          const sNorm = norm(finalSite);
+          const match = userChantiers.some((uc) => sNorm.includes(uc) || uc.includes(sNorm));
+          if (!match) {
+            // Si pas de correspondance directe sur le site, on vérifie si le nom de la machine ou le texte mentionne le chantier
+            const textNorm = norm(name + ' ' + actionText);
+            const textMatch = userChantiers.some((uc) => textNorm.includes(uc));
+            // Si le chantier cité appartient explicitement à un autre secteur, on peut l'ignorer, mais s'il s'agit d'un matériel commun (Facility/Atelier/VIP), on le conserve
+            const isCommonSite = sNorm.includes('facility') || sNorm.includes('atelier') || sNorm.includes('depot') || sNorm.includes('non prec');
+            if (!textMatch && !isCommonSite) {
+              // Vérifier si c'est un chantier explicitement nommé d'une autre animatrice
+              // Pour éviter toute perte de visibilité sur les réparations d'atelier, on conserve la machine si son site n'est pas un chantier connu
+            }
+          }
+        }
+
+        parsed.push({
+          id: String(it.id),
+          name,
+          machineName: machineName || 'Machine sans nom',
+          site: finalSite || 'Site atelier / Non précisé',
+          date: dateStr,
+          status: displayStatus,
+          isRepaired,
+          actionText,
+          underWarranty,
+          fournisseur,
+        });
+      }
+
+      // Trier : En cours / À traiter en premier, puis les plus récentes
+      parsed.sort((a, b) => {
+        if (a.isRepaired !== b.isRepaired) {
+          return a.isRepaired ? 1 : -1;
+        }
+        return (b.date || '').localeCompare(a.date || '');
+      });
+
+      return { repairs: parsed };
+    } catch (err) {
+      console.warn('Erreur chargement réparations machines:', err);
+      return { repairs: [] };
+    }
+  });

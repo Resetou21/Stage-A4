@@ -14,6 +14,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import type { Machine } from '../types';
+import { FacilitySelect } from './FacilitySelect';
 import {
   MONTH_COLUMN_IDS,
   toggleMachineMonth,
@@ -544,42 +545,18 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div
-            style={{
-              padding: '5px 12px',
-              borderRadius: '20px',
-              backgroundColor: isViewingArchive ? '#FFF8EC' : '#F5F9FC',
-              color: '#1B4565',
-              border: `1px solid ${isViewingArchive ? '#F7AC37' : '#E2EEF5'}`,
-              fontSize: '12.5px',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Calendar size={15} color={isViewingArchive ? '#D66927' : '#39A9DC'} />
-            <span>Exercice :</span>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                fontWeight: 800,
-                color: '#1B4565',
-                fontSize: '12.5px',
-                cursor: 'pointer',
-                outline: 'none',
-              }}
-            >
-              {availableYears.map((yr) => (
-                <option key={yr} value={yr}>
-                  {yr} {yr === currentCalendarYear ? '(Actif)' : '(Archive)'}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FacilitySelect
+            value={String(selectedYear)}
+            onChange={(val) => setSelectedYear(Number(val))}
+            icon={<Calendar size={15} color={isViewingArchive ? '#D66927' : '#39A9DC'} />}
+            prefixLabel="Exercice :"
+            accentTone={isViewingArchive ? 'amber' : 'default'}
+            minWidth="195px"
+            options={availableYears.map((yr) => ({
+              value: String(yr),
+              label: `${yr} ${yr === currentCalendarYear ? '(Actif)' : '(Archive)'}`,
+            }))}
+          />
 
           {!isViewingArchive && (
             <button
@@ -841,28 +818,16 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
             <span style={{ fontSize: '15px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
               Opérations programmées pour :
             </span>
-            <select
-              value={selectedMonthFilter}
-              onChange={(e) => setSelectedMonthFilter(Number(e.target.value))}
-              style={{
-                padding: '5px 12px',
-                borderRadius: '8px',
-                border: '1.5px solid #39A9DC',
-                fontWeight: 800,
-                fontFamily: "'Ruda', sans-serif",
-                color: '#1B4565',
-                fontSize: '13px',
-                backgroundColor: '#F0F8FD',
-                cursor: 'pointer',
-                outline: 'none',
-              }}
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {MONTH_COLUMN_IDS[m].label} ({MONTH_COLUMN_IDS[m].short})
-                </option>
-              ))}
-            </select>
+            <FacilitySelect
+              value={String(selectedMonthFilter)}
+              onChange={(val) => setSelectedMonthFilter(Number(val))}
+              accentTone="blue"
+              minWidth="170px"
+              options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                value: String(m),
+                label: `${MONTH_COLUMN_IDS[m].label} (${MONTH_COLUMN_IDS[m].short})`,
+              }))}
+            />
             <span style={{ fontSize: '13px', color: '#3989B7', fontWeight: 600 }}>
               ({currentMonthDueMachines.length} machine(s) programmée(s))
             </span>
@@ -1103,27 +1068,19 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
                   {/* Choix de la Fréquence */}
                   {isPrev && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <select
+                      <FacilitySelect
                         value={m.frequence}
                         disabled={isViewingArchive}
-                        onChange={(e) => handleChangeFrequence(m.id, e.target.value)}
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '8px',
-                          border: '1.5px solid #C8DCE8',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          color: '#1B4565',
-                          backgroundColor: '#FFFFFF',
-                          outline: 'none',
-                          cursor: isViewingArchive ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        <option value="1 fois par an">1 fois par an</option>
-                        <option value="2 fois par an">2 fois par an</option>
-                        <option value="4 fois par an (Trimestriel)">4 fois par an (Trimestriel)</option>
-                        <option value="1 fois par mois (Mensuel)">1 fois par mois (Mensuel)</option>
-                      </select>
+                        onChange={(val) => handleChangeFrequence(m.id, val)}
+                        compact
+                        minWidth="170px"
+                        options={[
+                          { value: '1 fois par an', label: '1 fois par an' },
+                          { value: '2 fois par an', label: '2 fois par an' },
+                          { value: '4 fois par an (Trimestriel)', label: '4 fois par an (Trimestriel)' },
+                          { value: '1 fois par mois (Mensuel)', label: '1 fois par mois (Mensuel)' },
+                        ]}
+                      />
                       <span style={{ fontSize: '11px', color: '#57778E', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         ({m.checkedCount}/{m.required})
                       </span>
@@ -1431,31 +1388,20 @@ export const MaintenanceMatrix: React.FC<MaintenanceMatrixProps> = ({
 
                     {/* Menu déroulant Fréquence */}
                     <td style={{ padding: '10px 8px', width: '225px', boxSizing: 'border-box' }}>
-                      <select
+                      <FacilitySelect
                         value={m.frequence}
                         disabled={!m.isPreventive || isViewingArchive}
-                        onChange={(e) => handleChangeFrequence(m.id, e.target.value)}
-                        style={{
-                          width: '100%',
-                          maxWidth: '215px',
-                          boxSizing: 'border-box',
-                          padding: '6px 8px',
-                          borderRadius: '8px',
-                          border: '1.5px solid #C8DCE8',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          color: '#1B4565',
-                          backgroundColor: m.isPreventive && !isViewingArchive ? '#FFFFFF' : '#F1F5F9',
-                          cursor: m.isPreventive && !isViewingArchive ? 'pointer' : 'not-allowed',
-                          fontFamily: 'inherit',
-                          outline: 'none',
-                        }}
-                      >
-                        <option value="1 fois par mois">1 fois par mois (12/an)</option>
-                        <option value="1 fois par trimestre">1 fois par trimestre (4/an)</option>
-                        <option value="2 fois par an">2 fois par an (2/an)</option>
-                        <option value="1 fois par an">1 fois par an (1/an)</option>
-                      </select>
+                        onChange={(val) => handleChangeFrequence(m.id, val)}
+                        compact
+                        fullWidth
+                        maxWidth="215px"
+                        options={[
+                          { value: '1 fois par mois', label: '1 fois par mois (12/an)' },
+                          { value: '1 fois par trimestre', label: '1 fois par trimestre (4/an)' },
+                          { value: '2 fois par an', label: '2 fois par an (2/an)' },
+                          { value: '1 fois par an', label: '1 fois par an (1/an)' },
+                        ]}
+                      />
                     </td>
 
                     {/* Les 12 mois (tac au tac 0ms ou lecture archive) */}

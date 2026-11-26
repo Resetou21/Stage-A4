@@ -331,7 +331,7 @@ export function formatSecondsToDuration(sec: number): string {
   return `${h}h${pad2(m)}`;
 }
 
-function formatDayLabel(dateStr: string, dayOfWeek: number): string {
+export function formatDayLabel(dateStr: string, dayOfWeek: number): string {
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
   return `${DAY_SHORT[dayOfWeek] || ''} ${parts[2]}/${parts[1]}`;

@@ -22,11 +22,24 @@ import {
   ExternalLink,
   Maximize2,
   Download,
+  Check,
+  Search,
+  Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { monday } from '@api/BoardSDK';
 import AlertContextSelect, { type AlertMachineOption } from '@generated/components/AlertContextSelect';
-import { getAlertContexts, getMaintenanceExchanges, sendAlertToMaintenance, markCommunicationSeen, archiveCommunication, type MaintenanceExchange, type MaintenanceFile } from '@generated/server/visits';
+import {
+  getAlertContexts,
+  getMaintenanceExchanges,
+  sendAlertToMaintenance,
+  markCommunicationSeen,
+  archiveCommunication,
+  getChantierMachineRepairs,
+  type MaintenanceExchange,
+  type MaintenanceFile,
+  type MachineRepairItem,
+} from '@generated/server/visits';
 import { cn } from '@lib/utils';
 
 interface SelectedFile {
@@ -100,6 +113,12 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
   const [loadingExchanges, setLoadingExchanges] = useState(true);
   const [filterDirection, setFilterDirection] = useState<'all' | 'from_atelier' | 'to_atelier'>('all');
 
+  // Suivi direct des réparations de machines (Tableau Monday 5106693291)
+  const [repairs, setRepairs] = useState<MachineRepairItem[]>([]);
+  const [loadingRepairs, setLoadingRepairs] = useState(true);
+  const [repairStatusFilter, setRepairStatusFilter] = useState<'all' | 'active' | 'repaired'>('active');
+  const [repairSearch, setRepairSearch] = useState('');
+
   const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
@@ -149,10 +168,30 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
     }
   };
 
+  const loadRepairs = async (currentChantiers: string[]) => {
+    setLoadingRepairs(true);
+    try {
+      const res = await getChantierMachineRepairs({ data: { chantiers: currentChantiers, firstName } });
+      setRepairs(res?.repairs ?? []);
+    } catch (err) {
+      console.warn('Erreur chargement réparations:', err);
+    } finally {
+      setLoadingRepairs(false);
+    }
+  };
+
   useEffect(() => {
     loadContexts();
     loadExchanges();
+    loadRepairs(chantiers);
   }, [firstName]);
+
+  // Recharger les réparations dès que les chantiers sont connus
+  useEffect(() => {
+    if (chantiers.length > 0) {
+      loadRepairs(chantiers);
+    }
+  }, [chantiers]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,6 +311,22 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
     return true;
   });
 
+  const filteredRepairs = repairs.filter((r) => {
+    if (repairStatusFilter === 'active' && r.isRepaired) return false;
+    if (repairStatusFilter === 'repaired' && !r.isRepaired) return false;
+    if (repairSearch.trim()) {
+      const q = repairSearch.toLowerCase().trim();
+      const match =
+        r.machineName.toLowerCase().includes(q) ||
+        r.site.toLowerCase().includes(q) ||
+        r.status.toLowerCase().includes(q) ||
+        r.actionText.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const activeRepairsCount = repairs.filter((r) => !r.isRepaired).length;
   const unreadCount = exchanges.filter((e) => !e.seen && e.direction === 'from_atelier').length;
 
   return (
@@ -675,6 +730,177 @@ export default function AtelierCommunicationSpace({ firstName }: { firstName: st
             )}
           </div>
         </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. SUIVI DES RÉPARATIONS DE MACHINES EN COURS & LIVRÉES (TABLEAU 5106693291) */}
+      {/* ========================================================================= */}
+      <div className="mt-8 pt-8 border-t border-border">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600 font-bold text-xs">
+                <Wrench className="h-3.5 w-3.5" />
+              </span>
+              <h4 className="font-bold text-foreground text-base tracking-tight">
+                État des réparations de machines (Atelier)
+              </h4>
+              {activeRepairsCount > 0 && (
+                <span className="rounded-full bg-orange-500/15 text-orange-700 dark:text-orange-400 px-2.5 py-0.5 text-xs font-bold border border-orange-500/25">
+                  {activeRepairsCount} en cours
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Suivi direct des machines envoyées à l'atelier ou prises en charge par Christophe.
+            </p>
+          </div>
+
+          {/* Filtres de statut et recherche */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative min-w-[160px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={repairSearch}
+                onChange={(e) => setRepairSearch(e.target.value)}
+                placeholder="Filtrer une machine, un site..."
+                className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            <div className="inline-flex rounded-lg bg-muted p-1 text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setRepairStatusFilter('active')}
+                className={cn(
+                  'rounded-md px-2.5 py-1 font-semibold transition cursor-pointer',
+                  repairStatusFilter === 'active'
+                    ? 'bg-card text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                En cours ({activeRepairsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepairStatusFilter('repaired')}
+                className={cn(
+                  'rounded-md px-2.5 py-1 font-semibold transition cursor-pointer',
+                  repairStatusFilter === 'repaired'
+                    ? 'bg-card text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Réparées ({repairs.filter((r) => r.isRepaired).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepairStatusFilter('all')}
+                className={cn(
+                  'rounded-md px-2.5 py-1 font-semibold transition cursor-pointer',
+                  repairStatusFilter === 'all'
+                    ? 'bg-card text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Toutes ({repairs.length})
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Grille / Liste des cartes de réparation */}
+        {loadingRepairs && repairs.length === 0 ? (
+          <div className="flex items-center justify-center py-8 gap-3 text-xs text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span>Chargement de l'état des machines…</span>
+          </div>
+        ) : filteredRepairs.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground bg-muted/10">
+            <CheckCircle2 className="h-7 w-7 text-emerald-500 mx-auto mb-1.5 opacity-80" />
+            <p className="font-semibold text-foreground">
+              {repairStatusFilter === 'active'
+                ? 'Aucune machine en panne ou en cours de réparation sur vos chantiers'
+                : 'Aucune réparation trouvée avec ces critères'}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Toutes les machines rattachées fonctionnent correctement ou sont déjà réparées.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {filteredRepairs.map((r) => {
+              const isDone = r.isRepaired;
+              const isWaiting = r.status.toLowerCase().includes('attente') || r.status.toLowerCase().includes('devis');
+              const isTodo = r.status.toLowerCase().includes('traiter');
+
+              // Badge de couleur
+              let badgeColor = 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20';
+              if (isDone) {
+                badgeColor = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
+              } else if (isWaiting) {
+                badgeColor = 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
+              } else if (isTodo) {
+                badgeColor = 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20';
+              }
+
+              return (
+                <div
+                  key={r.id}
+                  className={cn(
+                    'flex flex-col justify-between rounded-xl border p-3.5 transition-all text-xs bg-card shadow-2xs',
+                    isDone ? 'border-border/60 opacity-90' : 'border-border ring-1 ring-border/40 hover:border-primary/40'
+                  )}
+                >
+                  <div>
+                    {/* Entête de carte : Nom machine & Statut */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <h5 className="font-bold text-foreground text-xs truncate" title={r.machineName}>
+                          {r.machineName}
+                        </h5>
+                        <p className="text-[11px] text-muted-foreground truncate font-medium mt-0.5" title={r.site}>
+                          📍 {r.site}
+                        </p>
+                      </div>
+
+                      <span
+                        className={cn(
+                          'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold border',
+                          badgeColor
+                        )}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+
+                    {/* Description panne / Action Christophe */}
+                    {r.actionText && (
+                      <p className="text-[11px] text-foreground/80 line-clamp-3 bg-muted/40 p-2 rounded-lg border border-border/40 mb-2 leading-relaxed">
+                        {r.actionText.replace(/^[☑✅☐•\-]\s*/gm, '• ')}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Pied de carte : Date & Prestataire éventuel */}
+                  <div className="flex items-center justify-between text-[10.5px] text-muted-foreground border-t border-border/50 pt-2 mt-1">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {r.date ? `Prise en charge : ${r.date}` : 'Date non renseignée'}
+                    </span>
+
+                    {r.fournisseur && (
+                      <span className="font-medium text-foreground/70 truncate max-w-[120px]" title={r.fournisseur}>
+                        {r.fournisseur}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       {/* Modal Visionneuse Photo Plein Écran (Lightbox in-app sans téléchargement) */}
       {lightboxImage && (

@@ -752,13 +752,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#1B4565' }}>
-                                <span>📅 {ctrl.date}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', fontWeight: 700, color: '#1B4565', minWidth: 0 }}>
+                                <span style={{ whiteSpace: 'nowrap' }}>📅 {ctrl.date}</span>
                                 {ctrl.technicienName && (
-                                  <span style={{ color: '#475569', fontWeight: 600 }}>· {ctrl.technicienName}</span>
+                                  <span style={{ color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>· {ctrl.technicienName}</span>
                                 )}
                                 {ctrl.categorieIntervention && (
-                                  <span style={{ color: '#3989B7', fontSize: '11px', backgroundColor: '#EBF6FC', padding: '1px 6px', borderRadius: '6px' }}>
+                                  <span style={{ color: '#3989B7', fontSize: '11px', backgroundColor: '#EBF6FC', padding: '1px 6px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
                                     {ctrl.categorieIntervention}
                                   </span>
                                 )}
@@ -793,22 +793,28 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                 href={ctrl.photoUrl}
                                 target="_blank"
                                 rel="noreferrer"
+                                title={ctrl.photoName || 'Voir la preuve photo'}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '4px',
+                                  gap: '5px',
                                   color: '#0284C7',
                                   fontWeight: 700,
-                                  fontSize: '11px',
+                                  fontSize: '11.5px',
                                   textDecoration: 'none',
                                   backgroundColor: '#E0F2FE',
-                                  padding: '2px 8px',
-                                  borderRadius: '6px',
+                                  padding: '4px 10px',
+                                  borderRadius: '8px',
                                   marginTop: '4px',
                                   width: 'fit-content',
+                                  maxWidth: '100%',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  boxSizing: 'border-box',
                                 }}
                               >
-                                📷 Preuve photo ({ctrl.photoName || 'Voir'}) ↗
+                                📷 Voir la preuve photo ↗
                               </a>
                             )}
                           </div>

@@ -25,7 +25,19 @@ import {
   FileText,
   Pencil,
   Save,
+  MessageSquare,
+  MessageCircle,
+  CornerDownRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+
+export interface RoadmapComment {
+  id: string;
+  text: string;
+  authorName: string;
+  createdAt: string;
+}
 
 export interface RoadmapItem {
   id: string;
@@ -41,6 +53,7 @@ export interface RoadmapItem {
   timeline: string;
   fileUrl?: string;
   fileName?: string;
+  updatesCount?: number;
 }
 
 interface RoadmapModalProps {
@@ -48,7 +61,7 @@ interface RoadmapModalProps {
   onClose: () => void;
   monday: any;
   currentUserName?: string;
-  initialTab?: 'form' | 'list';
+  initialTab?: 'form' | 'list' | 'my_ideas' | 'company_ideas';
 }
 
 const BOARD_ROADMAP_ID = 5105479748;
@@ -73,14 +86,20 @@ const TYPE_OPTIONS = [
 let roadmapCache: { ts: number; data: RoadmapItem[] } | null = null;
 const ROADMAP_CACHE_TTL_MS = 2 * 60 * 1000;
 
+const resolveRoadmapTab = (t?: 'form' | 'list' | 'my_ideas' | 'company_ideas'): 'my_ideas' | 'company_ideas' | 'form' => {
+  if (t === 'form') return 'form';
+  if (t === 'my_ideas') return 'my_ideas';
+  return 'company_ideas';
+};
+
 export default function RoadmapModal({
   isOpen,
   onClose,
   monday,
   currentUserName = 'Guillaume Daniel',
-  initialTab = 'list',
+  initialTab = 'company_ideas',
 }: RoadmapModalProps) {
-  const [activeTab, setActiveTab] = useState<'form' | 'list'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'my_ideas' | 'company_ideas' | 'form'>(() => resolveRoadmapTab(initialTab));
   const [items, setItems] = useState<RoadmapItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -91,10 +110,17 @@ export default function RoadmapModal({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Droits d'administration : SEUL Guillaume Daniel peut cocher / valider les demandes livrées
+  // Système de commentaires / retours d'échanges sur les demandes
+  const [expandedCommentsItemId, setExpandedCommentsItemId] = useState<string | null>(null);
+  const [itemComments, setItemComments] = useState<Record<string, RoadmapComment[]>>({});
+  const [loadingCommentsItemId, setLoadingCommentsItemId] = useState<string | null>(null);
+  const [newCommentText, setNewCommentText] = useState<Record<string, string>>({});
+  const [submittingCommentItemId, setSubmittingCommentItemId] = useState<string | null>(null);
+
+  // Droits d'administration : Guillaume Daniel & Laurent GUILLOU peuvent valider les demandes livrées
   const isManager = useMemo(() => {
     const u = (currentUserName || '').toLowerCase();
-    return u.includes('guillaume') || u.includes('daniel');
+    return u.includes('guillaume') || u.includes('daniel') || (u.includes('laurent') && u.includes('guillou'));
   }, [currentUserName]);
 
   // Filtres onglet Roadmap
@@ -244,7 +270,7 @@ export default function RoadmapModal({
 
   const cancelEdit = () => {
     resetForm();
-    setActiveTab('list');
+    setActiveTab('my_ideas');
   };
 
   // Synchronisation onglet initial
@@ -252,7 +278,7 @@ export default function RoadmapModal({
     if (isOpen) {
       setEditingItem(null);
       setSuccessSent(false);
-      setActiveTab(initialTab);
+      setActiveTab(resolveRoadmapTab(initialTab));
       loadRoadmap();
     }
   }, [isOpen, initialTab]);
@@ -272,6 +298,16 @@ export default function RoadmapModal({
               id
               name
               group { id title }
+              updates(limit: 5) {
+                id
+                body
+                text_body
+                created_at
+                creator {
+                  id
+                  name
+                }
+              }
               column_values {
                 id
                 text
@@ -334,6 +370,20 @@ export default function RoadmapModal({
           cleanDesc = parts.slice(1).join('|').trim();
         }
 
+        const updatesList: RoadmapComment[] = (it.updates || []).map((u: any) => ({
+          id: u.id,
+          text: u.text_body || (u.body ? u.body.replace(/<[^>]+>/g, '').trim() : ''),
+          authorName: u.creator?.name || 'Collaborateur',
+          createdAt: u.created_at || '',
+        }));
+
+        if (updatesList.length > 0) {
+          setItemComments((prev) => ({
+            ...prev,
+            [it.id]: updatesList,
+          }));
+        }
+
         return {
           id: it.id,
           name: it.name || 'Sans titre',
@@ -348,6 +398,7 @@ export default function RoadmapModal({
           timeline: valMap.get('timerange_mm7wqn4x') || '',
           fileUrl,
           fileName,
+          updatesCount: (it.updates || []).length,
         };
       });
 
@@ -440,6 +491,115 @@ export default function RoadmapModal({
     }
   };
 
+  // Charger les commentaires (updates) d'une demande
+  const handleLoadItemComments = async (itemId: string) => {
+    setLoadingCommentsItemId(itemId);
+    try {
+      const q = `query {
+        items(ids: [${itemId}]) {
+          updates(limit: 20) {
+            id
+            body
+            text_body
+            created_at
+            creator {
+              id
+              name
+            }
+          }
+        }
+      }`;
+      const res: any = await monday.api(q);
+      const rawUpdates = res?.data?.items?.[0]?.updates || [];
+      const parsed: RoadmapComment[] = rawUpdates.map((u: any) => ({
+        id: u.id,
+        text: u.text_body || (u.body ? u.body.replace(/<[^>]+>/g, '').trim() : ''),
+        authorName: u.creator?.name || 'Collaborateur',
+        createdAt: u.created_at || '',
+      }));
+      setItemComments((prev) => ({
+        ...prev,
+        [itemId]: parsed,
+      }));
+    } catch (err) {
+      console.error('Erreur chargement updates demande:', err);
+    } finally {
+      setLoadingCommentsItemId(null);
+    }
+  };
+
+  // Toggle du panneau de discussion d'une demande
+  const toggleComments = (itemId: string) => {
+    if (expandedCommentsItemId === itemId) {
+      setExpandedCommentsItemId(null);
+    } else {
+      setExpandedCommentsItemId(itemId);
+      handleLoadItemComments(itemId);
+    }
+  };
+
+  // Poster un nouveau commentaire / update sur Monday
+  const handleAddComment = async (itemId: string) => {
+    const text = (newCommentText[itemId] || '').trim();
+    if (!text) return;
+
+    setSubmittingCommentItemId(itemId);
+    const author = currentUserName && currentUserName !== 'Utilisateur' ? currentUserName.trim() : 'Collaborateur';
+    const optimisticComment: RoadmapComment = {
+      id: `temp-${Date.now()}`,
+      text: text,
+      authorName: author,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Ajout optimiste
+    setItemComments((prev) => ({
+      ...prev,
+      [itemId]: [...(prev[itemId] || []), optimisticComment],
+    }));
+    setNewCommentText((prev) => ({ ...prev, [itemId]: '' }));
+
+    // Incrémente le compteur sur la carte
+    setItems((prev) =>
+      prev.map((it) => (it.id === itemId ? { ...it, updatesCount: (it.updatesCount || 0) + 1 } : it))
+    );
+
+    try {
+      // Échappement propre pour GraphQL
+      const formattedBody = `<p><strong>${author} :</strong> ${text.replace(/"/g, '\\"')}</p>`;
+      const mutation = `mutation {
+        create_update(item_id: ${itemId}, body: "${formattedBody}") {
+          id
+        }
+      }`;
+      await monday.api(mutation);
+      roadmapCache = null;
+      // Rechargement frais des commentaires pour obtenir l'id officiel Monday
+      await handleLoadItemComments(itemId);
+    } catch (err) {
+      console.error('Erreur ajout commentaire sur Monday:', err);
+      // Fallback avec format direct texte
+      try {
+        const fallbackMutation = `mutation ($itemId: ID!, $body: String!) {
+          create_update(item_id: $itemId, body: $body) {
+            id
+          }
+        }`;
+        await monday.api(fallbackMutation, {
+          variables: {
+            itemId,
+            body: `${author} : ${text}`,
+          },
+        });
+        await handleLoadItemComments(itemId);
+      } catch (fbErr) {
+        console.error('Échec critique fallback create_update:', fbErr);
+      }
+    } finally {
+      setSubmittingCommentItemId(null);
+    }
+  };
+
   // Soumission d'une nouvelle demande OU mise à jour d'une demande existante vers Monday
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -509,7 +669,7 @@ export default function RoadmapModal({
 
         setTimeout(() => {
           setSuccessSent(false);
-          setActiveTab('list');
+          setActiveTab('my_ideas');
         }, 1400);
         return;
       }
@@ -578,7 +738,7 @@ export default function RoadmapModal({
 
       setTimeout(() => {
         setSuccessSent(false);
-        setActiveTab('list');
+        setActiveTab('my_ideas');
       }, 1500);
     } catch (err) {
       console.error('Erreur enregistrement suggestion:', err);
@@ -588,58 +748,59 @@ export default function RoadmapModal({
     }
   };
 
-  // Statistiques Roadmap
-  const stats = useMemo(() => {
+  // Helper d'identification des idées appartenant au collaborateur connecté
+  const isItemMine = (it: RoadmapItem) => {
     const u = (currentUserName || '').toLowerCase().trim();
-    const myItems = items.filter((i) => {
-      if (!u || u === 'utilisateur') return false;
-      const matchAuth = i.author && i.author.toLowerCase().includes(u);
-      const matchDesc = i.description && i.description.toLowerCase().includes(u);
-      return matchAuth || matchDesc;
-    });
+    if (!u || u === 'utilisateur') return false;
+    const firstWord = u.split(/\s+/)[0] || u;
+    const authLow = (it.author || '').toLowerCase();
+    const descLow = (it.description || '').toLowerCase();
+    return (
+      authLow.includes(u) ||
+      (firstWord.length >= 3 && authLow.includes(firstWord)) ||
+      descLow.includes(u)
+    );
+  };
 
-    const relevantItems = isManager ? items : myItems;
+  // Statistiques Roadmap (toujours calculées pour Mes idées ET pour Toute l'entreprise)
+  const stats = useMemo(() => {
+    const myItems = items.filter((i) => isItemMine(i));
+    const currentSource = activeTab === 'my_ideas' ? myItems : items;
 
-    const todo = relevantItems.filter((i) => !/effectu|fait/i.test(i.groupTitle) && i.status !== 'Fait');
-    const done = relevantItems.filter((i) => /effectu|fait/i.test(i.groupTitle) || i.status === 'Fait');
+    const todo = currentSource.filter((i) => !/effectu|fait/i.test(i.groupTitle) && i.status !== 'Fait');
+    const done = currentSource.filter((i) => /effectu|fait/i.test(i.groupTitle) || i.status === 'Fait');
+
+    const companyTodo = items.filter((i) => !/effectu|fait/i.test(i.groupTitle) && i.status !== 'Fait').length;
+    const companyDone = items.filter((i) => /effectu|fait/i.test(i.groupTitle) || i.status === 'Fait').length;
 
     return {
-      total: relevantItems.length,
+      total: currentSource.length,
+      companyTotal: items.length,
       todoCount: todo.length,
       doneCount: done.length,
+      companyTodo,
+      companyDone,
       myCount: myItems.length,
-      pctDone: relevantItems.length > 0 ? Math.round((done.length / relevantItems.length) * 100) : 0,
+      pctDone: items.length > 0 ? Math.round((companyDone / items.length) * 100) : 0,
     };
-  }, [items, currentUserName, isManager]);
+  }, [items, currentUserName, activeTab]);
 
-  // Filtrage des éléments pour la vue liste
+  // Filtrage des éléments selon l'onglet actif ("Mes idées" vs "Idées de l'entreprise")
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
       const isDone = /effectu|fait/i.test(it.groupTitle) || it.status === 'Fait';
 
-      // RÈGLE STRICTE DE CONFIDENTIALITÉ :
-      // Seul Guillaume Daniel peut voir l'intégralité de la roadmap (tous collaborateurs et développements internes).
-      // Tous les autres collaborateurs ne voient STRICTEMENT ET UNIQUEMENT QUE LEURS PROPRES DEMANDES !
-      if (!isManager) {
-        const u = (currentUserName || '').toLowerCase().trim();
-        const isMine =
-          (it.author && it.author.toLowerCase().includes(u)) ||
-          (it.description && it.description.toLowerCase().includes(u));
-        if (!isMine) return false;
+      if (activeTab === 'my_ideas' && !isItemMine(it)) {
+        return false;
       }
 
       // Filtre statut
       if (selectedStatusFilter === 'todo' && isDone) return false;
       if (selectedStatusFilter === 'done' && !isDone) return false;
-      if (selectedStatusFilter === 'mine') {
-        const u = currentUserName.toLowerCase();
-        if (!it.author.toLowerCase().includes(u) && !it.description.toLowerCase().includes(u)) {
-          return false;
-        }
-      }
+      if (selectedStatusFilter === 'mine' && !isItemMine(it)) return false;
 
-      // Filtre pôle (applicable uniquement pour Guillaume)
-      if (isManager && selectedPoleFilter !== 'all') {
+      // Filtre pôle
+      if (selectedPoleFilter !== 'all') {
         if (!it.workspace.toLowerCase().includes(selectedPoleFilter.toLowerCase())) return false;
       }
 
@@ -655,7 +816,7 @@ export default function RoadmapModal({
 
       return true;
     });
-  }, [items, selectedStatusFilter, selectedPoleFilter, search, currentUserName, isManager]);
+  }, [items, activeTab, selectedStatusFilter, selectedPoleFilter, search, currentUserName]);
 
   if (!isOpen) return null;
 
@@ -725,18 +886,18 @@ export default function RoadmapModal({
       `}</style>
 
       <div
-        className="roadmap-modal-container"
+        className="roadmap-modal-container modal-spring-in"
         style={{
           width: '920px',
           maxWidth: '100%',
           maxHeight: '90vh',
           backgroundColor: '#FFFFFF',
           borderRadius: '20px',
-          boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.4)',
+          boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.42)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          border: '1px solid #E2E8F0',
+          border: '1px solid #D7EAF5',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -751,6 +912,7 @@ export default function RoadmapModal({
             backgroundImage: 'linear-gradient(135deg, #1B4565 0%, #3989B7 100%)',
             color: '#FFFFFF',
             position: 'relative',
+            flexShrink: 0,
           }}
         >
           <button
@@ -815,10 +977,8 @@ export default function RoadmapModal({
                   ● En direct
                 </span>
               </div>
-              <p className="roadmap-subtitle" style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94A3B8', lineHeight: 1.4 }}>
-                {isManager
-                  ? "Exprimez vos besoins ou remarques • Suivez l'avancement et la mise en production des demandes"
-                  : "Suivez l'avancement de vos demandes et exprimez vos besoins d'amélioration auprès de Guillaume"}
+              <p className="roadmap-subtitle" style={{ margin: '3px 0 0 0', fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.4 }}>
+                Consultez vos propres demandes, suivez toutes les idées de l’entreprise et échangez en direct avec l’équipe
               </p>
             </div>
           </div>
@@ -892,9 +1052,15 @@ export default function RoadmapModal({
           style={{
             display: 'flex',
             alignItems: 'center',
-            borderBottom: '1px solid #E2E8F0',
-            backgroundColor: '#F8FAFC',
+            gap: '4px',
+            borderBottom: '1px solid #D7EAF5',
+            backgroundColor: '#F4F9FC',
             padding: '0 20px',
+            flexShrink: 0,
+            minHeight: '48px',
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            scrollbarWidth: 'none',
           }}
         >
           <button
@@ -902,25 +1068,55 @@ export default function RoadmapModal({
             className="roadmap-tab-button"
             onClick={() => {
               if (editingItem) resetForm();
-              setActiveTab('list');
+              setSelectedStatusFilter('all');
+              setActiveTab('my_ideas');
             }}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '13px 18px',
+              gap: '7px',
+              padding: '13px 16px',
               fontSize: '13px',
               fontWeight: 700,
               border: 'none',
               background: 'none',
               cursor: 'pointer',
-              color: activeTab === 'list' ? '#39A9DC' : '#64748B',
-              borderBottom: activeTab === 'list' ? '2.5px solid #39A9DC' : '2.5px solid transparent',
+              whiteSpace: 'nowrap',
+              color: activeTab === 'my_ideas' ? '#39A9DC' : '#64748B',
+              borderBottom: activeTab === 'my_ideas' ? '2.5px solid #39A9DC' : '2.5px solid transparent',
               transition: 'all 0.15s ease',
             }}
           >
-            <ListTodo size={16} />
-            <span>{isManager ? `Toutes les demandes (${items.length})` : `Mes demandes (${stats.total})`}</span>
+            <User size={15} />
+            <span>Mes idées ({stats.myCount})</span>
+          </button>
+
+          <button
+            type="button"
+            className="roadmap-tab-button"
+            onClick={() => {
+              if (editingItem) resetForm();
+              setSelectedStatusFilter('all');
+              setActiveTab('company_ideas');
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '13px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              color: activeTab === 'company_ideas' ? '#39A9DC' : '#64748B',
+              borderBottom: activeTab === 'company_ideas' ? '2.5px solid #39A9DC' : '2.5px solid transparent',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <ListTodo size={15} />
+            <span>Idées de l’entreprise ({items.length})</span>
           </button>
 
           <button
@@ -930,20 +1126,21 @@ export default function RoadmapModal({
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '13px 18px',
+              gap: '7px',
+              padding: '13px 16px',
               fontSize: '13px',
               fontWeight: 700,
               border: 'none',
               background: 'none',
               cursor: 'pointer',
-              color: activeTab === 'form' ? '#39A9DC' : '#64748B',
-              borderBottom: activeTab === 'form' ? '2.5px solid #39A9DC' : '2.5px solid transparent',
+              whiteSpace: 'nowrap',
+              color: activeTab === 'form' ? '#D66927' : '#64748B',
+              borderBottom: activeTab === 'form' ? '2.5px solid #D66927' : '2.5px solid transparent',
               transition: 'all 0.15s ease',
             }}
           >
-            {editingItem ? <Pencil size={15} /> : <PlusCircle size={16} />}
-            <span>{editingItem ? 'Modifier la demande' : 'Formuler une demande'}</span>
+            {editingItem ? <Pencil size={15} /> : <PlusCircle size={15} />}
+            <span>{editingItem ? 'Modifier la demande' : 'Proposer une idée'}</span>
           </button>
         </div>
 
@@ -1602,9 +1799,9 @@ export default function RoadmapModal({
           )}
 
           {/* ------------------------------------------------------------ */}
-          {/* ONGLET 2 : LISTE DES DEMANDES AVEC COCHAGE RAPIDE             */}
+          {/* ONGLET 2 : LISTE DES DEMANDES (MES IDÉES OU ENTREPRISE)       */}
           {/* ------------------------------------------------------------ */}
-          {activeTab === 'list' && (
+          {(activeTab === 'my_ideas' || activeTab === 'company_ideas') && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* Barre de filtres & recherche */}
               <div
@@ -1676,27 +1873,8 @@ export default function RoadmapModal({
                       color: selectedStatusFilter === 'all' ? '#FFFFFF' : '#64748B',
                     }}
                   >
-                    {isManager ? `Toutes (${items.length})` : `Toutes mes demandes (${stats.total})`}
+                    {activeTab === 'my_ideas' ? `Mes demandes (${stats.total})` : `Toutes (${stats.total})`}
                   </button>
-                  {isManager && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedStatusFilter('mine')}
-                      style={{
-                        padding: '4px 9px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        backgroundColor: selectedStatusFilter === 'mine' ? '#0284C7' : 'transparent',
-                        color: selectedStatusFilter === 'mine' ? '#FFFFFF' : '#64748B',
-                      }}
-                      title="Voir uniquement mes demandes personnelles"
-                    >
-                      Mes demandes ({stats.myCount})
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => setSelectedStatusFilter('todo')}
@@ -1775,7 +1953,7 @@ export default function RoadmapModal({
                   <span style={{ fontSize: '13px', fontWeight: 600 }}>Chargement des demandes...</span>
                 </div>
               ) : filteredItems.length === 0 ? (
-                !isManager && stats.total === 0 ? (
+                activeTab === 'my_ideas' && stats.myCount === 0 ? (
                   <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
                     <Lightbulb size={32} color="#F59E0B" style={{ margin: '0 auto 10px auto' }} />
                     <h4 style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>
@@ -1822,6 +2000,8 @@ export default function RoadmapModal({
                       : '#10B981';
 
                     const isBeingUpdated = updatingId === item.id;
+                    const isCommentsOpen = expandedCommentsItemId === item.id;
+                    const commentsList = itemComments[item.id] || [];
 
                     return (
                       <div
@@ -1907,32 +2087,34 @@ export default function RoadmapModal({
                             </h4>
                           </div>
 
-                          {/* Badges statut & priorité + bouton Modifier */}
+                          {/* Badges statut & priorité + bouton Modifier (si auteur ou admin) */}
                           <div className="roadmap-card-badges" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
-                            <button
-                              type="button"
-                              onClick={() => startEditItem(item)}
-                              title="Modifier cette idée"
-                              style={{
-                                fontSize: '10.5px',
-                                fontWeight: 700,
-                                padding: '2px 8px',
-                                borderRadius: '5px',
-                                backgroundColor: '#EBF6FC',
-                                color: '#3989B7',
-                                border: '1px solid #BAE6FD',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              <Pencil size={11} />
-                              <span>Modifier</span>
-                            </button>
+                            {(isManager || isItemMine(item)) && (
+                              <button
+                                type="button"
+                                onClick={() => startEditItem(item)}
+                                title="Modifier cette idée"
+                                style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '5px',
+                                  backgroundColor: '#EBF6FC',
+                                  color: '#3989B7',
+                                  border: '1px solid #BAE6FD',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                <Pencil size={11} />
+                                <span>Modifier</span>
+                              </button>
+                            )}
 
-                            {confirmDeleteId === item.id ? (
+                            {(isManager || isItemMine(item)) && (confirmDeleteId === item.id ? (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                 <button
                                   type="button"
@@ -1998,7 +2180,7 @@ export default function RoadmapModal({
                               >
                                 <Trash2 size={11} />
                               </button>
-                            )}
+                            ))}
 
                             {item.workspace && (
                               <span
@@ -2154,7 +2336,162 @@ export default function RoadmapModal({
                               <ExternalLink size={10} color="#39A9DC" />
                             </a>
                           )}
+
+                          {/* Bouton pour ouvrir / fermer la discussion de la demande */}
+                          <button
+                            type="button"
+                            onClick={() => toggleComments(item.id)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              border: isCommentsOpen ? '1px solid #39A9DC' : '1px solid #E2E8F0',
+                              backgroundColor: isCommentsOpen ? '#EBF6FC' : '#FFFFFF',
+                              color: isCommentsOpen ? '#0284C7' : '#64748B',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                              marginLeft: 'auto',
+                            }}
+                            title="Voir et ajouter des messages sur cette demande"
+                          >
+                            <MessageSquare size={12} color={isCommentsOpen ? '#0284C7' : '#64748B'} />
+                            <span>
+                              {commentsList.length > 0
+                                ? `${commentsList.length} message${commentsList.length > 1 ? 's' : ''}`
+                                : 'Échanger / Message'}
+                            </span>
+                            {isCommentsOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                          </button>
                         </div>
+
+                        {/* SECTION DISCUSSION / COMMENTAIRES DÉPLIANTE */}
+                        {isCommentsOpen && (
+                          <div
+                            style={{
+                              margin: '10px 0 0 34px',
+                              padding: '12px 14px',
+                              backgroundColor: '#F8FAFC',
+                              borderRadius: '10px',
+                              border: '1px solid #E2E8F0',
+                              animation: 'fadeIn 0.2s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 800, color: '#334155' }}>
+                                <MessageCircle size={14} color="#39A9DC" />
+                                <span>Échanges & Retours sur cette demande</span>
+                              </div>
+                              {loadingCommentsItemId === item.id && (
+                                <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>Actualisation...</span>
+                              )}
+                            </div>
+
+                            {/* Liste des messages / updates */}
+                            {commentsList.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px', maxHeight: '220px', overflowY: 'auto' }}>
+                                {commentsList.map((c) => {
+                                  const dateFormatted = c.createdAt
+                                    ? new Date(c.createdAt).toLocaleDateString('fr-FR', {
+                                        day: '2-digit',
+                                        month: 'short',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })
+                                    : '';
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      style={{
+                                        backgroundColor: '#FFFFFF',
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #E2E8F0',
+                                        fontSize: '11.5px',
+                                        color: '#334155',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700, color: '#0F172A' }}>
+                                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' }}>
+                                            <User size={10} />
+                                          </div>
+                                          <span>{c.authorName}</span>
+                                        </div>
+                                        {dateFormatted && (
+                                          <span style={{ fontSize: '10px', color: '#94A3B8' }}>{dateFormatted}</span>
+                                        )}
+                                      </div>
+                                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.4, color: '#475569' }}>
+                                        {c.text}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '11.5px', color: '#94A3B8', fontStyle: 'italic', marginBottom: '10px' }}>
+                                Aucun message ou retour pour le moment. Vous pouvez laisser une précision ou un motif ci-dessous.
+                              </div>
+                            )}
+
+                            {/* Zone de saisie d'un nouveau commentaire */}
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                              <textarea
+                                value={newCommentText[item.id] || ''}
+                                onChange={(e) => setNewCommentText((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                placeholder="Ajouter une précision, un motif de clôture ou une réponse..."
+                                rows={2}
+                                style={{
+                                  flex: 1,
+                                  padding: '8px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: '11.5px',
+                                  fontFamily: 'inherit',
+                                  resize: 'vertical',
+                                  outline: 'none',
+                                  backgroundColor: '#FFFFFF',
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                    e.preventDefault();
+                                    handleAddComment(item.id);
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                disabled={submittingCommentItemId === item.id || !(newCommentText[item.id] || '').trim()}
+                                onClick={() => handleAddComment(item.id)}
+                                style={{
+                                  padding: '8px 12px',
+                                  height: '38px',
+                                  borderRadius: '8px',
+                                  backgroundColor: '#39A9DC',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  cursor: submittingCommentItemId === item.id || !(newCommentText[item.id] || '').trim() ? 'not-allowed' : 'pointer',
+                                  opacity: submittingCommentItemId === item.id || !(newCommentText[item.id] || '').trim() ? 0.6 : 1,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  whiteSpace: 'nowrap',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                <Send size={12} />
+                                <span>{submittingCommentItemId === item.id ? '...' : 'Envoyer'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2171,13 +2508,14 @@ export default function RoadmapModal({
           className="roadmap-footer"
           style={{
             padding: '12px 24px',
-            backgroundColor: '#F8FAFC',
-            borderTop: '1px solid #E2E8F0',
+            backgroundColor: '#F4F9FC',
+            borderTop: '1px solid #D7EAF5',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             fontSize: '12px',
             color: '#64748B',
+            flexShrink: 0,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
