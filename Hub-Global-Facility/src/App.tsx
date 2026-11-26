@@ -36,7 +36,7 @@ import {
   ViewId,
 } from './config/hubPermissions';
 import {
-  createAllAllowedPermissions,
+  createEmptyPermissions,
   fetchUserPermissions,
   isAdminUser,
   UserHubPermissions,
@@ -153,14 +153,15 @@ export default function App() {
   const curYear = new Date().getFullYear();
 
   const [currentView, setCurrentView] = useState<ViewId>(getInitialView);
-  const [userName, setUserName] = useState<string>('Guillaume Daniel');
+  const [userName, setUserName] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
+  const [userIdentified, setUserIdentified] = useState<boolean>(false);
   const [loadingStats, setLoadingStats] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(() => Date.now());
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
-  // Permissions & Préférences utilisateur
-  const [permissions, setPermissions] = useState<UserHubPermissions>(createAllAllowedPermissions);
+  // Permissions & Préférences utilisateur (fermées par défaut tant que non vérifiées)
+  const [permissions, setPermissions] = useState<UserHubPermissions>(createEmptyPermissions);
   const [permissionsLoaded, setPermissionsLoaded] = useState<boolean>(false);
   const userKey = useMemo(() => normalizeUserKey(userEmail, userName), [userEmail, userName]);
   const [prefs, setPrefs] = useState<UserHubPrefs>(getDefaultUserPrefs);
@@ -237,13 +238,15 @@ export default function App() {
   const [visitedIframeViews, setVisitedIframeViews] = useState<ViewId[]>([]);
 
   useEffect(() => {
-    if (IFRAME_VIEWS.includes(currentView)) {
+    const reqHub = VIEW_TO_HUB_KEY[currentView];
+    const allowed = !reqHub || (permissionsLoaded && permissions[reqHub]);
+    if (allowed && IFRAME_VIEWS.includes(currentView)) {
       setVisitedIframeViews((prev) => (prev.includes(currentView) ? prev : [...prev, currentView]));
       activeIframeRef.current = iframeRefsMap.current[currentView] || null;
     } else {
       activeIframeRef.current = null;
     }
-  }, [currentView, IFRAME_VIEWS]);
+  }, [currentView, IFRAME_VIEWS, permissionsLoaded, permissions]);
 
   const isAdmin = useMemo(() => isAdminUser(userName, userEmail), [userName, userEmail]);
 
@@ -268,49 +271,63 @@ export default function App() {
     });
   }, []);
 
-  // Chargement identité utilisateur (nom + email)
+  // Chargement identité utilisateur EN DIRECT (jamais depuis un cache 24h qui pourrait mélanger deux comptes)
   const loadUserIdentity = async () => {
     try {
-      const cachedUser = localStorage.getItem(USER_CACHE_KEY);
-      if (cachedUser) {
-        const parsed = JSON.parse(cachedUser);
-        if (parsed?.name && Date.now() - (parsed.timestamp || 0) < 24 * 60 * 60 * 1000) {
-          setUserName(parsed.name);
-          if (parsed.email) setUserEmail(parsed.email);
-          return;
-        }
-      }
       const meRes: any = await monday.api(`query { me { id name email } }`);
-      if (meRes?.data?.me?.name) {
-        const n = meRes.data.me.name;
+      if (meRes?.data?.me?.name || meRes?.data?.me?.email) {
+        const n = meRes.data.me.name || '';
         const em = meRes.data.me.email || '';
         setUserName(n);
         setUserEmail(em);
+        setUserIdentified(true);
         try {
           localStorage.setItem(USER_CACHE_KEY, JSON.stringify({ name: n, email: em, timestamp: Date.now() }));
         } catch {
           // ignore
         }
+        return;
       }
     } catch {
       // ignore
     }
+    // Repli uniquement si l'appel me échoue (ex: aperçu local hors Monday)
+    try {
+      const cachedUser = localStorage.getItem(USER_CACHE_KEY);
+      if (cachedUser) {
+        const parsed = JSON.parse(cachedUser);
+        if (parsed?.name) setUserName(parsed.name);
+        if (parsed?.email) setUserEmail(parsed.email);
+      }
+    } catch {
+      // ignore
+    }
+    setUserIdentified(true);
   };
 
-  // Charger les permissions Monday & préférences personnelles dès que l'utilisateur est identifié
-  const refreshUserPermissions = async (force = false) => {
+  // Charger les permissions Monday en temps réel dès que l'utilisateur est identifié
+  const refreshUserPermissions = async (force = true) => {
+    if (!userIdentified) return;
     const perms = await fetchUserPermissions(monday, userEmail, userName, force);
     setPermissions(perms);
     setPermissionsLoaded(true);
+    // Purger des iframes keep-alive toute vue devenue non autorisée
+    setVisitedIframeViews((prev) =>
+      prev.filter((v) => {
+        const reqHub = VIEW_TO_HUB_KEY[v];
+        return !reqHub || perms[reqHub];
+      })
+    );
   };
 
   useEffect(() => {
-    refreshUserPermissions(false);
+    if (!userIdentified) return;
+    void refreshUserPermissions(true);
     setPrefs(readLocalUserPrefs(userKey));
     loadRemoteUserPrefs(monday, userKey).then((remote) => {
       if (remote) setPrefs(remote);
     });
-  }, [userKey]);
+  }, [userIdentified, userKey]);
 
   const handleUpdatePrefs = (next: UserHubPrefs) => {
     setPrefs(next);
@@ -967,12 +984,16 @@ export default function App() {
     }
   }, [currentView]);
 
-  // Garde-fou autorisations : si la vue demandée n'est pas autorisée, revenir à l'accueil
+  // Garde-fou autorisations : empêche d'ouvrir ou rester sur un Hub non autorisé
   useEffect(() => {
     if (!permissionsLoaded || currentView === 'home') return;
     const reqHub = VIEW_TO_HUB_KEY[currentView];
     if (reqHub && !permissions[reqHub]) {
       setCurrentView('home');
+      try {
+        localStorage.removeItem('hub_global_active_view');
+        sessionStorage.removeItem('hub_global_active_view');
+      } catch {}
     }
   }, [permissionsLoaded, permissions, currentView]);
 
@@ -980,16 +1001,18 @@ export default function App() {
     const onHashChange = () => {
       const h = window.location.hash.replace('#', '') as ViewId;
       if (h && VALID_VIEWS.includes(h) && h !== currentView) {
+        const reqHub = VIEW_TO_HUB_KEY[h];
+        if (reqHub && (!permissionsLoaded || !permissions[reqHub])) return;
         setCurrentView(h);
       }
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
-  }, [currentView]);
+  }, [currentView, permissionsLoaded, permissions]);
 
   const handleNavigate = (view: ViewId) => {
     const reqHub = VIEW_TO_HUB_KEY[view];
-    if (reqHub && permissionsLoaded && !permissions[reqHub]) {
+    if (reqHub && (!permissionsLoaded || !permissions[reqHub])) {
       return;
     }
     setSearchFocused(false);

@@ -15,7 +15,6 @@ export interface PermissionRow {
 }
 
 const PERM_CACHE_KEY = 'facility_hub_permissions_v1';
-const PERM_CACHE_TTL_MS = 5 * 60 * 1000;
 
 let memoryRowsCache: { ts: number; rows: PermissionRow[] } | null = null;
 
@@ -27,6 +26,16 @@ export const createAllAllowedPermissions = (): UserHubPermissions => ({
   communication: true,
   direction: true,
   commercial: true,
+});
+
+export const createEmptyPermissions = (): UserHubPermissions => ({
+  secteurs: false,
+  atelier: false,
+  facturation: false,
+  fournisseurs: false,
+  communication: false,
+  direction: false,
+  commercial: false,
 });
 
 export const isAdminUser = (userName?: string, userEmail?: string): boolean => {
@@ -76,23 +85,8 @@ export const fetchAllPermissionsRows = async (
   monday: any,
   forceRefresh = false
 ): Promise<PermissionRow[]> => {
-  if (!forceRefresh && memoryRowsCache && Date.now() - memoryRowsCache.ts < PERM_CACHE_TTL_MS) {
+  if (!forceRefresh && memoryRowsCache && Date.now() - memoryRowsCache.ts < 60_000) {
     return memoryRowsCache.rows;
-  }
-
-  if (!forceRefresh) {
-    try {
-      const raw = localStorage.getItem(PERM_CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.ts && Date.now() - parsed.ts < PERM_CACHE_TTL_MS && Array.isArray(parsed.rows)) {
-          memoryRowsCache = { ts: parsed.ts, rows: parsed.rows };
-          return parsed.rows as PermissionRow[];
-        }
-      }
-    } catch {
-      // ignore
-    }
   }
 
   const query = `query {
@@ -149,11 +143,6 @@ export const fetchAllPermissionsRows = async (
 
   const ts = Date.now();
   memoryRowsCache = { ts, rows };
-  try {
-    localStorage.setItem(PERM_CACHE_KEY, JSON.stringify({ ts, rows }));
-  } catch {
-    // ignore
-  }
   return rows;
 };
 
@@ -161,11 +150,15 @@ export const fetchUserPermissions = async (
   monday: any,
   userEmail?: string,
   userName?: string,
-  forceRefresh = false
+  forceRefresh = true
 ): Promise<UserHubPermissions> => {
+  // Les admins (Guillaume & Laurent) conservent toujours un accès complet de secours
+  const adminFallback = isAdminUser(userName, userEmail);
   try {
     const rows = await fetchAllPermissionsRows(monday, forceRefresh);
-    if (!rows.length) return createAllAllowedPermissions();
+    if (!rows.length) {
+      return adminFallback ? createAllAllowedPermissions() : createEmptyPermissions();
+    }
 
     const emailNorm = (userEmail || '').toLowerCase().trim();
     const nameNorm = normStr(userName || '');
@@ -185,9 +178,9 @@ export const fetchUserPermissions = async (
       return { ...matched.permissions };
     }
   } catch (err) {
-    console.warn('[Hub Global] Lecture permissions impossible, accès par défaut maintenu:', err);
+    console.warn('[Hub Global] Lecture permissions impossible:', err);
   }
-  return createAllAllowedPermissions();
+  return adminFallback ? createAllAllowedPermissions() : createEmptyPermissions();
 };
 
 export const updatePermissionCell = async (
