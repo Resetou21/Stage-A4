@@ -146,6 +146,33 @@ export default function RoadmapModal({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-redimensionnement du champ Précisions + dépliage des descriptions longues
+  const descTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [expandedDescIds, setExpandedDescIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const el = descTextareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const nextHeight = Math.min(Math.max(el.scrollHeight, 116), 380);
+    el.style.height = `${nextHeight}px`;
+  }, [description, activeTab, isOpen]);
+
+  // Formate proprement les textes longs (conserve les retours à la ligne + aère les listes numérotées/puces)
+  const formatDescriptionLines = (raw: string): string[] => {
+    if (!raw) return [];
+    let normalized = raw.replace(/\r\n/g, '\n').trim();
+    // Si Monday a aplati les retours à la ligne d'un texte structuré, on restaure une lecture aérée
+    if (!normalized.includes('\n') && normalized.length > 180) {
+      normalized = normalized
+        .replace(/\s+(?=\d+\.\s+[A-ZÀ-Ÿ])/g, '\n\n')
+        .replace(/\s+-\s+(?=[A-ZÀ-Ÿ0-9~])/g, '\n• ');
+    }
+    return normalized
+      .split('\n')
+      .map((l) => l.trimEnd());
+  };
+
   // Upload d'un fichier vers Monday via la colonne file_mm7wtnz1
   const uploadFileToMonday = async (itemId: string | number, file: File): Promise<boolean> => {
     const mutation = `mutation ($file: File!) {
@@ -1401,28 +1428,47 @@ export default function RoadmapModal({
 
                   {/* Explication / détails */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                      Précisions ou contexte du besoin
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', gap: '8px', flexWrap: 'wrap' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        Précisions ou contexte du besoin
+                      </label>
+                      <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 600 }}>
+                        {description.length > 0 ? `${description.length} car. • ` : ''}
+                        Zone extensible (retours à la ligne conservés)
+                      </span>
+                    </div>
                     <textarea
-                      rows={3}
-                      placeholder="Décrivez en quelques mots la situation ou ce qui vous ferait gagner du temps au quotidien..."
+                      ref={descTextareaRef}
+                      rows={5}
+                      placeholder="Décrivez en quelques mots la situation, les étapes ou ce qui vous ferait gagner du temps au quotidien..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       style={{
                         width: '100%',
-                        padding: '10px 14px',
+                        minHeight: '116px',
+                        maxHeight: '380px',
+                        padding: '12px 14px',
                         borderRadius: '10px',
                         border: '1.5px solid #CBD5E1',
                         fontSize: '13px',
+                        fontFamily: 'inherit',
+                        color: '#1E293B',
+                        backgroundColor: '#FFFFFF',
                         outline: 'none',
-                        resize: 'none',
+                        resize: 'vertical',
+                        overflowY: 'auto',
                         boxSizing: 'border-box',
-                        transition: 'border-color 0.15s',
-                        lineHeight: 1.4,
+                        transition: 'border-color 0.15s, box-shadow 0.15s',
+                        lineHeight: 1.55,
                       }}
-                      onFocus={(e) => (e.target.style.borderColor = '#39A9DC')}
-                      onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = '#39A9DC';
+                        e.target.style.boxShadow = '0 0 0 3px rgba(57, 169, 220, 0.14)';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = '#CBD5E1';
+                        e.target.style.boxShadow = 'none';
+                      }}
                     />
                   </div>
 
@@ -2262,20 +2308,184 @@ export default function RoadmapModal({
                           </div>
                         </div>
 
-                        {/* Description / commentaire */}
-                        {item.description && (
-                          <p
-                            style={{
-                              margin: '2px 0 0 34px',
-                              fontSize: '12px',
-                              color: '#64748B',
-                              lineHeight: 1.4,
-                              wordBreak: 'break-word',
-                            }}
-                          >
-                            {item.description}
-                          </p>
-                        )}
+                        {/* Description / commentaire — mise en forme aérée + Voir plus / Réduire pour longs textes */}
+                        {item.description && (() => {
+                          const lines = formatDescriptionLines(item.description);
+                          const isLongDesc = item.description.length > 220 || lines.length > 3;
+                          const isExpanded = Boolean(expandedDescIds[item.id]);
+                          const toggleDesc = () =>
+                            setExpandedDescIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }));
+
+                          if (!isLongDesc) {
+                            return (
+                              <p
+                                style={{
+                                  margin: '4px 0 0 34px',
+                                  fontSize: '12.5px',
+                                  color: '#475569',
+                                  lineHeight: 1.5,
+                                  whiteSpace: 'pre-line',
+                                  wordBreak: 'break-word',
+                                }}
+                              >
+                                {item.description}
+                              </p>
+                            );
+                          }
+
+                          return (
+                            <div style={{ margin: '6px 0 2px 34px' }}>
+                              {!isExpanded ? (
+                                <div
+                                  onClick={toggleDesc}
+                                  title="Cliquer pour lire tout le détail"
+                                  style={{
+                                    position: 'relative',
+                                    backgroundColor: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: '10px',
+                                    padding: '9px 12px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '12.5px',
+                                      color: '#475569',
+                                      lineHeight: 1.5,
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 3,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      whiteSpace: 'pre-line',
+                                      wordBreak: 'break-word',
+                                    }}
+                                  >
+                                    {lines.join('\n')}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDesc();
+                                    }}
+                                    style={{
+                                      marginTop: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      padding: '3px 10px',
+                                      borderRadius: '999px',
+                                      border: '1px solid #B7D8EA',
+                                      backgroundColor: '#EBF6FC',
+                                      color: '#1B4565',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <span>Voir tout le détail</span>
+                                    <ChevronDown size={12} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div
+                                  style={{
+                                    backgroundColor: '#F8FAFC',
+                                    border: '1px solid #D7EAF5',
+                                    borderLeft: '3px solid #39A9DC',
+                                    borderRadius: '10px',
+                                    padding: '12px 14px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '5px',
+                                  }}
+                                >
+                                  {lines.map((line, idx) => {
+                                    const trimmed = line.trim();
+                                    if (!trimmed) {
+                                      return <div key={idx} style={{ height: '4px' }} />;
+                                    }
+                                    const isHeading = /^\d+\.\s+/.test(trimmed);
+                                    const isBullet = /^([-•*])\s+/.test(trimmed);
+                                    if (isHeading) {
+                                      return (
+                                        <div
+                                          key={idx}
+                                          style={{
+                                            fontSize: '12.5px',
+                                            fontWeight: 800,
+                                            color: '#1B4565',
+                                            marginTop: idx > 0 ? '4px' : 0,
+                                            lineHeight: 1.45,
+                                          }}
+                                        >
+                                          {trimmed}
+                                        </div>
+                                      );
+                                    }
+                                    if (isBullet) {
+                                      return (
+                                        <div
+                                          key={idx}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: '7px',
+                                            paddingLeft: '6px',
+                                            fontSize: '12.5px',
+                                            color: '#334155',
+                                            lineHeight: 1.5,
+                                          }}
+                                        >
+                                          <span style={{ color: '#39A9DC', fontWeight: 900, lineHeight: 1.4 }}>•</span>
+                                          <span style={{ flex: 1, wordBreak: 'break-word' }}>
+                                            {trimmed.replace(/^([-•*])\s+/, '')}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <div
+                                        key={idx}
+                                        style={{
+                                          fontSize: '12.5px',
+                                          color: '#475569',
+                                          lineHeight: 1.55,
+                                          wordBreak: 'break-word',
+                                        }}
+                                      >
+                                        {trimmed}
+                                      </div>
+                                    );
+                                  })}
+                                  <div style={{ marginTop: '4px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={toggleDesc}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '3px 10px',
+                                        borderRadius: '999px',
+                                        border: '1px solid #CBD5E1',
+                                        backgroundColor: '#FFFFFF',
+                                        color: '#475569',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      <span>Réduire</span>
+                                      <ChevronUp size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Auteur & date */}
                         <div
