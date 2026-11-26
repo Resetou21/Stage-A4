@@ -28,6 +28,7 @@ import {
   Archive,
   Cloud,
   CloudUpload,
+  Home,
   UserCheck,
 } from 'lucide-react';
 import {
@@ -72,18 +73,21 @@ import {
   upsertDailyDetailRow,
   upsertDailyDetailBatch,
   archiveDetailsOlderThan6Months,
+  getCommuteKmRecords,
   computeUsefulDayMetrics,
   computePointageStatus,
   serializeTripsCompact,
+  type CommuteDayRecord,
   type DayAnnotationState,
   type MondayDetailWeekSummary,
 } from '@generated/server/geolocDetails';
 import GeolocDayDetailCard from './GeolocDayDetailCard';
+import GeolocCommuteKmPanel from './GeolocCommuteKmPanel';
 import SearchableSelect from '@components/SearchableSelect';
 import { createSpreadsheet, createTheme, useXlsxExport } from '@/skills/xlsx-export';
 import { cn } from '@lib/utils';
 
-type MainTab = 'history' | 'explorer';
+type MainTab = 'history' | 'explorer' | 'commute';
 type ExplorerSubTab = 'summary' | 'vehicle' | 'trips';
 type AlertFilter = 'all' | 'alerts' | 'offHours' | 'weekend' | 'private' | 'inactive';
 type TripQuickFilter = 'all' | 'weekend' | 'private' | 'early' | 'late' | 'long';
@@ -185,6 +189,22 @@ export default function GeolocCard() {
   const [detailsSyncProgress, setDetailsSyncProgress] = useState<{ current: number; total: number; label: string } | null>(null);
   const [archivingOldDetails, setArchivingOldDetails] = useState(false);
 
+  // Suivi Km Domicile ↔ Travail (Monday 5108589918 + coches live de l'Explorateur)
+  const [mondayCommuteRecords, setMondayCommuteRecords] = useState<CommuteDayRecord[]>([]);
+  const [commuteLoading, setCommuteLoading] = useState<boolean>(false);
+
+  const refreshCommuteRecords = useCallback(async () => {
+    setCommuteLoading(true);
+    try {
+      const rows = await getCommuteKmRecords({ data: {} });
+      setMondayCommuteRecords(rows);
+    } catch (err) {
+      console.error('Erreur chargement km Domicile-Travail:', err);
+    } finally {
+      setCommuteLoading(false);
+    }
+  }, []);
+
   const refreshMondayDetailsList = useCallback(async () => {
     try {
       const res = await getMondayDetailWeeksList({ data: {} });
@@ -200,7 +220,60 @@ export default function GeolocCard() {
       .then((names) => setRhEmployees(names))
       .catch(() => {});
     refreshMondayDetailsList();
-  }, [refreshMondayDetailsList]);
+    refreshCommuteRecords();
+  }, [refreshMondayDetailsList, refreshCommuteRecords]);
+
+  // Calcul en temps réel des km Domicile ↔ Travail sur l'Excel actuellement ouvert
+  const liveCommuteRecords = useMemo<CommuteDayRecord[]>(() => {
+    if (!workbook) return [];
+    const out: CommuteDayRecord[] = [];
+    for (const v of workbook.vehicles) {
+      const plateKey = normalizePlateKey(v.plate);
+      for (const day of v.days) {
+        const key = `${plateKey}::${day.date}`;
+        const ann = dayAnnotations[key];
+        if (!ann) continue;
+        const excludedSet = new Set(ann.excludedTripIds || []);
+        const excludedTrips = day.trips
+          .filter((t) => excludedSet.has(t.id))
+          .map((t) => ({
+            startTime: t.startTime,
+            endTime: t.endTime,
+            startAddress: t.startAddress,
+            endAddress: t.endAddress,
+            km: Math.round(t.distanceKm * 100) / 100,
+          }));
+        const commuteKm = Math.round(excludedTrips.reduce((s, t) => s + t.km, 0) * 100) / 100;
+        const totalDayKm = Math.round(day.distanceKm * 100) / 100;
+        out.push({
+          key,
+          date: day.date,
+          plate: v.plate,
+          plateKey,
+          vehicleLabel: v.vehicleLabel || v.plate,
+          driverName: v.driverName || '',
+          commuteKm,
+          totalDayKm,
+          excludedTripsCount: excludedTrips.length,
+          excludedTrips,
+          source: 'live',
+        });
+      }
+    }
+    return out;
+  }, [workbook, dayAnnotations]);
+
+  const totalCommuteKmBadge = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of mondayCommuteRecords) map.set(r.key, r.commuteKm);
+    for (const r of liveCommuteRecords) {
+      if (r.excludedTripsCount > 0 || r.commuteKm > 0) map.set(r.key, r.commuteKm);
+      else map.delete(r.key);
+    }
+    let sum = 0;
+    for (const km of map.values()) sum += km;
+    return Math.round(sum * 10) / 10;
+  }, [mondayCommuteRecords, liveCommuteRecords]);
 
   // Charger automatiquement les exclusions & pointages déjà sauvegardés sur Monday pour la semaine ouverte
   useEffect(() => {
@@ -620,11 +693,13 @@ export default function GeolocCard() {
         description: `${created} créé(s) · ${updated} mis à jour dans « ${workbook.weekLabel} » (rechargeables sans Excel depuis n’importe quel PC).`,
       });
       await refreshMondayDetailsList();
+      await refreshCommuteRecords();
     } catch (err: any) {
       toast.error('Erreur pendant l’archivage des détails journaliers', {
         description: err?.message || 'Relancez l’opération : l’anti-doublon reprendra automatiquement.',
       });
       await refreshMondayDetailsList();
+      await refreshCommuteRecords();
     } finally {
       setSyncingDetails(false);
       setDetailsSyncProgress(null);
@@ -655,6 +730,7 @@ export default function GeolocCard() {
         description: 'Quota d’éléments actifs libéré · historique toujours consultable dans les Archives Monday.',
       });
       await refreshMondayDetailsList();
+      await refreshCommuteRecords();
     } catch (err: any) {
       toast.error('Erreur lors de l’archivage des anciennes semaines', { description: err?.message });
     } finally {
@@ -1061,6 +1137,25 @@ export default function GeolocCard() {
             {workbook && (
               <span className="rounded-full bg-[#D66927]/15 px-2 py-0.5 text-[10px] font-extrabold text-[#D66927]">
                 {workbook.totalTrips.toLocaleString('fr-FR')} trajets
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainTab('commute')}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition cursor-pointer',
+              mainTab === 'commute'
+                ? 'bg-card text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Home className="h-3.5 w-3.5 text-[#1B4565]" />
+            <span>Km Domicile-Travail</span>
+            {totalCommuteKmBadge > 0 && (
+              <span className="rounded-full bg-[#D66927]/15 px-2 py-0.5 text-[10px] font-extrabold text-[#D66927]">
+                {totalCommuteKmBadge.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km
               </span>
             )}
           </button>
@@ -2377,6 +2472,19 @@ export default function GeolocCard() {
             </>
           )}
         </div>
+      )}
+
+      {/* ================================================================== */}
+      {/* ONGLET 3 : KM DOMICILE ↔ TRAVAIL (MENSUEL / TRIMESTRIEL / ANNUEL)  */}
+      {/* ================================================================== */}
+      {mainTab === 'commute' && (
+        <GeolocCommuteKmPanel
+          mondayRecords={mondayCommuteRecords}
+          liveRecords={liveCommuteRecords}
+          loading={commuteLoading}
+          onRefresh={refreshCommuteRecords}
+          onGoToExplorer={() => setMainTab('explorer')}
+        />
       )}
     </div>
   );

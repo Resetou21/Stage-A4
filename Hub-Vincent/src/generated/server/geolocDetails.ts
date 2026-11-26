@@ -865,3 +865,151 @@ export const archiveDetailsOlderThan6Months = createServerFn({ method: 'POST' })
     clearBoardCache(GEOLOC_DETAILS_BOARD_ID);
     return { archivedGroups };
   });
+
+export interface CommuteTripDetail {
+  startTime: string;
+  endTime: string;
+  startAddress: string;
+  endAddress: string;
+  km: number;
+}
+
+export interface CommuteDayRecord {
+  key: string; // "${plateKey}::${date}"
+  date: string; // YYYY-MM-DD
+  plate: string;
+  plateKey: string;
+  vehicleLabel: string;
+  driverName: string;
+  commuteKm: number;
+  totalDayKm: number;
+  excludedTripsCount: number;
+  excludedTrips: CommuteTripDetail[];
+  source: 'monday' | 'live';
+}
+
+/**
+ * Récupère tous les trajets cochés "Domicile ↔ Travail" archivés sur Monday (5108589918)
+ * pour calculer les indicateurs mensuels, trimestriels et annuels par véhicule.
+ */
+export const getCommuteKmRecords = createServerFn({ method: 'GET' })
+  .validator(z.object({}).optional())
+  .handler(async (): Promise<CommuteDayRecord[]> => {
+    const colIds = [
+      GEOLOC_DETAILS_COLS.date,
+      GEOLOC_DETAILS_COLS.immat,
+      GEOLOC_DETAILS_COLS.vehicule,
+      GEOLOC_DETAILS_COLS.conducteur,
+      GEOLOC_DETAILS_COLS.kmUtiles,
+      GEOLOC_DETAILS_COLS.trajetsExclus,
+      GEOLOC_DETAILS_COLS.trajetsJson,
+    ];
+
+    const records: CommuteDayRecord[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+
+    do {
+      pages++;
+      const query = cursor
+        ? `query ($c: String!, $cols: [String!]) {
+            next_items_page(limit: 500, cursor: $c) {
+              cursor
+              items {
+                id
+                name
+                state
+                column_values(ids: $cols) { id text value }
+              }
+            }
+          }`
+        : `query ($b: [ID!], $cols: [String!]) {
+            boards(ids: $b) {
+              items_page(limit: 500) {
+                cursor
+                items {
+                  id
+                  name
+                  state
+                  column_values(ids: $cols) { id text value }
+                }
+              }
+            }
+          }`;
+
+      const res = await callMondayApi(query, {
+        variables: cursor ? { c: cursor, cols: colIds } : { b: [GEOLOC_DETAILS_BOARD_ID], cols: colIds },
+        ttlMs: 120_000,
+      });
+
+      const page = cursor ? res?.data?.next_items_page : res?.data?.boards?.[0]?.items_page;
+      const items: any[] = page?.items || [];
+      cursor = page?.cursor || null;
+
+      const minToHHMM = (m: number) =>
+        `${String(Math.floor((Number(m) || 0) / 60)).padStart(2, '0')}:${String(Math.round((Number(m) || 0) % 60)).padStart(2, '0')}`;
+
+      for (const it of items) {
+        if (it.state && it.state !== 'active') continue;
+        const byId = new Map<string, any>();
+        for (const cv of it.column_values || []) byId.set(cv.id, cv);
+
+        const date = String(byId.get(GEOLOC_DETAILS_COLS.date)?.text || '').trim();
+        const rawPlate = String(byId.get(GEOLOC_DETAILS_COLS.immat)?.text || '').trim();
+        if (!date || !rawPlate) continue;
+
+        const plate = normalizePlate(rawPlate);
+        const plateKey = normalizePlateKey(plate);
+        const vehicleLabel = String(byId.get(GEOLOC_DETAILS_COLS.vehicule)?.text || plate).trim();
+        const driverName = String(byId.get(GEOLOC_DETAILS_COLS.conducteur)?.text || '').trim();
+        const rawTrips = parseLongTextVal(byId.get(GEOLOC_DETAILS_COLS.trajetsJson));
+
+        let commuteKm = 0;
+        let totalDayKm = 0;
+        const excludedTrips: CommuteTripDetail[] = [];
+
+        if (rawTrips) {
+          try {
+            const parsed: CompactStoredTrip[] = JSON.parse(rawTrips);
+            if (Array.isArray(parsed)) {
+              for (const ct of parsed) {
+                const km = Number(ct.km) || 0;
+                totalDayKm += km;
+                if (ct.ex) {
+                  commuteKm += km;
+                  excludedTrips.push({
+                    startTime: ct.s || minToHHMM(ct.sm),
+                    endTime: ct.e || minToHHMM(ct.em),
+                    startAddress: ct.sa || '—',
+                    endAddress: ct.ea || '—',
+                    km: Math.round(km * 100) / 100,
+                  });
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        const excludedCount = excludedTrips.length || Number(byId.get(GEOLOC_DETAILS_COLS.trajetsExclus)?.text || 0);
+        if (excludedCount <= 0 && commuteKm <= 0) continue;
+
+        records.push({
+          key: `${plateKey}::${date}`,
+          date,
+          plate,
+          plateKey,
+          vehicleLabel,
+          driverName,
+          commuteKm: Math.round(commuteKm * 100) / 100,
+          totalDayKm: Math.round(totalDayKm * 100) / 100,
+          excludedTripsCount: excludedCount,
+          excludedTrips,
+          source: 'monday',
+        });
+      }
+    } while (cursor && pages < 10);
+
+    return records;
+  });
