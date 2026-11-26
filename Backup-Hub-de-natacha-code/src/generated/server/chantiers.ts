@@ -260,13 +260,11 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
           `;
           const qWithCursor = `
             query GetVisits12MCursor($cursor: String!) {
-              boards(ids: [1977798116]) {
-                items_page(limit: 500, cursor: $cursor) {
-                  cursor
-                  items {
-                    date: column_values(ids: ["date_mkrcgy18"]) { text }
-                    ch: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { linked_item_ids display_value } }
-                  }
+              next_items_page(limit: 500, cursor: $cursor) {
+                cursor
+                items {
+                  date: column_values(ids: ["date_mkrcgy18"]) { text }
+                  ch: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { linked_item_ids display_value } }
                 }
               }
             }
@@ -276,7 +274,9 @@ export async function getChantiersList({ data }: { data: { firstName: string } }
             ? await callMondayApi(qWithCursor, { variables: { cursor: vCursor } })
             : await callMondayApi(qInitial);
 
-          const page = resV?.data?.boards?.[0]?.items_page || resV?.boards?.[0]?.items_page;
+          const page = vCursor
+            ? (resV?.data?.next_items_page || resV?.next_items_page)
+            : (resV?.data?.boards?.[0]?.items_page || resV?.boards?.[0]?.items_page);
           const vItems = page?.items || [];
           for (const v of vItems) {
             const dt = v.date?.[0]?.text;

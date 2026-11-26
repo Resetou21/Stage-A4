@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { callMondayApi, clearBoardCache } from '@api/mondayApi';
 import { normalizePlate, normalizePlateKey, type GeoAlertStatus } from '@lib/geolocParser';
+import { fetchSharedParcRawResponse } from './parcCache';
 
 export const GEOLOC_BOARD_ID = '5108497111';
 export const GEOLOC_BOARD_URL = `https://groupefacility.monday.com/boards/${GEOLOC_BOARD_ID}`;
@@ -125,24 +126,9 @@ export const getGeolocHistory = createServerFn({ method: 'GET' })
       }
     }`;
 
-    const fleetQuery = `query {
-      boards(ids: [${PARC_VEHICULES_BOARD_ID}]) {
-        items_page(limit: 150) {
-          items {
-            id
-            name
-            column_values(ids: ["text_mm839fsd"]) {
-              id
-              text
-            }
-          }
-        }
-      }
-    }`;
-
     const [geoRes, fleetRes] = await Promise.all([
       callMondayApi(geolocQuery),
-      callMondayApi(fleetQuery),
+      fetchSharedParcRawResponse(),
     ]);
 
     const board = geoRes?.boards?.[0] ?? geoRes?.data?.boards?.[0];
@@ -459,4 +445,72 @@ export const upsertGeolocVehicleRow = createServerFn({ method: 'POST' })
     if (!createdId) throw new Error(`Échec création de ${itemName}`);
     clearBoardCache(GEOLOC_BOARD_ID);
     return { id: String(createdId), action: 'created' };
+  });
+
+export const upsertGeolocVehicleBatch = createServerFn({ method: 'POST' })
+  .validator(z.object({ rows: z.array(upsertVehicleSchema).min(1).max(20) }))
+  .handler(async ({ data }): Promise<Array<{ plate: string; id: string; action: 'created' | 'updated' }>> => {
+    const vars: Record<string, any> = { b: GEOLOC_BOARD_ID };
+    const defs: string[] = ['$b: ID!'];
+    const muts: string[] = [];
+    const meta: Array<{ alias: string; plate: string; action: 'created' | 'updated' }> = [];
+
+    data.rows.forEach((row, idx) => {
+      const colValues: Record<string, any> = {
+        [GEOLOC_COLS.immat]: row.plate,
+        [GEOLOC_COLS.conducteur]: row.conducteur.slice(0, 250),
+        [GEOLOC_COLS.flotte]: { label: row.flotte },
+        [GEOLOC_COLS.semaine]: row.weekId,
+        [GEOLOC_COLS.debut]: { date: row.startDate },
+        [GEOLOC_COLS.fin]: { date: row.endDate },
+        [GEOLOC_COLS.alerte]: { label: row.alerte },
+        [GEOLOC_COLS.nbTrajets]: String(row.nbTrajets),
+        [GEOLOC_COLS.kmTotal]: String(row.kmTotal),
+        [GEOLOC_COLS.kmPro]: String(row.kmPro),
+        [GEOLOC_COLS.kmHors]: String(row.kmHors),
+        [GEOLOC_COLS.conduiteH]: String(row.conduiteH),
+        [GEOLOC_COLS.attenteH]: String(row.attenteH),
+        [GEOLOC_COLS.vitesseMoy]: String(row.vitesseMoy),
+        [GEOLOC_COLS.joursRoules]: String(row.joursRoules),
+        [GEOLOC_COLS.premierDepart]: row.premierDepart,
+        [GEOLOC_COLS.derniereArrivee]: row.derniereArrivee,
+        [GEOLOC_COLS.amplitudeH]: String(row.amplitudeH),
+        [GEOLOC_COLS.syntheseJour]: { text: row.syntheseJour.slice(0, 1900) },
+      };
+      if (row.linkedVehicleId && /^\d+$/.test(row.linkedVehicleId)) {
+        colValues[GEOLOC_COLS.vehiculeRel] = { item_ids: [Number(row.linkedVehicleId)] };
+      }
+
+      const alias = `m${idx}`;
+      vars[`v${idx}`] = JSON.stringify(colValues);
+      defs.push(`$v${idx}: JSON!`);
+
+      if (row.existingItemId) {
+        vars[`id${idx}`] = row.existingItemId;
+        defs.push(`$id${idx}: ID!`);
+        muts.push(
+          `${alias}: change_multiple_column_values(board_id: $b, item_id: $id${idx}, column_values: $v${idx}, create_labels_if_missing: true) { id }`,
+        );
+        meta.push({ alias, plate: row.plate, action: 'updated' });
+      } else {
+        vars[`g${idx}`] = row.groupId;
+        vars[`n${idx}`] = `${row.plate} · ${row.weekId}`;
+        defs.push(`$g${idx}: String!`, `$n${idx}: String!`);
+        muts.push(
+          `${alias}: create_item(board_id: $b, group_id: $g${idx}, item_name: $n${idx}, column_values: $v${idx}, create_labels_if_missing: true) { id }`,
+        );
+        meta.push({ alias, plate: row.plate, action: 'created' });
+      }
+    });
+
+    const query = `mutation (${defs.join(', ')}) { ${muts.join(' ')} }`;
+    const res = await callMondayApi(query, { variables: vars });
+    const root = res?.data ?? res;
+    clearBoardCache(GEOLOC_BOARD_ID);
+
+    return meta.map((m) => ({
+      plate: m.plate,
+      id: String(root?.[m.alias]?.id || ''),
+      action: m.action,
+    }));
   });

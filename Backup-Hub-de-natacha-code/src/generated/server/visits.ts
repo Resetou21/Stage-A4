@@ -127,17 +127,15 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
           `;
           const qCursor = `
             query GetVisitsRangeCursor($cursor: String!) {
-              boards(ids: [1977798116]) {
-                items_page(limit: 500, cursor: $cursor) {
-                  cursor
-                  items {
-                    id
-                    name
-                    date: column_values(ids: ["date_mkrcgy18"]) { text }
-                    anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
-                    qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
-                    chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
-                  }
+              next_items_page(limit: 500, cursor: $cursor) {
+                cursor
+                items {
+                  id
+                  name
+                  date: column_values(ids: ["date_mkrcgy18"]) { text }
+                  anim: column_values(ids: ["lookup_mkvgpaca"]) { ... on MirrorValue { display_value } text }
+                  qual: column_values(ids: ["status"]) { ... on StatusValue { label } text }
+                  chantier: column_values(ids: ["board_relation_mktd1vha"]) { ... on BoardRelationValue { display_value } text }
                 }
               }
             }
@@ -147,7 +145,9 @@ export const getVisitsOverview = createServerFn({ method: 'GET' })
             ? await callMondayApi(qCursor, { variables: { cursor: curRange } })
             : await callMondayApi(qInit);
 
-          const page = apiRes?.data?.boards?.[0]?.items_page ?? apiRes?.boards?.[0]?.items_page;
+          const page = curRange
+            ? (apiRes?.data?.next_items_page ?? apiRes?.next_items_page)
+            : (apiRes?.data?.boards?.[0]?.items_page ?? apiRes?.boards?.[0]?.items_page);
           if (!page) break;
           rangeItems.push(...(page.items || []));
           curRange = page.cursor;

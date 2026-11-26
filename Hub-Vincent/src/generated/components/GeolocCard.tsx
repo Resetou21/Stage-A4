@@ -59,7 +59,7 @@ import {
   GEOLOC_BOARD_URL,
   getGeolocHistory,
   ensureGeolocWeekGroup,
-  upsertGeolocVehicleRow,
+  upsertGeolocVehicleBatch,
   type MondayGeolocHistory,
   type MondayGeolocRecord,
 } from '@generated/server/geoloc';
@@ -70,6 +70,7 @@ import {
   loadMondayWeekDetails,
   ensureDetailsWeekGroup,
   upsertDailyDetailRow,
+  upsertDailyDetailBatch,
   archiveDetailsOlderThan6Months,
   computeUsefulDayMetrics,
   computePointageStatus,
@@ -370,51 +371,58 @@ export default function GeolocCard() {
 
       let created = 0;
       let updated = 0;
+      const BATCH_SIZE = 10;
 
-      for (let i = 0; i < targets.length; i++) {
-        const v = targets[i];
-        const key = `${workbook.weekId}::${normalizePlateKey(v.plate)}`;
-        const existingItemId = existing[key];
-        const linkedVehicleId = fleetMap[normalizePlateKey(v.plate)];
-
+      for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+        const chunk = targets.slice(i, i + BATCH_SIZE);
         setSyncProgress({
-          current: i + 1,
+          current: Math.min(i + chunk.length, targets.length),
           total: targets.length,
-          label: `${v.plate} (${v.driverName})`,
+          label: `Lot ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(targets.length / BATCH_SIZE)} (${chunk[0].plate}…)`,
         });
 
-        const res = await upsertGeolocVehicleRow({
+        const results = await upsertGeolocVehicleBatch({
           data: {
-            groupId,
-            existingItemId: overwriteExisting ? existingItemId : undefined,
-            weekId: workbook.weekId,
-            startDate: workbook.startDate,
-            endDate: workbook.endDate,
-            plate: v.plate,
-            linkedVehicleId,
-            conducteur: v.vehicleLabel,
-            flotte: v.fleetMondayLabel,
-            alerte: v.alertStatus,
-            nbTrajets: v.tripCount,
-            kmTotal: v.distanceKm,
-            kmPro: v.distanceProKm,
-            kmHors: v.distanceOffHoursKm,
-            conduiteH: v.driveDurationHours,
-            attenteH: v.waitDurationHours,
-            vitesseMoy: v.avgSpeedKmh,
-            joursRoules: v.daysActive,
-            premierDepart: v.avgFirstDeparture,
-            derniereArrivee: v.avgLastArrival,
-            amplitudeH: v.avgAmplitudeHours,
-            syntheseJour: v.dailySummaryText,
+            rows: chunk.map((v) => {
+              const key = `${workbook.weekId}::${normalizePlateKey(v.plate)}`;
+              const existingItemId = existing[key];
+              const linkedVehicleId = fleetMap[normalizePlateKey(v.plate)];
+              return {
+                groupId,
+                existingItemId: overwriteExisting ? existingItemId : undefined,
+                weekId: workbook.weekId,
+                startDate: workbook.startDate,
+                endDate: workbook.endDate,
+                plate: v.plate,
+                linkedVehicleId,
+                conducteur: v.vehicleLabel,
+                flotte: v.fleetMondayLabel,
+                alerte: v.alertStatus,
+                nbTrajets: v.tripCount,
+                kmTotal: v.distanceKm,
+                kmPro: v.distanceProKm,
+                kmHors: v.distanceOffHoursKm,
+                conduiteH: v.driveDurationHours,
+                attenteH: v.waitDurationHours,
+                vitesseMoy: v.avgSpeedKmh,
+                joursRoules: v.daysActive,
+                premierDepart: v.avgFirstDeparture,
+                derniereArrivee: v.avgLastArrival,
+                amplitudeH: v.avgAmplitudeHours,
+                syntheseJour: v.dailySummaryText,
+              };
+            }),
           },
         });
 
-        if (res.action === 'created') created++;
-        else updated++;
+        for (const r of results) {
+          if (r.action === 'created') created++;
+          else updated++;
+        }
 
-        // Pause douce pour respecter les quotas API Monday
-        await new Promise((r) => setTimeout(r, 70));
+        if (i + BATCH_SIZE < targets.length) {
+          await new Promise((r) => setTimeout(r, 120));
+        }
       }
 
       toast.success('Synthèse enregistrée sur Monday !', {
@@ -543,33 +551,33 @@ export default function GeolocCard() {
       const { groupId } = await ensureDetailsWeekGroup({
         data: { weekId: workbook.weekId, weekLabel: workbook.weekLabel },
       });
-      const existingPayload = await loadMondayWeekDetails({ data: { weekId: workbook.weekId } });
+      const existingPayload = await loadMondayWeekDetails({ data: { weekId: workbook.weekId, forceRefresh: true } });
       const existingIds = existingPayload.itemIdByKey;
 
       let created = 0;
       let updated = 0;
       const newIds: Record<string, string> = {};
+      const BATCH_SIZE = 10;
 
-      for (let i = 0; i < tasks.length; i++) {
-        const { vehicle, day } = tasks[i];
-        const key = `${normalizePlateKey(vehicle.plate)}::${day.date}`;
-        const localAnn: DayAnnotationState =
-          dayAnnotations[key] ?? existingPayload.annotationsByKey[key] ?? { excludedTripIds: [], pointages: [] };
-        const existingItemId = localAnn.mondayItemId || existingIds[key];
-
+      for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+        const chunk = tasks.slice(i, i + BATCH_SIZE);
         setDetailsSyncProgress({
-          current: i + 1,
+          current: Math.min(i + chunk.length, tasks.length),
           total: tasks.length,
-          label: `${vehicle.plate} · ${day.dayLabel} (${day.trips.length} traj.)`,
+          label: `Lot ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tasks.length / BATCH_SIZE)} (${chunk[0].vehicle.plate} · ${chunk[0].day.dayLabel}…)`,
         });
 
-        const excludedSet = new Set<string>(localAnn.excludedTripIds);
-        const metrics = computeUsefulDayMetrics(day, excludedSet);
-        const ptSummary = computePointageStatus(localAnn.pointages);
-        const trajetsJson = serializeTripsCompact(day.trips, excludedSet);
+        const batchRows = chunk.map(({ vehicle, day }) => {
+          const key = `${normalizePlateKey(vehicle.plate)}::${day.date}`;
+          const localAnn: DayAnnotationState =
+            dayAnnotations[key] ?? existingPayload.annotationsByKey[key] ?? { excludedTripIds: [], pointages: [] };
+          const existingItemId = localAnn.mondayItemId || existingIds[key];
+          const excludedSet = new Set<string>(localAnn.excludedTripIds);
+          const metrics = computeUsefulDayMetrics(day, excludedSet);
+          const ptSummary = computePointageStatus(localAnn.pointages);
+          const trajetsJson = serializeTripsCompact(day.trips, excludedSet);
 
-        const res = await upsertDailyDetailRow({
-          data: {
+          return {
             groupId,
             existingItemId,
             weekId: workbook.weekId,
@@ -585,14 +593,19 @@ export default function GeolocCard() {
             trajetsExclus: metrics.excludedCount,
             pointageJson: JSON.stringify(localAnn.pointages),
             trajetsJson,
-          },
+          };
         });
 
-        newIds[key] = res.id;
-        if (res.action === 'created') created++;
-        else updated++;
+        const results = await upsertDailyDetailBatch({ data: { rows: batchRows } });
+        for (const r of results) {
+          if (r.id) newIds[r.key] = r.id;
+          if (r.action === 'created') created++;
+          else updated++;
+        }
 
-        await new Promise((r) => setTimeout(r, 55));
+        if (i + BATCH_SIZE < tasks.length) {
+          await new Promise((r) => setTimeout(r, 120));
+        }
       }
 
       setDayAnnotations((prev) => {

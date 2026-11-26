@@ -308,7 +308,16 @@ export default function RoadmapModal({
                   name
                 }
               }
-              column_values {
+              column_values(ids: [
+                "file_mm7wtnz1",
+                "dropdown_mm978xpa",
+                "short_text2v8w5gvp",
+                "color_mm7yntfh",
+                "status",
+                "multi_selectp70jvoio",
+                "date_mm7yphvc",
+                "timerange_mm7wqn4x"
+              ]) {
                 id
                 text
                 value

@@ -99,11 +99,11 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
 
   if (cacheKey) {
     const isLiveComm = cacheKey.includes('5044808167') || cacheKey.includes(BOARD_IDS.COMMUNICATION_ANIMATRICES);
+    const cached = queryCache.get(cacheKey);
+    if (cached && Date.now() < cached.expires) {
+      return cached.data;
+    }
     if (!isLiveComm) {
-      const cached = queryCache.get(cacheKey);
-      if (cached && Date.now() < cached.expires) {
-        return cached.data;
-      }
       const sess = getSessionCached(cacheKey);
       if (sess !== null) {
         queryCache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, data: sess });
@@ -168,9 +168,13 @@ export async function callMondayApi(query: string, options?: any): Promise<any> 
               // Ne pas mettre en cache un résultat vide pour éviter d'empoisonner les sessions
               const pageData = res?.data?.boards?.[0]?.items_page ?? res?.boards?.[0]?.items_page;
               if (!pageData || (pageData.items && pageData.items.length > 0)) {
-                const expires = Date.now() + CACHE_TTL_MS;
+                const isLiveComm = cacheKey.includes('5044808167') || cacheKey.includes(BOARD_IDS.COMMUNICATION_ANIMATRICES);
+                const ttl = isLiveComm ? 45_000 : CACHE_TTL_MS;
+                const expires = Date.now() + ttl;
                 queryCache.set(cacheKey, { expires, data: res });
-                setSessionCached(cacheKey, res, expires);
+                if (!isLiveComm) {
+                  setSessionCached(cacheKey, res, expires);
+                }
               }
             }
           }

@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { InformationsMensuellesBoard } from '@api/BoardSDK';
+import { fetchSharedParcRawItems } from './parcCache';
 
 const BOARD = '5092124669';
-const FLEET_BOARD_ID = '5092005027';
 const AMOUNT_COL = 'numeric_mm0r8ag0';
 const MONTHS = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
 
@@ -84,22 +84,17 @@ export const getTopVehicles = createServerFn({ method: 'GET' })
     if (hit && Date.now() - hit.t < TTL) return hit.v;
     const sdk = new InformationsMensuellesBoard();
 
-    // 1. Récupération préalable du référentiel Parc pour harmoniser les plaques dès l'agrégation
-    const parcPromise = sdk
-      .executeGraphQL(
-        `query { boards(ids: [${FLEET_BOARD_ID}]) { items_page(limit: 200) { items { name group { id } column_values(ids: ["text_mm839fsd", "numeric_mm0rw3mq", "color_mm0p87t0", "text_mm0p386j", "color_mm0p7xft"]) { id text } } } } }`,
-      )
-      .catch(() => null);
+    // 1. Récupération mutualisée du référentiel Parc pour harmoniser les plaques dès l'agrégation
+    const parcPromise = fetchSharedParcRawItems().catch(() => [] as any[]);
 
-    const [parcRes, meta] = (await Promise.all([
+    const [parcItems, meta] = (await Promise.all([
       parcPromise,
       sdk.executeGraphQL(
         `query ($b: [ID!]) { boards(ids: $b) { columns { id title type } groups { id title } } }`,
         { b: [BOARD] },
       ),
-    ])) as [any, { boards?: { columns: Col[]; groups: Group[] }[] }];
+    ])) as [any[], { boards?: { columns: Col[]; groups: Group[] }[] }];
 
-    const parcItems = parcRes?.boards?.[0]?.items_page?.items || [];
     const parcMap = new Map<string, { num: string; model: string; fuel: string }>();
     const byNormPlate = new Map<string, string>();
     const byFleetNum = new Map<string, string>();

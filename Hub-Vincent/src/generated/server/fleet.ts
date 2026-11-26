@@ -1,8 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { callMondayApi } from '@api/mondayApi';
-
-const FLEET_BOARD_ID = 5092005027;
+import { fetchSharedParcRawItems } from './parcCache';
 
 type FleetData = {
   total: number;
@@ -23,23 +21,7 @@ export const getFleetStats = createServerFn({ method: 'GET' })
       return cachedFleet.data;
     }
 
-    const query = `query {
-      boards(ids: [${FLEET_BOARD_ID}]) {
-        items_page(limit: 500) {
-          items {
-            id
-            group { id }
-            column_values(ids: ["color_mm0p7xft", "color_mm0pywf4", "color_mm0p4pbn", "color_mm0p87t0", "date_mm0pdrn1"]) {
-              id
-              text
-            }
-          }
-        }
-      }
-    }`;
-
-    const res = await callMondayApi(query);
-    const rawItems = res?.boards?.[0]?.items_page?.items || res?.data?.boards?.[0]?.items_page?.items || [];
+    const rawItems = await fetchSharedParcRawItems();
     const inService = rawItems.filter((i: any) => i.group?.id === 'topics');
 
     let elec = 0;

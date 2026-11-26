@@ -1,8 +1,8 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { callMondayApi } from '@api/mondayApi';
+import { fetchSharedParcRawResponse } from './parcCache';
 
-const FLEET_BOARD_ID = 5092005027;
 const DATA_VEHICULE_BOARD_ID = 5092124669;
 const WELLBORNE_BOARD_ID = 5106822028;
 const CONTROLE_VISUEL_BOARD_ID = 5093072539;
@@ -208,34 +208,6 @@ export const getFleetOverviewData = createServerFn({ method: 'GET' })
     }
 
     const p = (async (): Promise<FleetOverviewData> => {
-      const fleetQuery = `query {
-        boards(ids: [${FLEET_BOARD_ID}]) {
-          items_page(limit: 200) {
-            items {
-              id
-              name
-              group { id title }
-              column_values(ids: [
-                "numeric_mm0rw3mq",
-                "color_mm0p87t0",
-                "text_mm0p386j",
-                "date_mm0pdrn1",
-                "color_mm0p7xft",
-                "color_mm0pywf4",
-                "color_mm0p4pbn",
-                "numeric_mm1b3xhg",
-                "numeric_mm1bb4qx",
-                "numeric_mm1chb78",
-                "text_mm839fsd"
-              ]) {
-                id
-                text
-              }
-            }
-          }
-        }
-      }`;
-
       const controlsQuery = `query {
         boards(ids: [${CONTROLE_VISUEL_BOARD_ID}]) {
           items_page(limit: 500) {
@@ -258,7 +230,7 @@ export const getFleetOverviewData = createServerFn({ method: 'GET' })
       }`;
 
       const [fleetRes, controlsRes] = await Promise.all([
-        callMondayApi(fleetQuery),
+        fetchSharedParcRawResponse(),
         callMondayApi(controlsQuery),
       ]);
 

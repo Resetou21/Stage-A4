@@ -75,6 +75,20 @@ export default function NewsCarousel({
 
   useEffect(() => {
     let mounted = true;
+    // Évite un appel API redondant si le cache localStorage (10 min) est encore frais
+    try {
+      const raw = localStorage.getItem(NEWS_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.ts && Date.now() - parsed.ts < 10 * 60 * 1000 && Array.isArray(parsed.items)) {
+          return () => {
+            mounted = false;
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
     const loadDelivered = async () => {
       try {
         const q = `query {

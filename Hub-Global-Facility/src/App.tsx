@@ -215,7 +215,32 @@ export default function App() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const heroSearchInputRef = useRef<HTMLInputElement>(null);
   const activeIframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRefsMap = useRef<Partial<Record<ViewId, HTMLIFrameElement | null>>>({});
+  const pendingBridgeSources = useRef<Map<string, Window>>(new Map());
   const loadingStatsRef = useRef<boolean>(false);
+
+  const IFRAME_VIEWS: ViewId[] = useMemo(
+    () => [
+      'secteur_natacha',
+      'secteur_ketty',
+      'secteur_emilie',
+      'atelier_erp',
+      'atelier_vehicules',
+      'comm_lea',
+      'direction_vincent',
+    ],
+    []
+  );
+  const [visitedIframeViews, setVisitedIframeViews] = useState<ViewId[]>([]);
+
+  useEffect(() => {
+    if (IFRAME_VIEWS.includes(currentView)) {
+      setVisitedIframeViews((prev) => (prev.includes(currentView) ? prev : [...prev, currentView]));
+      activeIframeRef.current = iframeRefsMap.current[currentView] || null;
+    } else {
+      activeIframeRef.current = null;
+    }
+  }, [currentView, IFRAME_VIEWS]);
 
   const isAdmin = useMemo(() => isAdminUser(userName, userEmail), [userName, userEmail]);
 
@@ -856,8 +881,22 @@ export default function App() {
     } catch { }
 
     const handleBridgeMessage = (event: MessageEvent) => {
-      if (activeIframeRef.current?.contentWindow && event.source === activeIframeRef.current.contentWindow) {
+      // Vérifie si le message provient d'une des iframes montées (keep-alive)
+      const mountedWindows = Object.values(iframeRefsMap.current)
+        .map((el) => el?.contentWindow)
+        .filter((w): w is Window => Boolean(w));
+
+      const senderWin = mountedWindows.find((w) => event.source === w);
+      if (senderWin) {
         if (event.data && typeof event.data === 'object') {
+          const reqId = (event.data as any).requestId;
+          if (reqId) {
+            pendingBridgeSources.current.set(String(reqId), senderWin);
+            if (pendingBridgeSources.current.size > 200) {
+              const firstKey = pendingBridgeSources.current.keys().next().value;
+              if (firstKey) pendingBridgeSources.current.delete(firstKey);
+            }
+          }
           try {
             window.parent.postMessage(event.data, '*');
           } catch { }
@@ -865,11 +904,18 @@ export default function App() {
         return;
       }
 
-      if (event.source === window.parent && activeIframeRef.current?.contentWindow) {
+      if (event.source === window.parent) {
         if (event.data && typeof event.data === 'object') {
-          try {
-            activeIframeRef.current.contentWindow.postMessage(event.data, '*');
-          } catch { }
+          const reqId = (event.data as any).requestId;
+          const targetWin =
+            (reqId && pendingBridgeSources.current.get(String(reqId))) ||
+            activeIframeRef.current?.contentWindow;
+          if (reqId) pendingBridgeSources.current.delete(String(reqId));
+          if (targetWin) {
+            try {
+              targetWin.postMessage(event.data, '*');
+            } catch { }
+          }
         }
       }
     };
@@ -1152,6 +1198,7 @@ export default function App() {
             type="button"
             className="ui-btn"
             onClick={() => {
+              setVisitedIframeViews(IFRAME_VIEWS.includes(currentView) ? [currentView] : []);
               setRefreshKey(Date.now());
               loadLiveStats(true);
               void refreshUserPermissions(true);
@@ -2353,90 +2400,64 @@ export default function App() {
         )}
 
         {/* ------------------------------------------------------------ */}
-        {/* VUES IFRAME (ANIMATRICES, ATELIER, CHRISTINE, LÉA, VINCENT)  */}
+        {/* VUES IFRAME EN KEEP-ALIVE (0 APPEL API AU CHANGEMENT DE HUB) */}
         {/* ------------------------------------------------------------ */}
-        {(currentView === 'secteur_natacha' || currentView === 'secteur_ketty' || currentView === 'secteur_emilie') && (
-          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {(() => {
-              const animKey =
-                currentView === 'secteur_natacha'
-                  ? 'Natacha'
-                  : currentView === 'secteur_ketty'
-                  ? 'Ketty'
-                  : 'Emilie';
-              const animFullName =
-                currentView === 'secteur_natacha'
-                  ? 'Natacha THOMAS'
-                  : currentView === 'secteur_ketty'
-                  ? 'Ketty PAULIN'
-                  : 'Emilie TOBIE';
-              const iframeSrc = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}&ts=${refreshKey}`;
+        {visitedIframeViews.map((viewId) => {
+          const isVisible = currentView === viewId;
+          let src = '';
+          let title = '';
 
-              return (
-                <iframe
-                  ref={activeIframeRef}
-                  key={`${animKey}_${refreshKey}`}
-                  src={iframeSrc}
-                  title={`Hub Secteur ${animFullName}`}
-                  style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
-                  allow="clipboard-write; fullscreen; camera; microphone; web-share"
-                />
-              );
-            })()}
-          </div>
-        )}
+          if (viewId === 'secteur_natacha' || viewId === 'secteur_ketty' || viewId === 'secteur_emilie') {
+            const animKey = viewId === 'secteur_natacha' ? 'Natacha' : viewId === 'secteur_ketty' ? 'Ketty' : 'Emilie';
+            const animFullName =
+              viewId === 'secteur_natacha'
+                ? 'Natacha THOMAS'
+                : viewId === 'secteur_ketty'
+                ? 'Ketty PAULIN'
+                : 'Emilie TOBIE';
+            src = `${URL_SECTEUR_HUB}?animatrice=${animKey}&profile=${animKey}&ts=${refreshKey}`;
+            title = `Hub Secteur ${animFullName}`;
+          } else if (viewId === 'atelier_erp') {
+            src = `${URL_ATELIER_ERP}?v=20004306&ts=${refreshKey}`;
+            title = 'Parc Matériel & Machines';
+          } else if (viewId === 'atelier_vehicules') {
+            src = `${URL_CHRISTINE_HUB}?v=20267872&ts=${refreshKey}`;
+            title = 'Hub de Christine — Facturation & Flotte';
+          } else if (viewId === 'comm_lea') {
+            src = `${URL_LEA_HUB}?v=20377620&ts=${refreshKey}`;
+            title = 'Hub de Léa — Communication & Contacts Clients';
+          } else if (viewId === 'direction_vincent') {
+            src = `${URL_VINCENT_HUB}?v=20428306&ts=${refreshKey}`;
+            title = 'Hub Véhicules — Flotte & Géolocalisation';
+          }
 
-        {currentView === 'atelier_erp' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <iframe
-              ref={activeIframeRef}
-              key={`atelier_erp_${refreshKey}`}
-              src={`${URL_ATELIER_ERP}?v=20004306&ts=${refreshKey}`}
-              title="Parc Matériel & Machines"
-              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone; web-share"
-            />
-          </div>
-        )}
+          if (!src) return null;
 
-        {currentView === 'atelier_vehicules' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <iframe
-              ref={activeIframeRef}
-              key={`atelier_vehicules_${refreshKey}`}
-              src={`${URL_CHRISTINE_HUB}?v=20267872&ts=${refreshKey}`}
-              title="Hub de Christine — Facturation & Flotte"
-              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone; web-share"
-            />
-          </div>
-        )}
-
-        {currentView === 'comm_lea' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <iframe
-              ref={activeIframeRef}
-              key={`comm_lea_${refreshKey}`}
-              src={`${URL_LEA_HUB}?v=20377620&ts=${refreshKey}`}
-              title="Hub de Léa — Communication & Contacts Clients"
-              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone; web-share"
-            />
-          </div>
-        )}
-
-        {currentView === 'direction_vincent' && (
-          <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <iframe
-              ref={activeIframeRef}
-              key={`direction_vincent_${refreshKey}`}
-              src={`${URL_VINCENT_HUB}?v=20428306&ts=${refreshKey}`}
-              title="Hub Véhicules — Flotte & Géolocalisation"
-              style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
-              allow="clipboard-write; fullscreen; camera; microphone; web-share"
-            />
-          </div>
-        )}
+          return (
+            <div
+              key={`${viewId}_${refreshKey}`}
+              style={{
+                flex: 1,
+                width: '100%',
+                height: '100%',
+                display: isVisible ? 'flex' : 'none',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              <iframe
+                ref={(el) => {
+                  iframeRefsMap.current[viewId] = el;
+                  if (isVisible) activeIframeRef.current = el;
+                }}
+                src={src}
+                title={title}
+                style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
+                allow="clipboard-write; fullscreen; camera; microphone; web-share"
+              />
+            </div>
+          );
+        })}
 
         {/* ------------------------------------------------------------ */}
         {/* VUES INTERNES : FOURNISSEURS SAV, ALERTES, INVENTAIRES       */}
