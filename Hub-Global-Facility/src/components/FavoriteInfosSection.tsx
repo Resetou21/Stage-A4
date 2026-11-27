@@ -17,7 +17,8 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react';
-import { HubKey, UserHubPermissions, ViewId } from '../config/hubPermissions';
+import { HubKey, ViewId } from '../config/hubPermissions';
+import { UserHubPermissions } from '../services/permissionsService';
 import FavoriteHeartButton from './FavoriteHeartButton';
 
 export interface FavoriteLiveStatsInput {
