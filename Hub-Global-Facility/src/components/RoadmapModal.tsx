@@ -840,37 +840,59 @@ export default function RoadmapModal({
     };
   }, [items, currentUserName, activeTab]);
 
-  // Filtrage des éléments selon l'onglet actif ("Mes idées" vs "Idées de l'entreprise")
+  // Filtrage + tri chronologique (du plus récent au plus ancien ; en cours d'abord sur "Toutes")
   const filteredItems = useMemo(() => {
-    return items.filter((it) => {
-      const isDone = /effectu|fait/i.test(it.groupTitle) || it.status === 'Fait';
-
-      if (activeTab === 'my_ideas' && !isItemMine(it)) {
-        return false;
+    const parseItemSortKey = (it: RoadmapItem, isDone: boolean): string => {
+      // Pour une idée livrée, on privilégie sa date de livraison (JJ/MM/AAAA -> YYYY-MM-DD)
+      if (isDone && it.doneAt) {
+        const m = it.doneAt.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (m) return `${m[3]}-${m[2]}-${m[1]}`;
       }
+      if (it.date && /^\d{4}-\d{2}-\d{2}/.test(it.date)) return it.date.slice(0, 10);
+      const tl = it.timeline.match(/(\d{4}-\d{2}-\d{2})/);
+      if (tl) return tl[1];
+      return '0000-00-00';
+    };
 
-      // Filtre statut
-      if (selectedStatusFilter === 'todo' && isDone) return false;
-      if (selectedStatusFilter === 'done' && !isDone) return false;
-      if (selectedStatusFilter === 'mine' && !isItemMine(it)) return false;
+    return items
+      .filter((it) => {
+        const isDone = /effectu|fait/i.test(it.groupTitle) || it.status === 'Fait';
 
-      // Filtre pôle
-      if (selectedPoleFilter !== 'all') {
-        if (!it.workspace.toLowerCase().includes(selectedPoleFilter.toLowerCase())) return false;
-      }
+        if (activeTab === 'my_ideas' && !isItemMine(it)) {
+          return false;
+        }
 
-      // Filtre recherche
-      if (search.trim()) {
-        const s = search.toLowerCase();
-        const matchName = it.name.toLowerCase().includes(s);
-        const matchDesc = it.description.toLowerCase().includes(s);
-        const matchWs = it.workspace.toLowerCase().includes(s);
-        const matchAuth = it.author.toLowerCase().includes(s);
-        if (!matchName && !matchDesc && !matchWs && !matchAuth) return false;
-      }
+        // Filtre statut
+        if (selectedStatusFilter === 'todo' && isDone) return false;
+        if (selectedStatusFilter === 'done' && !isDone) return false;
+        if (selectedStatusFilter === 'mine' && !isItemMine(it)) return false;
 
-      return true;
-    });
+        // Filtre pôle
+        if (selectedPoleFilter !== 'all') {
+          if (!it.workspace.toLowerCase().includes(selectedPoleFilter.toLowerCase())) return false;
+        }
+
+        // Filtre recherche
+        if (search.trim()) {
+          const s = search.toLowerCase();
+          const matchName = it.name.toLowerCase().includes(s);
+          const matchDesc = it.description.toLowerCase().includes(s);
+          const matchWs = it.workspace.toLowerCase().includes(s);
+          const matchAuth = it.author.toLowerCase().includes(s);
+          if (!matchName && !matchDesc && !matchWs && !matchAuth) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const doneA = /effectu|fait/i.test(a.groupTitle) || a.status === 'Fait';
+        const doneB = /effectu|fait/i.test(b.groupTitle) || b.status === 'Fait';
+        if (doneA !== doneB) return doneA ? 1 : -1;
+        const dateA = parseItemSortKey(a, doneA);
+        const dateB = parseItemSortKey(b, doneB);
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        return Number(b.id) - Number(a.id);
+      });
   }, [items, activeTab, selectedStatusFilter, selectedPoleFilter, search, currentUserName]);
 
   if (!isOpen) return null;
