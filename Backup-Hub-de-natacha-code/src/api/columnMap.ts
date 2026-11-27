@@ -48,6 +48,7 @@ export const COLUMN_MAP: Record<string, Record<string, ColumnMeta>> = {
     sensible: { id: 'boolean_mm0v3fg', title: 'Sensible ?', type: 'checkbox' },
     dateFinContrat: { id: 'date_mkx4kna3', title: '➖chantiers', type: 'date' },
     materielRecupereVu: { id: 'boolean_mm1cmkmj', title: '✔', type: 'checkbox' },
+    elementHygiene: { id: 'color_mm8chjrx', title: "🅰️ élément d'Hygienne ?", type: 'status' },
   },
 
   [BOARD_IDS.VISITES_CLIENTS]: {

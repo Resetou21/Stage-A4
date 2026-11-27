@@ -161,6 +161,32 @@ export default function AlertsList({
                   <div className="min-w-0 flex-1">
                     <p className="font-medium break-words text-foreground/90">{l.text}</p>
                     {l.sub && <p className="text-xs text-muted-foreground mt-0.5">{l.sub}</p>}
+                    {l.finContrat && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {l.finContrat.hasHygiene ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-200">
+                            🧻 Produits hygiène : Oui
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground border border-border">
+                            🧻 Produits hygiène : Non
+                          </span>
+                        )}
+                        {l.finContrat.machines.length > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800 border border-red-200"
+                            title={l.finContrat.machines.join(', ')}
+                          >
+                            🔧 {l.finContrat.machines.length} machine{l.finContrat.machines.length > 1 ? 's' : ''} ({l.finContrat.machines.slice(0, 2).join(', ')}{l.finContrat.machines.length > 2 ? '…' : ''})
+                          </span>
+                        )}
+                        {l.finContrat.cleInfo && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 border border-sky-200">
+                            🔑 {l.finContrat.cleInfo}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {l.date !== undefined && (
                     <span className="shrink-0 text-xs font-medium text-muted-foreground whitespace-nowrap">

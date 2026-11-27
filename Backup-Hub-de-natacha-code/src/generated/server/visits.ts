@@ -465,7 +465,15 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
     const promise = (async () => {
       type Q = { id: string; chantier: string; date: string | null; resultat: string | null };
       type Alert = { id: string; texte: string; date: string | null };
-      type FinContratAlert = { id: string; chantier: string; dateFin: string; daysRemaining: number };
+      type FinContratAlert = {
+        id: string;
+        chantier: string;
+        dateFin: string;
+        daysRemaining: number;
+        hasHygiene: boolean;
+        cleInfo: string | null;
+        machines: string[];
+      };
       const out = {
         stars: { s3: 0, s2: 0, s1: 0, s0: 0 },
         insatisfaits: [] as Q[],
@@ -491,7 +499,7 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
               'c1', 'c2', 'c3', 'rsultatDernierContrle', 'dernierContrle', 'dernierContrle1',
               'column3', 'column2', 'column1', 'column', 'alerte2', 'alerte3',
               'texteDalerteAnimatrice1', 'datePrvRdvDes2Mois', 'rdv2Mois',
-              'dateFinContrat', 'materielRecupereVu',
+              'dateFinContrat', 'materielRecupereVu', 'elementHygiene', 'cle', 'doubleCle', 'keycafe',
             ])
             .where({ animateur: label, group: 'topics' })
             .orderBy({ column: 'name', direction: 'asc' })
@@ -507,18 +515,27 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
               out.alerts.push({ id: it.id, texte, date: d2 && !Number.isNaN(d2.getTime()) ? d2.toISOString() : null });
             }
 
-            // Alerte récupération matériel & produits : 15 jours avant la date de fin de contrat (avec case Vu)
+            // Alerte récupération matériel & produits : 15 jours avant la date de fin de contrat (avec case Vu + pastilles)
             if (it.dateFinContrat && it.materielRecupereVu !== true) {
               const dFin = new Date(it.dateFinContrat);
               if (!Number.isNaN(dFin.getTime())) {
                 dFin.setHours(0, 0, 0, 0);
                 const daysRemaining = Math.round((dFin.getTime() - todayMidnight.getTime()) / DAY);
                 if (daysRemaining <= 15 && daysRemaining >= -60) {
+                  const hasHygiene = norm(String(it.elementHygiene ?? '')) === 'oui';
+                  const cleParts = [
+                    it.cle ? `Clé ${String(it.cle).trim()}` : '',
+                    it.doubleCle ? `Double ${String(it.doubleCle).trim()}` : '',
+                    it.keycafe ? `Keycafe ${String(it.keycafe).trim()}` : '',
+                  ].filter((p) => p && !/\b(non|aucun|aucune|néant|neant|-)\b/i.test(p));
                   out.finContratMateriel.push({
                     id: it.id,
                     chantier: it.name,
                     dateFin: dFin.toISOString(),
                     daysRemaining,
+                    hasHygiene,
+                    cleInfo: cleParts.length > 0 ? cleParts.join(' · ') : null,
+                    machines: [],
                   });
                 }
               }
@@ -571,6 +588,56 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
         } while (cur);
       } catch (e) {
         console.warn('Erreur lecture TableauCompletChantierBoard:', e);
+      }
+
+      // Enrichissement des alertes fin de contrat avec les machines affectées sur site (Tableau 5106585240)
+      if (out.finContratMateriel.length > 0) {
+        try {
+          const mRes: any = await callMondayApi(
+            `query GetMachinesForFinContrat {
+              boards(ids: [5106585240]) {
+                items_page(limit: 500) {
+                  items {
+                    id
+                    name
+                    group { title }
+                    column_values(ids: ["dropdown_mm8d4vj2", "board_relation_mm8gxh6a", "color_mm8dremb"]) {
+                      id
+                      text
+                      ... on BoardRelationValue { display_value linked_item_ids }
+                    }
+                  }
+                }
+              }
+            }`
+          );
+          const mItems = mRes?.data?.boards?.[0]?.items_page?.items || mRes?.boards?.[0]?.items_page?.items || [];
+          for (const m of mItems) {
+            const gTitle = norm(String(m.group?.title || ''));
+            if (gTitle.includes('sortie') || gTitle.includes('rebut') || gTitle.includes('archive') || gTitle.includes('detruit')) continue;
+            const cols = m.column_values || [];
+            const st = norm(String(cols.find((c: any) => c.id === 'color_mm8dremb')?.text || ''));
+            if (st.includes('sortie') || st.includes('hors') || st.includes('rebut') || st.includes('detruit') || st.includes('reform')) continue;
+
+            const siteText = norm(String(cols.find((c: any) => c.id === 'dropdown_mm8d4vj2')?.text || ''));
+            const relCol = cols.find((c: any) => c.id === 'board_relation_mm8gxh6a');
+            const linkedIds: string[] = (relCol?.linked_item_ids || []).map((x: any) => String(x));
+            const relText = norm(String(relCol?.display_value || relCol?.text || ''));
+
+            for (const fc of out.finContratMateriel) {
+              const fcNorm = norm(fc.chantier);
+              const matched =
+                linkedIds.includes(String(fc.id)) ||
+                (siteText && fcNorm && (siteText === fcNorm || siteText.includes(fcNorm) || fcNorm.includes(siteText))) ||
+                (relText && fcNorm && (relText === fcNorm || relText.includes(fcNorm)));
+              if (matched && m.name) {
+                fc.machines.push(String(m.name).trim());
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Erreur enrichissement machines fin de contrat:', err);
+        }
       }
 
       // Fallback de secours si Tableau complet chantier renvoie 0 items
