@@ -10,9 +10,18 @@ import { IndicatorsActionPlan } from './components/IndicatorsActionPlan';
 import { AtelierAlertsSection } from './components/AtelierAlertsSection';
 import { CreateMachineModal } from './components/CreateMachineModal';
 import { DeleteMachineModal } from './components/DeleteMachineModal';
+import { MobileAgendaCalendar } from './components/MobileAgendaCalendar';
 import { isRealCleaningMachine } from './components/MachineSelect';
 import { SearchableSelect } from './components/SearchableSelect';
 import { FacilitySelect } from './components/FacilitySelect';
+import {
+  MONDAY_USER_IDS,
+  downloadRevisiteIcs,
+  isRevisiteSoundEnabled,
+  playRevisiteChime,
+  sendMondayNativeNotification,
+  setRevisiteSoundEnabled,
+} from './utils/revisiteAlarm';
 import {
   fetchReferentielPoints,
   fetchRealisedControles,
@@ -34,6 +43,8 @@ import {
   isChristineInvoiceTicket,
   findMachineForTicket,
   reassignMachineNumber,
+  parseMachineExitInfo,
+  updateMachineRevisiteDate,
 } from './services/maintenanceApi';
 import {
   ClipboardCheck,
@@ -49,6 +60,7 @@ import {
   Clock,
   RotateCcw,
   Bell,
+  BellRing,
   Users,
   Car,
   MapPin,
@@ -56,6 +68,9 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Volume2,
+  VolumeX,
+  DoorOpen,
 } from 'lucide-react';
 
 type KpiFilter = 'all' | 'service' | 'reparation' | 'verifier_sortie';
@@ -236,6 +251,27 @@ export const App = () => {
 
   // Modal d'événement sélectionné dans l'Agenda (Interactif)
   const [selectedEvent, setSelectedEvent] = useState<PlanningEventDetail | null>(null);
+
+  // Détection mobile pour basculer automatiquement l'Agenda vers la vue mobile lisible
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
+  );
+  const [agendaDisplayMode, setAgendaDisplayMode] = useState<'auto' | 'mobile' | 'desktop'>('auto');
+  const [revisiteSoundOn, setRevisiteSoundOn] = useState<boolean>(() => isRevisiteSoundEnabled());
+  const [dismissedRevisiteIds, setDismissedRevisiteIds] = useState<string[]>([]);
+  const [revisiteBusyId, setRevisiteBusyId] = useState<string | null>(null);
+  const chimePlayedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 640px)');
+    const onChange = (e: MediaQueryListEvent) => setIsMobileViewport(e.matches);
+    setIsMobileViewport(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const useMobileAgenda = agendaDisplayMode === 'mobile' || (agendaDisplayMode === 'auto' && isMobileViewport);
 
   // 1. Chargement des machines depuis Monday (+ colonnes meta en 1 seule requête combinée)
   const fetchMachines = useCallback(async (force: unknown = true) => {
@@ -848,8 +884,121 @@ export const App = () => {
       });
     });
 
+    // 4. Traçabilité des machines sorties du parc (marqueur sur la date de sortie dans l'Agenda)
+    realMachines.forEach((m) => {
+      const statusText = getColText(m, 'color_mm8dremb').toLowerCase();
+      let exitInfo: ReturnType<typeof parseMachineExitInfo> = null;
+      for (const cv of m.column_values || []) {
+        const parsed = parseMachineExitInfo(cv.text || cv.display_value || '');
+        if (parsed) {
+          exitInfo = parsed;
+          break;
+        }
+      }
+      if (!exitInfo && !statusText.includes('sortie')) return;
+      if (!exitInfo?.date) return;
+
+      const mSite = getColText(m, 'dropdown_mm8d4vj2') || '—';
+      events.push({
+        id: `exit-${m.id}`,
+        title: `🚪 Sortie : ${m.name} (${exitInfo.reason})`,
+        start: exitInfo.date,
+        allDay: true,
+        backgroundColor: '#475569',
+        borderColor: '#1E293B',
+        textColor: '#FFFFFF',
+        extendedProps: {
+          isMachineExit: true,
+          exitData: exitInfo,
+          machine: m.name,
+          site: mSite,
+          reservedBy: exitInfo.author || 'Christophe',
+          type: 'Sortie du parc',
+          status: `Sortie — ${exitInfo.reason}`,
+          fromDate: exitInfo.date,
+          toDate: exitInfo.date,
+          isRecurring: false,
+          isMachineInRepair: false,
+        },
+      });
+    });
+
     return events;
   }, [realisedControles, planningItems, realMachines]);
+
+  // Helper traçabilité sortie pour une machine
+  const getMachineExitData = useCallback((m: Machine) => {
+    for (const cv of m.column_values || []) {
+      const parsed = parseMachineExitInfo(cv.text || cv.display_value || '');
+      if (parsed) return parsed;
+    }
+    return null;
+  }, []);
+
+  // Revisites techniques échues / aujourd'hui / dans les 3 prochains jours (Réveil Revisites)
+  const dueRevisites = useMemo(() => {
+    const todayStr = getTodayStr();
+    const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const byMachine = new Map<
+      string,
+      { machineId: string; machineName: string; site: string; date: string; diffDays: number }
+    >();
+
+    // Dernière date de contrôle réalisée par machine (si contrôle déjà fait >= dateRevisite, on considère la revisite soldée)
+    const latestCtrlByMachine = new Map<string, string>();
+    for (const c of realisedControles) {
+      if (!c.machineId || !c.date) continue;
+      const prev = latestCtrlByMachine.get(String(c.machineId));
+      if (!prev || c.date > prev) latestCtrlByMachine.set(String(c.machineId), c.date);
+    }
+
+    const consider = (machineId: string, machineName: string, site: string, dateStr: string) => {
+      const clean = dateStr.trim().slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return;
+      if (dismissedRevisiteIds.includes(machineId)) return;
+      const lastCtrl = latestCtrlByMachine.get(machineId);
+      if (lastCtrl && lastCtrl >= clean) return;
+
+      const targetMs = new Date(`${clean}T00:00:00`).getTime();
+      const diffDays = Math.round((targetMs - todayMs) / DAY_MS);
+      if (diffDays <= 3 && diffDays >= -45) {
+        const existing = byMachine.get(machineId);
+        if (!existing || clean > existing.date) {
+          byMachine.set(machineId, { machineId, machineName, site, date: clean, diffDays });
+        }
+      }
+    };
+
+    for (const m of activeParcMachines) {
+      const dateRev = getColText(m, 'date_mm9195h2');
+      if (dateRev && dateRev !== '—') {
+        consider(String(m.id), m.name, getColText(m, 'dropdown_mm8d4vj2'), dateRev);
+      }
+    }
+
+    return Array.from(byMachine.values()).sort((a, b) => a.diffDays - b.diffDays);
+  }, [activeParcMachines, realisedControles, dismissedRevisiteIds]);
+
+  // Déclenchement automatique du carillon doux + notification Monday 1x/jour si revisite due aujourd'hui ou en retard
+  useEffect(() => {
+    const urgentRevisites = dueRevisites.filter((r) => r.diffDays <= 0);
+    if (urgentRevisites.length === 0) return;
+
+    if (revisiteSoundOn && !chimePlayedRef.current) {
+      chimePlayedRef.current = true;
+      playRevisiteChime();
+    }
+
+    urgentRevisites.forEach((r) => {
+      void sendMondayNativeNotification({
+        userId: MONDAY_USER_IDS.CHRISTOPHE,
+        targetItemId: r.machineId,
+        dedupeKey: `rev_${r.machineId}_${r.date}`,
+        text: `🔔 Rappel revisite technique : ${r.machineName}${r.site && r.site !== '—' ? ` (${r.site})` : ''} prévue le ${formatDateFR(r.date)}.`,
+      });
+    });
+  }, [dueRevisites, revisiteSoundOn]);
 
   // Secteurs / Communes disponibles pour regrouper les passages et tournées
   const availableSectors = useMemo(() => {
@@ -913,7 +1062,10 @@ export const App = () => {
       isRecurring: Boolean(props.isRecurring),
       isMachineInRepair: Boolean(props.isMachineInRepair),
       isControleRealise: Boolean(props.isControleRealise),
+      isRevisite: Boolean(props.isRevisite),
+      isMachineExit: Boolean(props.isMachineExit),
       controleData: props.controleData,
+      exitData: props.exitData,
       matchedMachineId: matched?.id,
     });
   };
@@ -1356,6 +1508,247 @@ export const App = () => {
         )}
       </div>
 
+      {/* Bandeau Réveil Revisites Techniques (Aujourd'hui / En retard / J-3) + Sonnerie & Export Outlook */}
+      {dueRevisites.length > 0 && (
+        <div
+          style={{
+            margin: '12px 0 14px 0',
+            padding: '14px 18px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+            border: '2px solid #8B5CF6',
+            boxShadow: '0 6px 20px rgba(139, 92, 246, 0.16)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  backgroundColor: '#7C3AED',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <BellRing size={18} />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 900, color: '#4C1D95', fontFamily: "'Ruda', sans-serif" }}>
+                  ⏰ Réveil Revisites Techniques ({dueRevisites.length} à prévoir)
+                </div>
+                <div style={{ fontSize: '12px', color: '#5B21B6' }}>
+                  Rappel automatique Monday + export alarme Outlook / téléphone (.ics)
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !revisiteSoundOn;
+                  setRevisiteSoundOn(next);
+                  setRevisiteSoundEnabled(next);
+                  if (next) playRevisiteChime();
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '6px 10px',
+                  borderRadius: '9px',
+                  border: '1px solid #C4B5FD',
+                  backgroundColor: '#FFFFFF',
+                  color: '#5B21B6',
+                  fontSize: '11.5px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                {revisiteSoundOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                <span>{revisiteSoundOn ? 'Sonnerie activée' : 'Sonnerie coupée'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => playRevisiteChime()}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '9px',
+                  border: '1px solid #C4B5FD',
+                  backgroundColor: '#FFFFFF',
+                  color: '#5B21B6',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                🔔 Tester bip
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+            {dueRevisites.map((rev) => {
+              const badgeLabel =
+                rev.diffDays < 0
+                  ? `En retard (${Math.abs(rev.diffDays)} j.)`
+                  : rev.diffDays === 0
+                  ? "Aujourd'hui"
+                  : `Dans ${rev.diffDays} j.`;
+              const badgeBg = rev.diffDays < 0 ? '#DC2626' : rev.diffDays === 0 ? '#D97706' : '#7C3AED';
+              const busy = revisiteBusyId === rev.machineId;
+
+              return (
+                <div
+                  key={rev.machineId}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '10px',
+                    border: '1px solid #DDD6FE',
+                    padding: '9px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ minWidth: '180px', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565' }}>{rev.machineName}</span>
+                      <span
+                        style={{
+                          fontSize: '10.5px',
+                          fontWeight: 800,
+                          color: '#FFFFFF',
+                          backgroundColor: badgeBg,
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                        }}
+                      >
+                        {badgeLabel} · {formatDateFR(rev.date)}
+                      </span>
+                    </div>
+                    {rev.site && rev.site !== '—' && (
+                      <div style={{ fontSize: '11.5px', color: '#57778E', marginTop: '2px' }}>📍 {rev.site}</div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreSelectedMachineId(rev.machineId);
+                        setInspectionModalMachineId(rev.machineId);
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: '#39A9DC',
+                        color: '#FFFFFF',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📋 Contrôler
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadRevisiteIcs({
+                          machineName: rev.machineName,
+                          site: rev.site,
+                          date: rev.date,
+                        })
+                      }
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #C4B5FD',
+                        backgroundColor: '#F5F3FF',
+                        color: '#5B21B6',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📅 Outlook (.ics)
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        setRevisiteBusyId(rev.machineId);
+                        const d = new Date(`${rev.date}T00:00:00`);
+                        d.setDate(d.getDate() + 7);
+                        const nextStr = d.toISOString().split('T')[0];
+                        const r = await updateMachineRevisiteDate(rev.machineId, nextStr);
+                        setRevisiteBusyId(null);
+                        if (r.success) {
+                          setSuccessMessage(`Revisite de "${rev.machineName}" reportée au ${formatDateFR(nextStr)} !`);
+                          fetchMachines();
+                        }
+                      }}
+                      style={{
+                        padding: '6px 9px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        color: '#475569',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: busy ? 'wait' : 'pointer',
+                      }}
+                    >
+                      +7 j.
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        setRevisiteBusyId(rev.machineId);
+                        const r = await updateMachineRevisiteDate(rev.machineId, null);
+                        setRevisiteBusyId(null);
+                        setDismissedRevisiteIds((prev) => [...prev, rev.machineId]);
+                        if (r.success) {
+                          setSuccessMessage(`Rappel revisite clôturé pour "${rev.machineName}".`);
+                          fetchMachines();
+                        }
+                      }}
+                      style={{
+                        padding: '6px 9px',
+                        borderRadius: '8px',
+                        border: '1px solid #A7F3D0',
+                        backgroundColor: '#ECFDF5',
+                        color: '#047857',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        cursor: busy ? 'wait' : 'pointer',
+                      }}
+                    >
+                      ✓ Fait
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Bannière d'alerte très visible lorsque des messages reçus des animatrices sont en attente */}
       {(() => {
         const unreadCount = maintenanceAlerts.filter((a) => !a.seen && a.direction === 'to_atelier').length;
@@ -1527,6 +1920,7 @@ export const App = () => {
           referentielPoints={referentielPoints}
           realisedControles={realisedControles}
           initialMachineId={preSelectedMachineId}
+          onReferentielChanged={() => loadMaintenanceData(true)}
           onOpenCreateMachineModal={() => setIsCreateMachineModalOpen(true)}
           onInspectionSuccess={(name, date, resolvedCount) => {
             loadMaintenanceData();
@@ -1795,6 +2189,41 @@ export const App = () => {
                         <span style={{ color: '#3989B7', marginLeft: '8px' }}>
                           {getColText(m, 'color_mm8t2mn5')}
                         </span>
+                        {(() => {
+                          const exitData = getMachineExitData(m);
+                          if (!exitData) return null;
+                          return (
+                            <div
+                              style={{
+                                marginTop: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: '6px',
+                                fontSize: '11.5px',
+                                color: '#475569',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '2px 7px',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#F1F5F9',
+                                  border: '1px solid #CBD5E1',
+                                  fontWeight: 800,
+                                  color: '#1E293B',
+                                }}
+                              >
+                                <DoorOpen size={11} /> Sortie le {formatDateFR(exitData.date)} · {exitData.reason}
+                              </span>
+                              <span>par {exitData.author}</span>
+                              {exitData.comment && <span style={{ fontStyle: 'italic' }}>— {exitData.comment}</span>}
+                            </div>
+                          );
+                        })()}
                         {openTicket && (
                           <button
                             type="button"
@@ -1983,6 +2412,30 @@ export const App = () => {
                 <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#8B5CF6' }} />
                 🔄 Revisite Programmée (6 mois)
               </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#475569' }} />
+                🚪 Sortie du parc
+              </span>
+
+              {/* Bascule rapide Vue Mobile (calendrier pastilles + cartes) / Grille PC */}
+              <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setAgendaDisplayMode(useMobileAgenda ? 'desktop' : 'mobile')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #C8DCE8',
+                    backgroundColor: '#F5F9FC',
+                    color: '#1B4565',
+                    fontSize: '11.5px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {useMobileAgenda ? '🖥️ Voir grille PC' : '📱 Voir agenda tactile'}
+                </button>
+              </div>
             </div>
 
             {/* Barre de filtrage par secteur géographique (Guérande, La Baule, etc.) */}
@@ -2059,20 +2512,37 @@ export const App = () => {
               </div>
             </div>
 
-            <FullCalendar
-              plugins={[dayGridPlugin]}
-              initialView="dayGridMonth"
-              locale={frLocale}
-              headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: '',
-              }}
-              events={filteredCalendarEvents}
-              eventClick={handleEventClick}
-              height="auto"
-              dayMaxEvents={3}
-            />
+            {useMobileAgenda ? (
+              <MobileAgendaCalendar
+                events={filteredCalendarEvents}
+                onSelectEvent={(ev) =>
+                  handleEventClick({
+                    event: {
+                      id: ev.id,
+                      title: ev.title,
+                      startStr: ev.start,
+                      endStr: ev.extendedProps?.toDate || ev.start,
+                      extendedProps: ev.extendedProps || {},
+                    },
+                  })
+                }
+              />
+            ) : (
+              <FullCalendar
+                plugins={[dayGridPlugin]}
+                initialView="dayGridMonth"
+                locale={frLocale}
+                headerToolbar={{
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: '',
+                }}
+                events={filteredCalendarEvents}
+                eventClick={handleEventClick}
+                height="auto"
+                dayMaxEvents={3}
+              />
+            )}
           </div>
 
           {/* Section 03 : Affectations du Parc (Personne / Voiture / Site) */}
@@ -2340,6 +2810,31 @@ export const App = () => {
               </div>
             </div>
 
+            {/* Détails traçabilité si sortie du parc */}
+            {selectedEvent.isMachineExit && selectedEvent.exitData && (
+              <div
+                style={{
+                  backgroundColor: '#F8FAFC',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  border: '1.5px solid #CBD5E1',
+                  fontSize: '12.5px',
+                  marginBottom: '18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ fontWeight: 800, color: '#1E293B' }}>🚪 Traçabilité de sortie du parc</div>
+                <div><b>Date de sortie :</b> {formatDateFR(selectedEvent.exitData.date)}</div>
+                <div><b>Motif :</b> {selectedEvent.exitData.reason}</div>
+                <div><b>Déclarée par :</b> {selectedEvent.exitData.author}</div>
+                {selectedEvent.exitData.comment && (
+                  <div><b>Précisions :</b> {selectedEvent.exitData.comment}</div>
+                )}
+              </div>
+            )}
+
             {/* Détails complémentaires si contrôle réalisé */}
             {selectedEvent.isControleRealise && selectedEvent.controleData && (
               <div
@@ -2420,8 +2915,39 @@ export const App = () => {
                   Lancer le contrôle
                 </button>
 
+                {/* Rappel Outlook (.ics) si revisite technique */}
+                {selectedEvent.isRevisite && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadRevisiteIcs({
+                        machineName: selectedEvent.machine,
+                        site: selectedEvent.site,
+                        date: selectedEvent.fromDate,
+                      })
+                    }
+                    style={{
+                      backgroundColor: '#F5F3FF',
+                      color: '#5B21B6',
+                      border: '1.5px solid #8B5CF6',
+                      borderRadius: '10px',
+                      padding: '9px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      fontFamily: "'Ruda', sans-serif",
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <BellRing size={14} />
+                    Rappel Outlook (.ics)
+                  </button>
+                )}
+
                 {/* 2. Reporter au mois prochain (+1 mois) si passage prévisionnel au planning */}
-                {!selectedEvent.isControleRealise && (
+                {!selectedEvent.isControleRealise && !selectedEvent.isMachineExit && !selectedEvent.isRevisite && (
                   <button
                     type="button"
                     disabled={isRescheduling}
@@ -2537,6 +3063,7 @@ export const App = () => {
               realisedControles={realisedControles}
               initialMachineId={inspectionModalMachineId}
               targetTicketId={inspectionTargetTicketId || undefined}
+              onReferentielChanged={() => loadMaintenanceData(true)}
               isModal={true}
               onOpenCreateMachineModal={() => setIsCreateMachineModalOpen(true)}
               onCloseModal={() => {
@@ -2757,7 +3284,7 @@ export const App = () => {
         />
       )}
 
-      {/* Modal de suppression / archivage d'une machine du parc */}
+      {/* Modal de sortie / archivage d'une machine du parc */}
       {isDeleteMachineModalOpen && (
         <DeleteMachineModal
           machines={machines}
@@ -2765,8 +3292,29 @@ export const App = () => {
           realisedControles={realisedControles}
           getCol={getColText}
           onClose={() => setIsDeleteMachineModalOpen(false)}
-          onSuccess={async (deletedMachineId, deletedMachineName, archivedTicketIds, archivedControlIds) => {
-            setMachines((prev) => prev.filter((m) => String(m.id) !== deletedMachineId));
+          onSuccess={async (targetMachineId, targetMachineName, archivedTicketIds, archivedControlIds, mode, exitMeta) => {
+            if (mode === 'exit') {
+              const exitTag = exitMeta
+                ? `[SORTIE|${exitMeta.date}|${exitMeta.reason}|${exitMeta.author}] ${exitMeta.comment || ''}`.trim()
+                : '';
+              setMachines((prev) =>
+                prev.map((m) =>
+                  String(m.id) === targetMachineId
+                    ? {
+                        ...m,
+                        column_values: [
+                          ...m.column_values.map((c) =>
+                            c.id === 'color_mm8dremb' ? { ...c, text: 'Sortie' } : c
+                          ),
+                          ...(exitTag ? [{ id: '_local_exit_trace', text: exitTag }] : []),
+                        ],
+                      }
+                    : m
+                )
+              );
+            } else {
+              setMachines((prev) => prev.filter((m) => String(m.id) !== targetMachineId));
+            }
             if (archivedTicketIds.length > 0) {
               const idSet = new Set(archivedTicketIds);
               setRepairTickets((prev) => prev.filter((t) => !idSet.has(String(t.id))));
@@ -2791,7 +3339,9 @@ export const App = () => {
               .filter(Boolean)
               .join(' · ');
             setSuccessMessage(
-              `Machine "${deletedMachineName}" retirée du parc et archivée sur Monday${extras ? ` (${extras} archivé(s))` : ''} !`
+              mode === 'exit'
+                ? `🚪 "${targetMachineName}" déclarée sortie du parc (${exitMeta?.reason || 'Sortie'}) et tracée dans l'Agenda !`
+                : `Machine "${targetMachineName}" retirée du parc et archivée sur Monday${extras ? ` (${extras} archivé(s))` : ''} !`
             );
             await Promise.all([fetchMachines(), loadMaintenanceData()]);
           }}

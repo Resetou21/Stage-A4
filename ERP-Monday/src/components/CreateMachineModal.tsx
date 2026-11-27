@@ -966,37 +966,7 @@ export const CreateMachineModal: React.FC<CreateMachineModalProps> = ({
             </label>
           </div>
 
-          {/* Heures compteur initiales */}
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '11.5px',
-                fontWeight: 800,
-                color: '#1B4565',
-                marginBottom: '5px',
-                fontFamily: "'Ruda', sans-serif",
-              }}
-            >
-              Heures compteur initiales (Optionnel)
-            </label>
-            <input
-              type="number"
-              value={heuresCompteur}
-              onChange={(e) => setHeuresCompteur(e.target.value)}
-              placeholder="Ex: 0 ou 145"
-              min="0"
-              style={{
-                width: '100%',
-                padding: '9px 12px',
-                borderRadius: '10px',
-                border: '1px solid #CBD5E1',
-                fontSize: '12.5px',
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
-            />
-          </div>
+          {/* Heures compteur initiales masquées à la demande atelier (colonne Monday conservée intacte) */}
 
           {/* Footer Buttons */}
           <div

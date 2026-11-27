@@ -30,6 +30,9 @@ export interface PlanningEventDetail {
   isRecurring?: boolean;
   isMachineInRepair?: boolean;
   isControleRealise?: boolean;
+  isRevisite?: boolean;
+  isMachineExit?: boolean;
   controleData?: any;
+  exitData?: { date: string; reason: string; author: string; comment: string };
   matchedMachineId?: string;
 }

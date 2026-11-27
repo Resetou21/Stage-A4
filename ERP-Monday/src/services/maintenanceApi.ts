@@ -122,6 +122,8 @@ export const MAINTENANCE_BOARD_IDS = {
   COMMUNICATION_ANIMATRICES: '5044808167',
   TABLEAU_COMPLET_CHANTIER: '1976599627',
   PARC_VEHICULES: '5092005027',
+  LISTE_SALARIES: '5108574616',
+  ACCOMPAGNEMENTS_SALARIES: '5108574626',
 } as const;
 
 export const COMMUNICATION_GROUP_ID = 'group_mkzb19j1';
@@ -4296,6 +4298,430 @@ export async function archiveMachineFromParc(
   } catch (err: any) {
     console.error('Erreur suppression/archivage machine:', err);
     return { success: false, archivedExtra: 0, error: err?.message || 'Erreur réseau ou permission' };
+  }
+}
+
+// =========================================================================
+// TRAÇABILITÉ DES MACHINES SORTIES DU PARC (SANS PERTE DE DONNÉES)
+// =========================================================================
+export interface MachineExitRecord {
+  date: string; // YYYY-MM-DD
+  reason: string;
+  author: string;
+  comment: string;
+}
+
+export function parseMachineExitInfo(text?: string | null): MachineExitRecord | null {
+  if (!text) return null;
+  const match = text.match(/\[SORTIE\|(\d{4}-\d{2}-\d{2})\|([^|\]]*)\|([^|\]]*)\]\s*([\s\S]*?)(?=\n\[|$)/);
+  if (!match) return null;
+  return {
+    date: match[1].trim(),
+    reason: match[2].trim() || 'Sortie du parc',
+    author: match[3].trim() || 'Christophe',
+    comment: match[4].trim(),
+  };
+}
+
+export async function markMachineAsExited(params: {
+  machineId: string;
+  machineName: string;
+  reason: string;
+  exitDate: string; // YYYY-MM-DD
+  author: string;
+  comment?: string;
+  existingNote?: string;
+  extraItemIdsToArchive?: string[];
+}): Promise<{ success: boolean; archivedExtra: number; error?: string }> {
+  try {
+    const machineCols = await ensureHubBoardColumns(MAINTENANCE_BOARD_IDS.LISTE_MACHINES, MACHINE_HUB_SPECS);
+    const cleanReason = (params.reason || 'Hors service').replace(/[|\[\]]/g, '').trim();
+    const cleanAuthor = (params.author || 'Christophe').replace(/[|\[\]]/g, '').trim();
+    const cleanComment = (params.comment || '').trim();
+    const tagLine = `[SORTIE|${params.exitDate}|${cleanReason}|${cleanAuthor}] ${cleanComment}`.trim();
+    const prevNote = (params.existingNote || '').replace(/\[SORTIE\|[^\]]*\][^\n]*/g, '').trim();
+    const combinedNote = prevNote ? `${tagLine}\n${prevNote}` : tagLine;
+
+    const colUpdates: Record<string, any> = {
+      color_mm8dremb: { label: 'Sortie' },
+      boolean_mm8tv8zy: null, // Retire de la maintenance préventive active
+    };
+    if (machineCols.remarqueResp) {
+      colUpdates[machineCols.remarqueResp] = { text: combinedNote };
+    }
+    if (machineCols.prochaineRevisite) {
+      colUpdates[machineCols.prochaineRevisite] = null;
+    }
+
+    const res: any = await (monday as any).api(
+      `mutation MarkMachineExited($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+        change_multiple_column_values(
+          board_id: $boardId,
+          item_id: $itemId,
+          column_values: $columnValues,
+          create_labels_if_missing: true
+        ) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+          itemId: params.machineId,
+          columnValues: JSON.stringify(colUpdates),
+        },
+      }
+    );
+
+    if (!res?.data?.change_multiple_column_values?.id) {
+      return { success: false, archivedExtra: 0, error: formatMondayError(res) };
+    }
+
+    // Trace permanente dans l'historique d'activité Monday de la machine
+    try {
+      const updateHtml =
+        `🚪 <b>Machine sortie du parc le ${params.exitDate}</b><br>` +
+        `<b>Motif :</b> ${cleanReason}<br>` +
+        `<b>Déclarée par :</b> ${cleanAuthor}<br>` +
+        (cleanComment ? `<b>Précisions :</b> ${cleanComment}` : '');
+      await (monday as any).api(
+        `mutation LogMachineExit($itemId: ID!, $body: String!) {
+          create_update(item_id: $itemId, body: $body) { id }
+        }`,
+        { variables: { itemId: params.machineId, body: updateHtml } }
+      );
+    } catch {}
+
+    let archivedExtra = 0;
+    for (const extraId of params.extraItemIdsToArchive || []) {
+      if (!extraId) continue;
+      try {
+        const tRes: any = await (monday as any).api(
+          `mutation ArchiveLinkedOnExit($itemId: ID!) { archive_item(item_id: $itemId) { id } }`,
+          { variables: { itemId: extraId } }
+        );
+        if (tRes?.data?.archive_item?.id) archivedExtra++;
+      } catch {}
+    }
+
+    clearErpApiCache();
+    return { success: true, archivedExtra };
+  } catch (err: any) {
+    console.error('Erreur sortie machine:', err);
+    return { success: false, archivedExtra: 0, error: err?.message || 'Erreur réseau ou permission' };
+  }
+}
+
+// =========================================================================
+// GESTION DYNAMIQUE DU RÉFÉRENTIEL POINTS DE CONTRÔLE (5107261391)
+// =========================================================================
+export function resolveReferentielGroupForType(machineType: string): { groupId: string; groupLabel: string } {
+  const t = (machineType || '').toLowerCase();
+  if (t.includes('autolaveuse')) return { groupId: 'group_mm8td794', groupLabel: 'Autolaveuse' };
+  if (t.includes('monobrosse') || t.includes('balayeuse')) return { groupId: 'group_mm8tcssq', groupLabel: 'Monobrosse' };
+  if (t.includes('aspirateur') || t.includes('injecteur') || t.includes('moquette')) return { groupId: 'group_mm8t56kz', groupLabel: 'Aspirateur eau et poussière' };
+  if (t.includes('haute pression') || t.includes('hp') || t.includes('vapeur') || t.includes('pompe') || t.includes('pulvérisateur') || t.includes('eau pure') || t.includes('nettoyeur')) {
+    return { groupId: 'group_mm8tket6', groupLabel: 'Nettoyeur' };
+  }
+  if (t.includes('chariot') || t.includes('manutention') || t.includes('escabeau') || t.includes('échafaudage')) {
+    return { groupId: 'group_mm8tkaq1', groupLabel: 'Chariot / Manutention' };
+  }
+  return { groupId: 'group_mm8td794', groupLabel: 'Autolaveuse' };
+}
+
+export async function addReferentielPoint(params: {
+  groupId: string;
+  name: string;
+  categories: { controle: boolean; nettoyage: boolean; usee: boolean; cassee: boolean };
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  const cleanName = params.name.trim();
+  if (!cleanName) return { success: false, error: 'Libellé du point requis.' };
+
+  try {
+    const colValues: Record<string, any> = {
+      boolean_mm91wwvc: params.categories.controle ? { checked: 'true' } : null,
+      boolean_mm91v5z4: params.categories.nettoyage ? { checked: 'true' } : null,
+      boolean_mm91sxs9: params.categories.usee ? { checked: 'true' } : null,
+      boolean_mm91j2tp: params.categories.cassee ? { checked: 'true' } : null,
+    };
+
+    const res: any = await (monday as any).api(
+      `mutation AddRefPoint($boardId: ID!, $groupId: String!, $name: String!, $cv: JSON!) {
+        create_item(board_id: $boardId, group_id: $groupId, item_name: $name, column_values: $cv) {
+          id
+          name
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.REFERENTIEL_POINTS,
+          groupId: params.groupId,
+          name: cleanName,
+          cv: JSON.stringify(colValues),
+        },
+      }
+    );
+
+    const id = res?.data?.create_item?.id ? String(res.data.create_item.id) : undefined;
+    if (!id) return { success: false, error: formatMondayError(res) };
+
+    cachedReferentielPoints = null;
+    clearErpApiCache();
+    try {
+      localStorage.removeItem('parc_referentiel_cache_v1');
+      localStorage.removeItem('parc_referentiel_ts_v1');
+    } catch {}
+    return { success: true, id };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur lors de la création du point.' };
+  }
+}
+
+export async function archiveReferentielPoint(itemId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res: any = await (monday as any).api(
+      `mutation ArchiveRefPoint($itemId: ID!) { archive_item(item_id: $itemId) { id } }`,
+      { variables: { itemId } }
+    );
+    if (!res?.data?.archive_item?.id) {
+      return { success: false, error: formatMondayError(res) };
+    }
+    cachedReferentielPoints = null;
+    clearErpApiCache();
+    try {
+      localStorage.removeItem('parc_referentiel_cache_v1');
+      localStorage.removeItem('parc_referentiel_ts_v1');
+    } catch {}
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur lors du retrait du point.' };
+  }
+}
+
+// =========================================================================
+// LISTE DES SALARIÉS (ENCHANTEMENT SALARIÉ 5108574616) & ALERTE VINCENT
+// =========================================================================
+export interface SalarieOption {
+  id: string;
+  name: string;
+  phone: string;
+  secteur: string;
+  chantier: string;
+  statut: string;
+}
+
+let cachedSalaries: { ts: number; list: SalarieOption[] } | null = null;
+
+export async function fetchSalariesList(force = false): Promise<SalarieOption[]> {
+  if (!force && cachedSalaries && Date.now() - cachedSalaries.ts < 10 * 60 * 1000) {
+    return cachedSalaries.list;
+  }
+  try {
+    const res: any = await (monday as any).api(
+      `query GetSalariesForAlert($boardId: [ID!]) {
+        boards(ids: $boardId) {
+          items_page(limit: 500) {
+            items {
+              id
+              name
+              column_values(ids: ["text_mm9esavp", "color_mm9essp0", "text_mm9efgtq", "color_mm9ea1d9"]) {
+                id
+                text
+              }
+            }
+          }
+        }
+      }`,
+      { variables: { boardId: [MAINTENANCE_BOARD_IDS.LISTE_SALARIES] } }
+    );
+    const items: any[] = res?.data?.boards?.[0]?.items_page?.items || [];
+    const list: SalarieOption[] = items
+      .map((it) => {
+        const getC = (id: string) => it.column_values?.find((c: any) => c.id === id)?.text?.trim() || '';
+        return {
+          id: String(it.id),
+          name: String(it.name || '').trim(),
+          phone: getC('text_mm9esavp'),
+          secteur: getC('color_mm9essp0'),
+          chantier: getC('text_mm9efgtq'),
+          statut: getC('color_mm9ea1d9'),
+        };
+      })
+      .filter((s) => Boolean(s.name) && s.statut.toLowerCase() !== 'sorti')
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+    cachedSalaries = { ts: Date.now(), list };
+    return list;
+  } catch (err) {
+    console.warn('Erreur chargement liste salariés (5108574616):', err);
+    return cachedSalaries?.list || [];
+  }
+}
+
+export async function sendSalarieRuleAlert(params: {
+  salarieName: string;
+  salariePhone?: string;
+  machineName: string;
+  machineSite?: string;
+  technicienName?: string;
+  message: string;
+  date: string; // YYYY-MM-DD
+  file?: File | null;
+}): Promise<{ success: boolean; accompagnementId?: string; commId?: string; error?: string }> {
+  const salName = params.salarieName.trim() || 'Salarié non précisé';
+  const sender = params.technicienName?.trim() || 'Christophe';
+  const site = params.machineSite?.trim() || 'Non précisé';
+  const summary =
+    `⚠️ ALERTE NON-RESPECT DES RÈGLES MATÉRIEL (Signalement Atelier)\n` +
+    `• Salarié : ${salName}\n` +
+    `• Machine : ${params.machineName}\n` +
+    `• Site : ${site}\n` +
+    `• Signalé par : ${sender} le ${params.date}\n\n` +
+    `Détail constaté :\n${params.message.trim() || 'Règles d’entretien ou d’utilisation machine non respectées.'}`;
+
+  let accompagnementId: string | undefined;
+  let commId: string | undefined;
+
+  // 1. Trace officielle dans Enchantement Salarié -> Accompagnements (5108574626)
+  try {
+    const colVals: Record<string, any> = {
+      text_mm9eesg2: salName,
+      date_mm9e39vd: { date: params.date },
+      color_mm9echbq: { label: 'Entretien matériel' },
+      long_text_mm9efr78: { text: summary },
+      color_mm9epdm8: { label: 'Alerte Direction' },
+    };
+    if (params.salariePhone?.trim()) {
+      colVals.text_mm9e4qyw = params.salariePhone.trim();
+    }
+
+    const r1: any = await (monday as any).api(
+      `mutation CreateSalarieAlertTrace($boardId: ID!, $name: String!, $cv: JSON!) {
+        create_item(board_id: $boardId, item_name: $name, column_values: $cv, create_labels_if_missing: true) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.ACCOMPAGNEMENTS_SALARIES,
+          name: `⚠️ Non-respect règles — ${salName} (${params.machineName})`.slice(0, 240),
+          cv: JSON.stringify(colVals),
+        },
+      }
+    );
+    if (r1?.data?.create_item?.id) {
+      accompagnementId = String(r1.data.create_item.id);
+      if (params.file) {
+        try {
+          await uploadFileToMonday(accompagnementId, 'file_mm9e6pjq', params.file);
+        } catch (fErr) {
+          console.warn('Upload pièce jointe sur Accompagnements échoué:', fErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Erreur création trace Accompagnements Salarié:', err);
+  }
+
+  // 2. Alerte dans Communication animatrices (5044808167) à destination de Vincent RIVIERE
+  try {
+    const commTitle = `[Alerte Salarié → Vincent] ${salName} (${params.machineName}) — ${params.message.trim() || 'Non-respect règles matériel'}`.slice(0, 240);
+    const commCols: Record<string, any> = {
+      color_mkzat86a: { label: 'Vincent RIVIERE' },
+      date_mkwrkqy5: { date: params.date },
+    };
+    const r2: any = await (monday as any).api(
+      `mutation CreateVincentCommAlert($boardId: ID!, $groupId: String!, $name: String!, $cv: JSON!) {
+        create_item(board_id: $boardId, group_id: $groupId, item_name: $name, column_values: $cv, create_labels_if_missing: true) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.COMMUNICATION_ANIMATRICES,
+          groupId: COMMUNICATION_GROUP_ID,
+          name: commTitle,
+          cv: JSON.stringify(commCols),
+        },
+      }
+    );
+    if (r2?.data?.create_item?.id) {
+      commId = String(r2.data.create_item.id);
+      if (params.file) {
+        try {
+          await uploadFileToMonday(commId, 'file_mm98hfng', params.file);
+        } catch (fErr) {
+          console.warn('Upload pièce jointe sur Communication échoué:', fErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Erreur création alerte Communication Vincent:', err);
+  }
+
+  // 3. Notification native Monday (cloche PC + mobile) directement pour Vincent RIVIERE (102108076)
+  const targetId = accompagnementId || commId;
+  if (targetId) {
+    try {
+      await (monday as any).api(
+        `mutation NotifyVincentRule($userId: ID!, $targetId: ID!, $text: String!) {
+          create_notification(user_id: $userId, target_id: $targetId, text: $text, target_type: Project) {
+            text
+          }
+        }`,
+        {
+          variables: {
+            userId: '102108076', // Vincent RIVIERE
+            targetId,
+            text: `⚠️ Alerte Atelier (${sender}) — ${salName} ne respecte pas les règles sur ${params.machineName} (${site}) : ${(params.message || 'Voir détail & pièce jointe').slice(0, 120)}`,
+          },
+        }
+      );
+    } catch (nErr) {
+      console.warn('Erreur notification native Vincent:', nErr);
+    }
+  }
+
+  return {
+    success: Boolean(accompagnementId || commId),
+    accompagnementId,
+    commId,
+    error: !accompagnementId && !commId ? 'Impossible de transmettre l’alerte salarié.' : undefined,
+  };
+}
+
+/**
+ * Efface ou reporte la date de Prochaine revisite (date_mm9195h2) sur Liste des machines (5106585240).
+ */
+export async function updateMachineRevisiteDate(
+  machineId: string,
+  nextDate: string | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const colValues = JSON.stringify({
+      date_mm9195h2: nextDate ? { date: nextDate } : null,
+    });
+    const res: any = await (monday as any).api(
+      `mutation UpdateRevisite($boardId: ID!, $itemId: ID!, $cv: JSON!) {
+        change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $cv) {
+          id
+        }
+      }`,
+      {
+        variables: {
+          boardId: MAINTENANCE_BOARD_IDS.LISTE_MACHINES,
+          itemId: machineId,
+          cv: colValues,
+        },
+      }
+    );
+    if (!res?.data?.change_multiple_column_values?.id) {
+      return { success: false, error: formatMondayError(res) };
+    }
+    clearErpApiCache();
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erreur mise à jour revisite.' };
   }
 }
 

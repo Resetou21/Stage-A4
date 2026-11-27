@@ -10,7 +10,6 @@ import {
   ClipboardCheck,
   Check,
   Calendar,
-  Gauge,
   User,
   Tag,
   Megaphone,
@@ -22,18 +21,32 @@ import {
   X,
   Camera,
   Image as ImageIcon,
+  Settings,
+  Plus,
+  Trash2,
+  FileText,
+  BellRing,
+  Loader2,
 } from 'lucide-react';
 import type { Machine } from '../types';
 import {
   ReferentielPoint,
   RealisedControle,
+  SalarieOption,
   filterPointsByMachineType,
   submitFicheControle,
   FicheControleSubmission,
+  resolveReferentielGroupForType,
+  addReferentielPoint,
+  archiveReferentielPoint,
+  fetchSalariesList,
+  sendSalarieRuleAlert,
 } from '../services/maintenanceApi';
 import { MachineSelect } from './MachineSelect';
 import { TechnicienSelect } from './TechnicienSelect';
 import { ResponsableSelect } from './ResponsableSelect';
+import { SearchableSelect } from './SearchableSelect';
+import { downloadRevisiteIcs } from '../utils/revisiteAlarm';
 
 const POINT_TIPS: Record<string, string> = {
   suceur: "Vérifier la souplesse de la bavette, l'absence de déchirure et le bon contact avec le sol.",
@@ -76,6 +89,7 @@ interface InspectionFormProps {
   initialMachineId?: string;
   targetTicketId?: string;
   onInspectionSuccess: (machineName: string, date: string, resolvedRepairsCount?: number) => void;
+  onReferentielChanged?: () => Promise<void> | void;
   isModal?: boolean;
   onCloseModal?: () => void;
   onOpenCreateMachineModal?: () => void;
@@ -88,6 +102,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   initialMachineId,
   targetTicketId,
   onInspectionSuccess,
+  onReferentielChanged,
   isModal = false,
   onCloseModal,
   onOpenCreateMachineModal,
@@ -128,6 +143,45 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showMissingHighlight, setShowMissingHighlight] = useState(false);
+
+  // Gestion dynamique des points de contrôle (ajout / retrait dans Référentiel 5107261391)
+  const [showManagePoints, setShowManagePoints] = useState(false);
+  const [newPointName, setNewPointName] = useState('');
+  const [newPointCats, setNewPointCats] = useState({ controle: true, nettoyage: false, usee: true, cassee: true });
+  const [pointBusy, setPointBusy] = useState(false);
+  const [confirmArchivePointId, setConfirmArchivePointId] = useState<string | null>(null);
+  const [pointFeedback, setPointFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Alerte Non-Respect des Règles (Salarié -> Vincent) avec liste Enchantement Salarié + Image/PDF
+  const [salarieAlertEnabled, setSalarieAlertEnabled] = useState(false);
+  const [salariesList, setSalariesList] = useState<SalarieOption[]>([]);
+  const [selectedSalarieLabel, setSelectedSalarieLabel] = useState('');
+  const [customSalarieName, setCustomSalarieName] = useState('');
+  const [salarieAlertText, setSalarieAlertText] = useState('');
+  const [salarieAlertFile, setSalarieAlertFile] = useState<File | null>(null);
+  const [salarieAlertFilePreview, setSalarieAlertFilePreview] = useState<string | null>(null);
+  const salarieFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    fetchSalariesList().then((list) => setSalariesList(list)).catch(() => {});
+  }, []);
+
+  const handleSalarieFileSelect = (file: File | null) => {
+    if (!file) {
+      setSalarieAlertFile(null);
+      setSalarieAlertFilePreview(null);
+      return;
+    }
+    setSalarieAlertFile(file);
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setSalarieAlertFilePreview((ev.target?.result as string) || null);
+      reader.readAsDataURL(file);
+    } else {
+      setSalarieAlertFilePreview(null);
+    }
+  };
 
   // Preuve photo terrain (Optionnel)
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -196,6 +250,68 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
   const dynamicChecklist = useMemo(() => {
     return showAllPoints ? allBasePoints : adaptedChecklist;
   }, [showAllPoints, allBasePoints, adaptedChecklist]);
+
+  // Liste exhaustive des clés de points obligatoires à évaluer avant validation
+  const requiredEvalKeys = useMemo(() => {
+    const keys: string[] = [];
+    for (const pt of dynamicChecklist) {
+      if (pt.subitems && pt.subitems.length > 0) {
+        for (const sub of pt.subitems) {
+          keys.push(`${pt.name} › ${sub.name}`);
+        }
+      } else {
+        keys.push(pt.name);
+      }
+    }
+    return keys;
+  }, [dynamicChecklist]);
+
+  const missingEvalKeys = useMemo(() => {
+    return requiredEvalKeys.filter((k) => !evaluations[k]);
+  }, [requiredEvalKeys, evaluations]);
+
+  const missingEvalSet = useMemo(() => new Set(missingEvalKeys), [missingEvalKeys]);
+
+  const targetRefGroup = useMemo(() => resolveReferentielGroupForType(machineType), [machineType]);
+
+  const handleAddReferentielPoint = async () => {
+    if (!newPointName.trim() || pointBusy) return;
+    setPointBusy(true);
+    setPointFeedback(null);
+    const res = await addReferentielPoint({
+      groupId: targetRefGroup.groupId,
+      name: newPointName.trim(),
+      categories: newPointCats,
+    });
+    setPointBusy(false);
+    if (res.success) {
+      setNewPointName('');
+      setPointFeedback({ ok: true, text: `Point ajouté dans « ${targetRefGroup.groupLabel} » sur Monday !` });
+      await onReferentielChanged?.();
+    } else {
+      setPointFeedback({ ok: false, text: res.error || 'Erreur ajout du point.' });
+    }
+  };
+
+  const handleArchiveReferentielPoint = async (ptId: string, ptName: string) => {
+    if (pointBusy) return;
+    setPointBusy(true);
+    setPointFeedback(null);
+    const res = await archiveReferentielPoint(ptId);
+    setPointBusy(false);
+    setConfirmArchivePointId(null);
+    if (res.success) {
+      setEvaluations((prev) => {
+        const next = { ...prev };
+        delete next[ptName];
+        return next;
+      });
+      setPointFeedback({ ok: true, text: `Point « ${ptName} » retiré (archivé sur Monday).` });
+      await onReferentielChanged?.();
+    } else {
+      setPointFeedback({ ok: false, text: res.error || 'Erreur retrait du point.' });
+    }
+  };
 
   // Points non conformes, moyens et conformes détectés
   const nonConformePoints = useMemo(() => {
@@ -276,6 +392,27 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
       return;
     }
 
+    // Validation stricte : tous les points de contrôle affichés doivent être évalués
+    if (missingEvalKeys.length > 0) {
+      setShowMissingHighlight(true);
+      setErrorMessage(
+        `Obligatoire : veuillez évaluer tous les points de contrôle avant de valider (il reste ${missingEvalKeys.length} point${missingEvalKeys.length > 1 ? 's' : ''} non coché${missingEvalKeys.length > 1 ? 's' : ''}).`
+      );
+      document.getElementById('step-3-points-controle')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    // Si Alerte Salarié cochée, vérifier qu'un salarié ou un motif est renseigné
+    const matchedSal = salariesList.find(
+      (s) => `${s.name}${s.chantier ? ` — ${s.chantier}` : ''}` === selectedSalarieLabel || s.name === selectedSalarieLabel
+    );
+    const finalSalarieName = matchedSal?.name || customSalarieName.trim() || selectedSalarieLabel.trim();
+    if (salarieAlertEnabled && !finalSalarieName) {
+      setErrorMessage('Veuillez sélectionner ou saisir le nom du salarié concerné pour l’alerte Vincent.');
+      return;
+    }
+
+    setShowMissingHighlight(false);
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -314,6 +451,24 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
     const res = await submitFicheControle(submission);
 
+    // Envoi parallèle de l'alerte Non-Respect Règles (Salarié -> Vincent) si cochée
+    if (res.success && salarieAlertEnabled) {
+      try {
+        await sendSalarieRuleAlert({
+          salarieName: finalSalarieName,
+          salariePhone: matchedSal?.phone || '',
+          machineName: selectedMachine.name,
+          machineSite,
+          technicienName: technicienName.trim() || 'Christophe',
+          message: salarieAlertText.trim() || trimmedNote || 'Règles d’entretien ou d’utilisation matériel non respectées.',
+          date: inspectionDate,
+          file: salarieAlertFile || photoFile || null,
+        });
+      } catch (salErr) {
+        console.warn('Erreur envoi alerte salarié Vincent:', salErr);
+      }
+    }
+
     setIsSubmitting(false);
 
     if (res.success) {
@@ -341,6 +496,12 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
         setPhotoPreview(null);
         setDateRevisite('');
         setMachineVetuste(false);
+        setSalarieAlertEnabled(false);
+        setSelectedSalarieLabel('');
+        setCustomSalarieName('');
+        setSalarieAlertText('');
+        setSalarieAlertFile(null);
+        setSalarieAlertFilePreview(null);
       }, 4000);
     } else {
       setErrorMessage(res.error || 'Erreur lors de la validation du contrôle.');
@@ -1004,61 +1165,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 )}
               </div>
 
-              {/* Heures au compteur machine (Placé dès le haut de la fiche) */}
-              <div
-                style={{
-                  marginTop: '14px',
-                  padding: '16px 18px',
-                  borderRadius: '12px',
-                  backgroundColor: '#F8FCFE',
-                  border: '1.5px solid #D2E9F6',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#1B4565' }}>
-                    <Gauge size={17} color="#39A9DC" />
-                    Heures au compteur machine :
-                  </label>
-                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px', backgroundColor: '#EBF6FC', color: '#1B4565', border: '1px solid #D2E9F6' }}>
-                    Optionnel · Pour autolaveuses avec cadran horaire
-                  </span>
-                </div>
-
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="Ex : 1450 (laisser vide si machine sans compteur)..."
-                  value={heuresCompteur !== undefined ? heuresCompteur : ''}
-                  onKeyDown={(e) => {
-                    if (['e', 'E', '+', '-', '.', ','].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, '');
-                    setHeuresCompteur(digits !== '' ? Number(digits) : undefined);
-                  }}
-                  min={0}
-                  step={1}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #C8DCE8',
-                    fontSize: '13.5px',
-                    fontWeight: 700,
-                    color: '#1B4565',
-                    fontFamily: 'inherit',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-
-                <p style={{ margin: '6px 0 0 0', fontSize: '11.5px', color: '#57778E', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  💡 Renseigne automatiquement la fiche de contrôle ET met à jour la colonne « Heures compteur (dernier relevé) » de la machine dans Monday.
-                </p>
-              </div>
+              {/* Champ Heures au compteur masqué à la demande atelier (colonne Monday conservée) */}
             </>
           )}
         </div>
@@ -1467,11 +1574,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                   </div>
                 </div>
 
-                {/* 4. Fiche sur site présente ? */}
+                {/* 4. Fiche tuto / entretien sur site présente ? */}
                 <div style={{ backgroundColor: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2EEF5' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#3989B7', marginBottom: '8px' }}>
-                    📋 Fiche sur site présente ?
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#3989B7', marginBottom: '2px' }}>
+                    📋 Fiche tuto / entretien sur site ?
                   </label>
+                  <div style={{ fontSize: '10.5px', color: '#64748B', marginBottom: '7px' }}>
+                    Notice d’utilisation &amp; entretien présente sur le chantier
+                  </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     {[
                       { label: 'Oui' as const, color: '#00C875', bg: '#E6F8F0', icon: CheckCircle },
@@ -1517,10 +1627,11 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
         {/* ================= ÉTAPE 3 : POINTS DE CONTRÔLE DYNAMIQUES DU RÉFÉRENTIEL ================= */}
         {selectedMachine && (
           <div
+            id="step-3-points-controle"
             className="inspection-card"
             style={{
               backgroundColor: '#FFFFFF',
-              border: '1px solid #E2EEF5',
+              border: showMissingHighlight && missingEvalKeys.length > 0 ? '2px solid #F7AC37' : '1px solid #E2EEF5',
               boxShadow: '0 4px 14px rgba(27, 69, 101, 0.04)',
             }}
           >
@@ -1626,19 +1737,215 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                 )}
               </div>
 
-              <span
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    backgroundColor: missingEvalKeys.length === 0 ? '#E6F8F0' : '#FFF8EC',
+                    color: missingEvalKeys.length === 0 ? '#0E7042' : '#B86114',
+                    border: missingEvalKeys.length === 0 ? '1px solid #00C875' : '1px solid #F7AC37',
+                  }}
+                >
+                  {missingEvalKeys.length === 0
+                    ? `✓ Tous les points cochés (${requiredEvalKeys.length}/${requiredEvalKeys.length})`
+                    : `${requiredEvalKeys.length - missingEvalKeys.length} / ${requiredEvalKeys.length} cochés (obligatoire)`}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowManagePoints((v) => !v);
+                    setPointFeedback(null);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    color: showManagePoints ? '#FFFFFF' : '#1B4565',
+                    backgroundColor: showManagePoints ? '#1B4565' : '#F5F9FC',
+                    border: '1px solid #C8DCE8',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Settings size={13} />
+                  <span>Gérer les points</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Panneau d'ajout / suppression des points dans le Référentiel Monday (5107261391) */}
+            {showManagePoints && (
+              <div
                 style={{
-                  fontSize: '12.5px',
-                  color: '#3989B7',
-                  fontWeight: 600,
+                  marginBottom: '14px',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
                   backgroundColor: '#F5F9FC',
-                  padding: '4px 10px',
-                  borderRadius: '8px',
+                  border: '1.5px solid #B7D8EA',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
                 }}
               >
-                Référentiel : {machineType || 'Général'} · {Object.keys(evaluations).length} saisi(s)
-              </span>
-            </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#1B4565' }}>
+                    ⚙️ Gérer les points du référentiel — Groupe « {targetRefGroup.groupLabel} »
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowManagePoints(false)}
+                    style={{ background: 'none', border: 'none', color: '#64748B', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Fermer ✕
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    value={newPointName}
+                    onChange={(e) => setNewPointName(e.target.value)}
+                    placeholder="Nouveau point de contrôle (ex : Étanchéité raccord eau, État du câble...)"
+                    style={{
+                      flex: '1 1 240px',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #C8DCE8',
+                      fontSize: '12.5px',
+                      backgroundColor: '#FFFFFF',
+                      color: '#1B4565',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={pointBusy || !newPointName.trim()}
+                    onClick={handleAddReferentielPoint}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#00C875',
+                      color: '#FFFFFF',
+                      fontSize: '12.5px',
+                      fontWeight: 800,
+                      cursor: pointBusy || !newPointName.trim() ? 'not-allowed' : 'pointer',
+                      opacity: pointBusy || !newPointName.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    {pointBusy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                    Ajouter ce point
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '11.5px', color: '#3989B7', fontWeight: 700 }}>
+                  <span>Catégories concernées :</span>
+                  {([
+                    { key: 'controle', label: 'Contrôle simple' },
+                    { key: 'nettoyage', label: 'Nettoyage' },
+                    { key: 'usee', label: 'Pièce usée' },
+                    { key: 'cassee', label: 'Pièce cassée' },
+                  ] as const).map((cat) => (
+                    <label key={cat.key} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', color: '#1B4565' }}>
+                      <input
+                        type="checkbox"
+                        checked={newPointCats[cat.key]}
+                        onChange={(e) => setNewPointCats((prev) => ({ ...prev, [cat.key]: e.target.checked }))}
+                        style={{ accentColor: '#39A9DC' }}
+                      />
+                      {cat.label}
+                    </label>
+                  ))}
+                </div>
+
+                {allBasePoints.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '170px', overflowY: 'auto', marginTop: '4px' }}>
+                    {allBasePoints.map((pt) => (
+                      <div
+                        key={`mgr-${pt.id}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px',
+                          padding: '6px 10px',
+                          backgroundColor: '#FFFFFF',
+                          borderRadius: '8px',
+                          border: '1px solid #E2EEF5',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, color: '#1B4565' }}>{pt.name}</span>
+                        {confirmArchivePointId === pt.id ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <button
+                              type="button"
+                              disabled={pointBusy}
+                              onClick={() => handleArchiveReferentielPoint(pt.id, pt.name)}
+                              style={{ padding: '3px 8px', borderRadius: '6px', border: 'none', backgroundColor: '#DC2626', color: '#FFFFFF', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              Retirer
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmArchivePointId(null)}
+                              style={{ padding: '3px 7px', borderRadius: '6px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              Non
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmArchivePointId(pt.id)}
+                            title="Retirer ce point du référentiel (archive sur Monday)"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #FECACA',
+                              backgroundColor: '#FEF2F2',
+                              color: '#DC2626',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Trash2 size={12} /> Retirer
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {pointFeedback && (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      backgroundColor: pointFeedback.ok ? '#E6F8F0' : '#FEF2F2',
+                      color: pointFeedback.ok ? '#0E7042' : '#DC2626',
+                    }}
+                  >
+                    {pointFeedback.text}
+                  </div>
+                )}
+              </div>
+            )}
 
             {showStep3Info && (
               <div
@@ -1728,8 +2035,19 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                                 justifyContent: 'space-between',
                                 padding: '9px 14px',
                                 borderRadius: '10px',
-                                backgroundColor: subStatus === 'NC' ? '#FDECEE' : '#FFFFFF',
-                                border: `1px solid ${subStatus === 'NC' ? '#E2445C' : '#E2EEF5'}`,
+                                backgroundColor:
+                                  subStatus === 'NC'
+                                    ? '#FDECEE'
+                                    : showMissingHighlight && missingEvalSet.has(evalKey)
+                                    ? '#FFFBEB'
+                                    : '#FFFFFF',
+                                border: `1.5px solid ${
+                                  subStatus === 'NC'
+                                    ? '#E2445C'
+                                    : showMissingHighlight && missingEvalSet.has(evalKey)
+                                    ? '#F7AC37'
+                                    : '#E2EEF5'
+                                }`,
                                 flexWrap: 'wrap',
                                 gap: '8px',
                               }}
@@ -1799,8 +2117,19 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                       justifyContent: 'space-between',
                       padding: '12px 18px',
                       borderRadius: '12px',
-                      backgroundColor: currentStatus === 'NC' ? '#FDECEE' : '#F8FCFE',
-                      border: `1.5px solid ${currentStatus === 'NC' ? '#E2445C' : '#E2EEF5'}`,
+                      backgroundColor:
+                        currentStatus === 'NC'
+                          ? '#FDECEE'
+                          : showMissingHighlight && missingEvalSet.has(pt.name)
+                          ? '#FFFBEB'
+                          : '#F8FCFE',
+                      border: `1.5px solid ${
+                        currentStatus === 'NC'
+                          ? '#E2445C'
+                          : showMissingHighlight && missingEvalSet.has(pt.name)
+                          ? '#F7AC37'
+                          : '#E2EEF5'
+                      }`,
                       flexWrap: 'wrap',
                       gap: '10px',
                       transition: 'all 0.15s ease',
@@ -2411,6 +2740,37 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                         {preset.label}
                       </button>
                     ))}
+                    {dateRevisite && selectedMachine && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadRevisiteIcs({
+                            machineName: selectedMachine.name,
+                            site: machineSite,
+                            date: dateRevisite,
+                            notes: remarquesTerrain.trim(),
+                          })
+                        }
+                        title="Télécharger un rappel calendrier (.ics) avec alarme Outlook / téléphone"
+                        style={{
+                          marginLeft: 'auto',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '6px 11px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #8B5CF6',
+                          backgroundColor: '#F5F3FF',
+                          color: '#5B21B6',
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <BellRing size={13} />
+                        Ajouter rappel Outlook / Tel (.ics)
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2680,6 +3040,197 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
                     >
                       <X size={13} /> Retirer
                     </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Alerte Salarié Non-Respect des Règles -> Notification Vincent + Liste Salariés + Image/PDF */}
+            <div
+              style={{
+                marginTop: '16px',
+                backgroundColor: salarieAlertEnabled ? '#FEF2F2' : '#FFFFFF',
+                borderRadius: '14px',
+                border: salarieAlertEnabled ? '2px solid #DC2626' : '1.5px solid #FECACA',
+                padding: '16px 18px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="checkbox"
+                    checked={salarieAlertEnabled}
+                    onChange={(e) => setSalarieAlertEnabled(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: '#DC2626', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, fontFamily: "'Ruda', sans-serif", color: '#991B1B' }}>
+                      🚨 Alerte Salarié : non-respect des règles d’entretien / matériel (Prévenir Vincent)
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#7F1D1D', marginTop: '2px' }}>
+                      Notifie directement Vincent sur Monday + enregistre dans le dossier Enchantement Salarié avec pièce jointe.
+                    </div>
+                  </div>
+                </div>
+                {salarieAlertEnabled && (
+                  <span style={{ fontSize: '11px', fontWeight: 800, backgroundColor: '#DC2626', color: '#FFFFFF', padding: '3px 9px', borderRadius: '999px' }}>
+                    Notification Vincent active
+                  </span>
+                )}
+              </label>
+
+              {salarieAlertEnabled && (
+                <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #FECACA', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#991B1B', marginBottom: '6px' }}>
+                      👤 Salarié concerné (liste issue d’Enchantement Salarié — {salariesList.length} actif{salariesList.length > 1 ? 's' : ''}) :
+                    </label>
+                    <SearchableSelect
+                      value={selectedSalarieLabel}
+                      onChange={(val) => {
+                        setSelectedSalarieLabel(val);
+                        if (val) setCustomSalarieName('');
+                      }}
+                      options={salariesList.map((s) => `${s.name}${s.chantier ? ` — ${s.chantier}` : ''}`)}
+                      placeholder="Sélectionner un salarié dans l'annuaire..."
+                      searchPlaceholder="Rechercher un salarié ou chantier..."
+                      width="100%"
+                      minWidth="220px"
+                    />
+                    <input
+                      type="text"
+                      value={customSalarieName}
+                      onChange={(e) => {
+                        setCustomSalarieName(e.target.value);
+                        if (e.target.value.trim()) setSelectedSalarieLabel('');
+                      }}
+                      placeholder="Ou saisir manuellement un nom si le salarié n'est pas encore dans la liste..."
+                      style={{
+                        marginTop: '7px',
+                        width: '100%',
+                        padding: '8px 11px',
+                        borderRadius: '8px',
+                        border: '1px solid #FCA5A5',
+                        fontSize: '12.5px',
+                        backgroundColor: '#FFFFFF',
+                        color: '#1B4565',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#991B1B', marginBottom: '6px' }}>
+                      📝 Motif / Détail du non-respect constaté :
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={salarieAlertText}
+                      onChange={(e) => setSalarieAlertText(e.target.value)}
+                      placeholder="Ex : Machine rangée sans vidanger la cuve d'eau sale, filtre bouché non rincé malgré rappel, choc non signalé..."
+                      style={{
+                        width: '100%',
+                        padding: '9px 11px',
+                        borderRadius: '9px',
+                        border: '1px solid #FCA5A5',
+                        fontSize: '13px',
+                        backgroundColor: '#FFFFFF',
+                        color: '#1B4565',
+                        fontFamily: 'inherit',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#991B1B', marginBottom: '6px' }}>
+                      📎 Pièce jointe (Photo ou PDF — optionnel) :
+                    </label>
+                    <input
+                      ref={salarieFileInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={(e) => handleSalarieFileSelect(e.target.files?.[0] || null)}
+                    />
+                    {!salarieAlertFile ? (
+                      <button
+                        type="button"
+                        onClick={() => salarieFileInputRef.current?.click()}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '7px',
+                          padding: '9px 14px',
+                          borderRadius: '9px',
+                          border: '1.5px dashed #DC2626',
+                          backgroundColor: '#FFFFFF',
+                          color: '#991B1B',
+                          fontSize: '12.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <FileText size={15} />
+                        Joindre une image ou un PDF
+                      </button>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid #FCA5A5',
+                          borderRadius: '9px',
+                          padding: '8px 12px',
+                        }}
+                      >
+                        {salarieAlertFilePreview ? (
+                          <img
+                            src={salarieAlertFilePreview}
+                            alt="Aperçu pièce jointe"
+                            style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px' }}
+                          />
+                        ) : (
+                          <FileText size={24} color="#DC2626" />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#1B4565', wordBreak: 'break-all' }}>
+                            {salarieAlertFile.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>
+                            {Math.round(salarieAlertFile.size / 1024)} Ko · Sera transmis à Vincent &amp; Enchantement Salarié
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleSalarieFileSelect(null)}
+                          style={{
+                            padding: '5px 8px',
+                            borderRadius: '7px',
+                            border: '1px solid #FECACA',
+                            backgroundColor: '#FEF2F2',
+                            color: '#DC2626',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
