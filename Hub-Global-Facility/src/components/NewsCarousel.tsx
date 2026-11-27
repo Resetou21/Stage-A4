@@ -1,15 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Award,
-  Building2,
   ChevronLeft,
   ChevronRight,
-  Lightbulb,
   Megaphone,
   Newspaper,
   Plus,
-  Sparkles,
-  Wrench,
 } from 'lucide-react';
 import { ViewId } from '../config/hubPermissions';
 import {
@@ -55,36 +50,13 @@ interface NewsCarouselProps {
   onOpenNewsPage: (openComposer?: boolean) => void;
 }
 
-const BOARD_ROADMAP_ID = 5105479748;
-const GROUP_DONE_ID = 'group_mm7y1vv8';
-const NEWS_CACHE_KEY = 'facility_news_delivered_v1';
-
 export default function NewsCarousel({
   monday,
-  stats,
-  canViewSecteurs,
-  canViewAtelier,
-  canViewCommercial,
   canPublishNews = false,
   onNavigate,
   onOpenRoadmap,
   onOpenNewsPage,
 }: NewsCarouselProps) {
-  const [deliveredItems, setDeliveredItems] = useState<Array<{ id: string; name: string; workspace: string; date: string }>>(() => {
-    try {
-      const raw = localStorage.getItem(NEWS_CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.ts && Date.now() - parsed.ts < 10 * 60 * 1000 && Array.isArray(parsed.items)) {
-          return parsed.items;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
-
   const [customNews, setCustomNews] = useState<CustomNewsItem[]>(() => readCachedCustomNews());
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -99,65 +71,6 @@ export default function NewsCarousel({
       })
       .catch(() => {});
 
-    try {
-      const raw = localStorage.getItem(NEWS_CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.ts && Date.now() - parsed.ts < 10 * 60 * 1000 && Array.isArray(parsed.items)) {
-          return () => {
-            mounted = false;
-          };
-        }
-      }
-    } catch {
-      // ignore
-    }
-    const loadDelivered = async () => {
-      try {
-        const q = `query {
-          boards(ids: [${BOARD_ROADMAP_ID}]) {
-            groups(ids: ["${GROUP_DONE_ID}"]) {
-              items_page(limit: 8) {
-                items {
-                  id
-                  name
-                  column_values(ids: ["multi_selectp70jvoio", "date_mm7yphvc"]) {
-                    id
-                    text
-                  }
-                }
-              }
-            }
-          }
-        }`;
-        const res: any = await monday.api(q);
-        const raw = res?.data?.boards?.[0]?.groups?.[0]?.items_page?.items || [];
-        const list = raw
-          .map((it: any) => {
-            const ws = it.column_values?.find((c: any) => c.id === 'multi_selectp70jvoio')?.text || 'Intranet';
-            const dt = it.column_values?.find((c: any) => c.id === 'date_mm7yphvc')?.text || '';
-            return {
-              id: String(it.id),
-              name: String(it.name || '').replace(/^\[[^\]]+\]\s*/, '').trim(),
-              workspace: ws,
-              date: dt,
-            };
-          })
-          .filter((x: any) => x.name);
-
-        if (mounted && list.length > 0) {
-          setDeliveredItems(list);
-          try {
-            localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ ts: Date.now(), items: list }));
-          } catch {
-            // ignore
-          }
-        }
-      } catch {
-        // silent fallback
-      }
-    };
-    loadDelivered();
     return () => {
       mounted = false;
     };
@@ -166,11 +79,10 @@ export default function NewsCarousel({
   const activeCustomNews = useMemo(() => customNews.filter((n) => n.active), [customNews]);
 
   const slides: NewsSlide[] = useMemo(() => {
-    const curYear = new Date().getFullYear();
     const base: NewsSlide[] = [];
 
-    // 1. Actualités publiées dynamiquement depuis le Journal (avec photo éventuelle)
-    activeCustomNews.slice(0, 6).forEach((n) => {
+    // Uniquement les vraies actualités publiées depuis le Journal (100 % modifiables / supprimables)
+    activeCustomNews.slice(0, 10).forEach((n) => {
       const st = getNewsCategoryStyle(n.category);
       base.push({
         id: `custom-news-${n.id}`,
@@ -188,90 +100,26 @@ export default function NewsCarousel({
       });
     });
 
-    // 2. Chiffres clés live
-    if (canViewSecteurs) {
-      base.push({
-        id: 'kpi-sat',
-        tag: 'QUALITÉ GROUPE',
-        tagColor: '#0E7042',
-        tagBg: '#E6F9F1',
-        accentColor: '#00C875',
-        title: `${stats.tauxSatisfactionGlobal}% de satisfaction client certifiée en ${curYear}`,
-        summary: `${stats.etoiles.Global.s3} chantiers atteignent le niveau maximal 3 étoiles sur ${stats.chantiersActifs} sites suivis.`,
-        dateLabel: 'En direct Monday',
-        actionLabel: 'Voir la supervision',
-        targetView: 'secteur_global',
-        icon: Award,
-      });
-    }
-
-    if (canViewAtelier) {
-      base.push({
-        id: 'kpi-atelier',
-        tag: 'PARC MATÉRIEL',
-        tagColor: '#3989B7',
-        tagBg: '#EBF6FC',
-        accentColor: '#39A9DC',
-        title: `${stats.machinesTotal} machines suivies avec fiches de contrôle en direct`,
-        summary: 'Consultez les fiches techniques, compteurs horaires et l’avancement des réparations curatives atelier.',
-        dateLabel: 'Temps réel',
-        actionLabel: 'Ouvrir l’Atelier',
-        targetView: 'atelier_erp',
-        icon: Wrench,
-      });
-    }
-
-    if (canViewCommercial) {
-      base.push({
-        id: 'kpi-commercial',
-        tag: 'COMMERCIAL & PORTEFEUILLE',
-        tagColor: '#B87414',
-        tagBg: '#FEF6E7',
-        accentColor: '#F7AC37',
-        title: `${stats.chantiersActifs} chantiers actifs suivis dans le Hub Commercial`,
-        summary: 'Pilotage en direct des gains, pertes, tranches de CA annuel, volumes horaires et provenances.',
-        dateLabel: 'En direct Monday',
-        actionLabel: 'Ouvrir le Hub Commercial',
-        targetView: 'commercial_contrats',
-        icon: Building2,
-      });
-    }
-
-    // 3. Nouveautés livrées depuis la Boîte à Idées
-    deliveredItems.slice(0, 4).forEach((item) => {
-      base.push({
-        id: `news-${item.id}`,
-        tag: `NOUVEAUTÉ LIVRÉE • ${item.workspace.toUpperCase()}`,
-        tagColor: '#D66927',
-        tagBg: '#FFF4EB',
-        accentColor: '#D66927',
-        title: item.name,
-        summary: 'Évolution déployée sur l’écosystème Groupe Facility suite aux retours des équipes.',
-        dateLabel: item.date || `Livré ${curYear}`,
-        actionLabel: 'Voir la Boîte à Idées',
-        openRoadmap: true,
-        icon: Sparkles,
-      });
-    });
-
     if (base.length === 0) {
       base.push({
-        id: 'welcome-intranet',
-        tag: 'INTRANET GROUPE FACILITY',
+        id: 'empty-news',
+        tag: 'JOURNAL GROUPE FACILITY',
         tagColor: '#3989B7',
         tagBg: '#EBF6FC',
         accentColor: '#39A9DC',
-        title: 'Votre espace de travail unifié et personnalisable est actif',
-        summary: 'Utilisez la barre de recherche ou le bouton Personnaliser pour adapter vos Hubs favoris.',
-        dateLabel: 'Actualités',
-        actionLabel: 'Idées & Roadmap',
-        openRoadmap: true,
-        icon: Lightbulb,
+        title: 'Aucune actualité publiée pour le moment',
+        summary: canPublishNews
+          ? 'Cliquez sur « + Publier » pour partager une annonce, une photo ou une info d’équipe avec tout le monde.'
+          : 'Les prochaines actualités, photos et annonces de Groupe Facility apparaîtront ici.',
+        dateLabel: 'Journal interne',
+        actionLabel: canPublishNews ? 'Publier une actualité' : 'Ouvrir le Journal',
+        openNewsPage: true,
+        icon: Newspaper,
       });
     }
 
     return base;
-  }, [activeCustomNews, canViewSecteurs, canViewAtelier, canViewCommercial, stats, deliveredItems]);
+  }, [activeCustomNews, canPublishNews]);
 
   useEffect(() => {
     if (activeIndex >= slides.length) {
