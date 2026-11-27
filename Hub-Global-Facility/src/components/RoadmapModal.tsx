@@ -14,6 +14,7 @@ import {
   Calendar,
   Building2,
   Globe,
+  Megaphone,
   Wrench,
   Truck,
   FileSpreadsheet,
@@ -85,10 +86,11 @@ const GROUP_DONE_ID = 'group_mm7y1vv8'; // Tâches effectuées
 
 const POLE_OPTIONS = [
   { id: 'Monday Global', label: 'Monday Global (Intranet)', icon: Globe, color: '#0E7042', bg: '#E6F9F1' },
+  { id: 'Communication', label: 'Communication & Actualités', icon: Megaphone, color: '#D66927', bg: '#FFF4EB' },
   { id: 'Animatrices', label: 'R. Secteur & Chantiers', icon: Building2, color: '#3989B7', bg: '#EBF6FC' },
   { id: 'Gros Matos', label: 'Matériels & Parc', icon: Wrench, color: '#39A9DC', bg: '#EBF6FC' },
   { id: 'Suivi Vehicules', label: 'Facturation & Véhicules', icon: Truck, color: '#1B4565', bg: '#EBF6FC' },
-  { id: 'Enchantement client', label: 'Commercial & Contrats', icon: FileSpreadsheet, color: '#D66927', bg: '#FEF6E7' },
+  { id: 'Enchantement client', label: 'Commercial & Contrats', icon: FileSpreadsheet, color: '#B87414', bg: '#FEF6E7' },
 ];
 
 const TYPE_OPTIONS = [
