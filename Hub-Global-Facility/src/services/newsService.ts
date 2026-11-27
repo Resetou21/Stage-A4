@@ -212,6 +212,44 @@ export async function createCustomNews(
   };
 }
 
+export async function updateCustomNews(
+  monday: any,
+  itemId: string,
+  payload: {
+    title: string;
+    content: string;
+    category: string;
+    imageFile?: File | null;
+    existingImageUrl?: string;
+  },
+): Promise<{ title: string; content: string; category: string; imageUrl?: string }> {
+  const colVals = JSON.stringify({
+    name: payload.title.trim(),
+    [NEWS_COLS.content]: { text: payload.content.trim() },
+    [NEWS_COLS.category]: payload.category,
+  });
+
+  const mut = `mutation ($itemId: ID!, $vals: JSON!) {
+    change_multiple_column_values(board_id: ${BOARD_NEWS_ID}, item_id: $itemId, column_values: $vals) {
+      id
+    }
+  }`;
+  await monday.api(mut, { variables: { itemId, vals: colVals } });
+
+  let imageUrl = payload.existingImageUrl;
+  if (payload.imageFile) {
+    const uploaded = await uploadNewsImage(monday, itemId, payload.imageFile);
+    if (uploaded) imageUrl = uploaded;
+  }
+
+  return {
+    title: payload.title.trim(),
+    content: payload.content.trim(),
+    category: payload.category,
+    imageUrl,
+  };
+}
+
 export async function toggleCustomNewsActive(monday: any, itemId: string, nextActive: boolean): Promise<void> {
   const val = nextActive ? JSON.stringify({ checked: 'true' }) : JSON.stringify({});
   const mut = `mutation ($itemId: ID!, $val: JSON!) {

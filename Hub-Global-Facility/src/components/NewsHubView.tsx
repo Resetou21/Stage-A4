@@ -9,8 +9,10 @@ import {
   Loader2,
   Megaphone,
   Newspaper,
+  Pencil,
   Plus,
   RefreshCw,
+  Save,
   Send,
   Trash2,
   User,
@@ -26,6 +28,7 @@ import {
   NEWS_CATEGORIES,
   readCachedCustomNews,
   toggleCustomNewsActive,
+  updateCustomNews,
   writeCachedCustomNews,
 } from '../services/newsService';
 
@@ -52,8 +55,9 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
   const [showHidden, setShowHidden] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<CustomNewsItem | null>(null);
 
-  // Formulaire nouvel article
+  // Formulaire nouvel article / modification
   const [showComposer, setShowComposer] = useState(initialOpenComposer);
+  const [editingArticle, setEditingArticle] = useState<CustomNewsItem | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>(NEWS_CATEGORIES[0].id);
   const [content, setContent] = useState('');
@@ -63,6 +67,37 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerFormRef = useRef<HTMLFormElement>(null);
+
+  const resetComposer = () => {
+    setEditingArticle(null);
+    setTitle('');
+    setCategory(NEWS_CATEGORIES[0].id);
+    setContent('');
+    setImageFile(null);
+    if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setImagePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setErrorMsg(null);
+  };
+
+  const handleStartEdit = (article: CustomNewsItem) => {
+    setEditingArticle(article);
+    setTitle(article.title);
+    setCategory(article.category || NEWS_CATEGORIES[0].id);
+    setContent(article.content);
+    setImageFile(null);
+    setImagePreviewUrl(article.imageUrl || null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setErrorMsg(null);
+    setSelectedArticle(null);
+    setShowComposer(true);
+    requestAnimationFrame(() => {
+      composerFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   useEffect(() => {
     if (initialOpenComposer && canPublishNews) {
@@ -116,34 +151,55 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
     setPublishing(true);
     setErrorMsg(null);
     try {
-      const created = await createCustomNews(monday, {
-        title,
-        content,
-        category,
-        author: currentUserName,
-        imageFile,
-      });
-      // Si l'upload photo a réussi, on affiche soit l'URL Monday soit l'aperçu local en attendant le refresh
-      const createdWithPreview: CustomNewsItem = {
-        ...created,
-        imageUrl: created.imageUrl || imagePreviewUrl || undefined,
-      };
-      const next = [createdWithPreview, ...items];
-      setItems(next);
-      writeCachedCustomNews(next);
+      if (editingArticle) {
+        const updated = await updateCustomNews(monday, editingArticle.id, {
+          title,
+          content,
+          category,
+          imageFile,
+          existingImageUrl: editingArticle.imageUrl,
+        });
+        const nextImageUrl = updated.imageUrl || (imageFile ? imagePreviewUrl || undefined : editingArticle.imageUrl);
+        const next = items.map((n) =>
+          n.id === editingArticle.id
+            ? { ...n, title: updated.title, content: updated.content, category: updated.category, imageUrl: nextImageUrl }
+            : n
+        );
+        setItems(next);
+        writeCachedCustomNews(next);
+        const hadNewImage = Boolean(imageFile);
+        resetComposer();
+        setShowComposer(false);
+        if (hadNewImage) {
+          setTimeout(() => loadNews(true), 1500);
+        }
+      } else {
+        const created = await createCustomNews(monday, {
+          title,
+          content,
+          category,
+          author: currentUserName,
+          imageFile,
+        });
+        // Si l'upload photo a réussi, on affiche soit l'URL Monday soit l'aperçu local en attendant le refresh
+        const createdWithPreview: CustomNewsItem = {
+          ...created,
+          imageUrl: created.imageUrl || imagePreviewUrl || undefined,
+        };
+        const next = [createdWithPreview, ...items];
+        setItems(next);
+        writeCachedCustomNews(next);
 
-      setTitle('');
-      setContent('');
-      setImageFile(null);
-      setImagePreviewUrl(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setShowComposer(false);
-      // Rafraîchit en arrière-plan pour récupérer l'URL publique signée Monday si besoin
-      if (imageFile) {
-        setTimeout(() => loadNews(true), 1500);
+        const hadImage = Boolean(imageFile);
+        resetComposer();
+        setShowComposer(false);
+        // Rafraîchit en arrière-plan pour récupérer l'URL publique signée Monday si besoin
+        if (hadImage) {
+          setTimeout(() => loadNews(true), 1500);
+        }
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Impossible de publier cet article.');
+      setErrorMsg(err?.message || (editingArticle ? 'Impossible de modifier cet article.' : 'Impossible de publier cet article.'));
     } finally {
       setPublishing(false);
     }
@@ -257,8 +313,13 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setErrorMsg(null);
-                setShowComposer((v) => !v);
+                if (showComposer) {
+                  resetComposer();
+                  setShowComposer(false);
+                } else {
+                  resetComposer();
+                  setShowComposer(true);
+                }
               }}
               style={{
                 display: 'inline-flex',
@@ -282,29 +343,34 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
         </div>
       </div>
 
-      {/* Formulaire de publication avec Photo */}
+      {/* Formulaire de publication / modification avec Photo */}
       {canPublishNews && showComposer && (
         <form
+          ref={composerFormRef}
           onSubmit={handlePublish}
           style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '18px',
-            border: '1.5px solid #39A9DC',
+            border: editingArticle ? '1.5px solid #F7AC37' : '1.5px solid #39A9DC',
             padding: '22px 24px',
             marginBottom: '24px',
-            boxShadow: '0 10px 28px rgba(57, 169, 220, 0.12)',
+            boxShadow: editingArticle
+              ? '0 10px 28px rgba(247, 172, 55, 0.16)'
+              : '0 10px 28px rgba(57, 169, 220, 0.12)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#EBF6FC', color: '#39A9DC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Megaphone size={18} />
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: editingArticle ? '#FEF6E7' : '#EBF6FC', color: editingArticle ? '#D66927' : '#39A9DC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {editingArticle ? <Pencil size={18} /> : <Megaphone size={18} />}
             </div>
             <div>
               <h2 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '16px', fontWeight: 900, color: '#1B4565' }}>
-                Rédiger une nouvelle actualité
+                {editingArticle ? 'Modifier l’actualité' : 'Rédiger une nouvelle actualité'}
               </h2>
               <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B' }}>
-                Elle apparaîtra immédiatement dans le Journal et en tête du carrousel de l’accueil.
+                {editingArticle
+                  ? 'Les modifications seront synchronisées immédiatement dans le Journal et le carrousel d’accueil.'
+                  : 'Elle apparaîtra immédiatement dans le Journal et en tête du carrousel de l’accueil.'}
               </p>
             </div>
           </div>
@@ -473,7 +539,10 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 'auto', paddingTop: '8px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowComposer(false)}
+                  onClick={() => {
+                    resetComposer();
+                    setShowComposer(false);
+                  }}
                   style={{
                     padding: '9px 14px',
                     borderRadius: '10px',
@@ -497,15 +566,23 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
                     padding: '9px 18px',
                     borderRadius: '10px',
                     border: 'none',
-                    backgroundColor: '#1B4565',
+                    backgroundColor: editingArticle ? '#D66927' : '#1B4565',
                     color: '#FFFFFF',
                     fontSize: '12.5px',
                     fontWeight: 800,
                     cursor: publishing ? 'wait' : 'pointer',
                   }}
                 >
-                  {publishing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  <span>{publishing ? 'Publication…' : 'Publier l’article'}</span>
+                  {publishing ? <Loader2 size={14} className="animate-spin" /> : editingArticle ? <Save size={14} /> : <Send size={14} />}
+                  <span>
+                    {publishing
+                      ? editingArticle
+                        ? 'Enregistrement…'
+                        : 'Publication…'
+                      : editingArticle
+                      ? 'Enregistrer les modifications'
+                      : 'Publier l’article'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -692,6 +769,31 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
 
                     {canPublishNews && (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          disabled={togglingId === article.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(article);
+                          }}
+                          title="Modifier cette actualité"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 9px',
+                            borderRadius: '7px',
+                            border: '1px solid #B7D8EA',
+                            backgroundColor: '#EBF6FC',
+                            color: '#1B4565',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Pencil size={11} />
+                          <span>Modifier</span>
+                        </button>
                         <button
                           type="button"
                           disabled={togglingId === article.id}

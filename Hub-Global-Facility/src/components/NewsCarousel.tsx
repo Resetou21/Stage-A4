@@ -410,10 +410,23 @@ export default function NewsCarousel({
               }}
             >
               {current.summary}
-              {current.dateLabel ? (
-                <span style={{ color: '#3989B7', fontWeight: 700 }}> • {current.dateLabel}</span>
-              ) : null}
             </p>
+            {current.dateLabel && (
+              <div
+                style={{
+                  marginTop: '5px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#3989B7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span>{current.dateLabel}</span>
+              </div>
+            )}
           </div>
         </div>
 
