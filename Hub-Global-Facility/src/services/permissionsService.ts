@@ -58,7 +58,24 @@ export const isAdminUser = (userName?: string, userEmail?: string): boolean => {
   if (e.includes('guillaume.daniel') || e.includes('lguillou')) return true;
   if (n.includes('guillaume') && n.includes('daniel')) return true;
   if (n.includes('laurent') && n.includes('guillou')) return true;
-  return n === 'guillaume daniel' || n === 'guillaume' || n === 'laurent guillou';
+  return n === 'guillaume daniel' || n === 'laurent guillou';
+};
+
+/**
+ * Responsable Communication (Léa Gosselin Leconte) + Admins (Guillaume & Laurent) :
+ * Seuls profils autorisés à ouvrir le Studio Communication (accueil, noms/images des Hubs)
+ * et à publier / modifier / supprimer les Actualités Groupe Facility.
+ */
+export const isCommunicationManager = (userName?: string, userEmail?: string): boolean => {
+  if (isAdminUser(userName, userEmail)) return true;
+  const n = (userName || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  const e = (userEmail || '').toLowerCase().trim();
+  if (e.includes('lgosselinleconte') || e.includes('gosselin')) return true;
+  return n.includes('lea') && (n.includes('gosselin') || n.includes('leconte'));
 };
 
 const normStr = (s: string) =>

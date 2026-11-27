@@ -31,8 +31,8 @@ interface PermissionsModalProps {
 }
 
 const PERMISSION_COLUMN_META: Record<HubKey, { title: string; subtitle: string }> = {
-  secteurs: { title: 'Resp. Secteur', subtitle: 'Animatrices' },
-  atelier: { title: 'Parc Machines', subtitle: 'Atelier · Christophe' },
+  secteurs: { title: 'R. Secteur', subtitle: 'Animatrices' },
+  atelier: { title: 'Matériels', subtitle: 'Parc · Christophe' },
   facturation: { title: 'Fact. Véhicules', subtitle: 'Énergie · Christine' },
   fournisseurs: { title: 'Fournisseurs', subtitle: 'SAV & Partenaires' },
   communication: { title: 'Contacts Clients', subtitle: 'Annuaire · Léa' },

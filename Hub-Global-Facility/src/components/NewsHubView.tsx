@@ -62,7 +62,9 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
   const [content, setContent] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const composerFormRef = useRef<HTMLFormElement>(null);
 
   const resetComposer = () => {
@@ -170,16 +172,18 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
   };
 
   const handleDeleteNews = async (item: CustomNewsItem) => {
-    if (!window.confirm(`Supprimer définitivement l’actualité « ${item.title} » du Journal ?`)) return;
     setTogglingId(item.id);
+    setConfirmDeleteId(null);
+    setActionError(null);
     try {
       await archiveCustomNews(monday, item.id);
       const next = items.filter((n) => n.id !== item.id);
       setItems(next);
       writeCachedCustomNews(next);
       if (selectedArticle?.id === item.id) setSelectedArticle(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[Journal Actualités] Erreur suppression:', err);
+      setActionError(err?.message || 'Impossible de supprimer cette actualité sur Monday.');
     } finally {
       setTogglingId(null);
     }
@@ -461,6 +465,33 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
       )}
 
       {/* Filtres par catégorie */}
+      {actionError && (
+        <div
+          style={{
+            marginBottom: '14px',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #FECACA',
+            color: '#B91C1C',
+            fontSize: '12px',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+          }}
+        >
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            style={{ border: 'none', background: 'none', color: '#B91C1C', cursor: 'pointer', padding: '2px' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           {['Toutes', ...NEWS_CATEGORIES.map((c) => c.id)].map((cat) => {
@@ -688,28 +719,79 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
                           {article.active ? <EyeOff size={12} /> : <Eye size={12} />}
                           <span>{article.active ? 'Masquer' : 'Réafficher'}</span>
                         </button>
-                        <button
-                          type="button"
-                          disabled={togglingId === article.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteNews(article);
-                          }}
-                          title="Supprimer cette actualité"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '4px 7px',
-                            borderRadius: '7px',
-                            border: '1px solid #FECACA',
-                            backgroundColor: '#FEF2F2',
-                            color: '#DC2626',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {confirmDeleteId === article.id ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <button
+                              type="button"
+                              disabled={togglingId === article.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDeleteNews(article);
+                              }}
+                              title="Confirmer la suppression définitive"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '4px 8px',
+                                borderRadius: '7px',
+                                border: '1px solid #DC2626',
+                                backgroundColor: '#DC2626',
+                                color: '#FFFFFF',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                cursor: togglingId === article.id ? 'wait' : 'pointer',
+                              }}
+                            >
+                              <Trash2 size={11} />
+                              <span>{togglingId === article.id ? '...' : 'Confirmer ?'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmDeleteId(null);
+                              }}
+                              title="Annuler"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px 6px',
+                                borderRadius: '7px',
+                                border: '1px solid #CBD5E1',
+                                backgroundColor: '#F1F5F9',
+                                color: '#475569',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={togglingId === article.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteId(article.id);
+                            }}
+                            title="Supprimer cette actualité"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '4px 7px',
+                              borderRadius: '7px',
+                              border: '1px solid #FECACA',
+                              backgroundColor: '#FEF2F2',
+                              color: '#DC2626',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

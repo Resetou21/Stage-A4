@@ -9,6 +9,7 @@ import {
   BookOpen,
   Building2,
   ChevronDown,
+  ClipboardCheck,
   Clock,
   FileSpreadsheet,
   Heart,
@@ -18,6 +19,7 @@ import {
   Mail,
   Maximize2,
   PackageSearch,
+  Palette,
   Phone,
   RefreshCw,
   Search,
@@ -42,9 +44,17 @@ import {
   createEmptyPermissions,
   fetchUserPermissions,
   isAdminUser,
+  isCommunicationManager,
   isGuillaumeUser,
   UserHubPermissions,
 } from './services/permissionsService';
+import {
+  BrandingMap,
+  fetchBranding,
+  readCachedBranding,
+  writeCachedBranding,
+} from './services/brandingService';
+import { getSaintOfDay } from './utils/frenchSaints';
 import {
   getDefaultUserPrefs,
   loadRemoteUserPrefs,
@@ -65,6 +75,7 @@ import FavoriteHeartButton from './components/FavoriteHeartButton';
 import FavoriteInfosSection from './components/FavoriteInfosSection';
 import NewsHubView from './components/NewsHubView';
 import FinanceHubView from './components/FinanceHubView';
+import CommunicationStudioModal, { StudioSlotDefault } from './components/CommunicationStudioModal';
 import { prefetchCommercialData } from './services/commercialService';
 
 const monday = mondaySdk();
@@ -153,9 +164,6 @@ const getInitialView = (): ViewId => {
 
     const hash = window.location.hash.replace('#', '') as ViewId;
     if (hash && VALID_VIEWS.includes(hash)) return hash;
-
-    const saved = (localStorage.getItem('hub_global_active_view') || sessionStorage.getItem('hub_global_active_view')) as ViewId;
-    if (saved && VALID_VIEWS.includes(saved)) return saved;
   } catch {
     // ignore
   }
@@ -212,6 +220,9 @@ export default function App() {
   const [showCustomizeModal, setShowCustomizeModal] = useState<boolean>(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState<boolean>(false);
   const [showDataRulesModal, setShowDataRulesModal] = useState<boolean>(false);
+  const [showStudioModal, setShowStudioModal] = useState<boolean>(false);
+  const [branding, setBranding] = useState<BrandingMap>(() => readCachedBranding());
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   const CACHE_KEY = 'facility_portal_stats_v5';
   const USER_CACHE_KEY = 'facility_portal_user_v2';
@@ -264,6 +275,8 @@ export default function App() {
   }, [currentView, IFRAME_VIEWS, permissionsLoaded, permissions]);
 
   const isAdmin = useMemo(() => isAdminUser(userName, userEmail), [userName, userEmail]);
+  const isCommManager = useMemo(() => isCommunicationManager(userName, userEmail), [userName, userEmail]);
+  const saintOfDay = useMemo(() => getSaintOfDay(), []);
 
   const firstName = useMemo(() => {
     const clean = (userName || '').trim();
@@ -286,7 +299,7 @@ export default function App() {
     });
   }, []);
 
-  // Chargement identité utilisateur EN DIRECT (jamais depuis un cache 24h qui pourrait mélanger deux comptes)
+  // Chargement identité utilisateur EN DIRECT (zéro cache partagé entre comptes sur le même PC)
   const loadUserIdentity = async () => {
     try {
       const meRes: any = await monday.api(`query { me { id name email } }`);
@@ -296,23 +309,7 @@ export default function App() {
         setUserName(n);
         setUserEmail(em);
         setUserIdentified(true);
-        try {
-          localStorage.setItem(USER_CACHE_KEY, JSON.stringify({ name: n, email: em, timestamp: Date.now() }));
-        } catch {
-          // ignore
-        }
         return;
-      }
-    } catch {
-      // ignore
-    }
-    // Repli uniquement si l'appel me échoue (ex: aperçu local hors Monday)
-    try {
-      const cachedUser = localStorage.getItem(USER_CACHE_KEY);
-      if (cachedUser) {
-        const parsed = JSON.parse(cachedUser);
-        if (parsed?.name) setUserName(parsed.name);
-        if (parsed?.email) setUserEmail(parsed.email);
       }
     } catch {
       // ignore
@@ -342,7 +339,44 @@ export default function App() {
     loadRemoteUserPrefs(monday, userKey).then((remote) => {
       if (remote) setPrefs(remote);
     });
+    // Charger les dernières recherches personnelles de l'utilisateur
+    try {
+      const raw = localStorage.getItem(`facility_recent_searches_${userKey}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setRecentSearches(parsed.filter((s: any) => typeof s === 'string' && s.trim()).slice(0, 5));
+        }
+      } else {
+        setRecentSearches([]);
+      }
+    } catch {
+      setRecentSearches([]);
+    }
   }, [userIdentified, userKey]);
+
+  const recordRecentSearch = (term: string) => {
+    const clean = term.trim();
+    if (clean.length < 2) return;
+    setRecentSearches((prev) => {
+      const next = [clean, ...prev.filter((s) => s.toLowerCase() !== clean.toLowerCase())].slice(0, 5);
+      try {
+        localStorage.setItem(`facility_recent_searches_${userKey}`, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem(`facility_recent_searches_${userKey}`);
+    } catch {
+      // ignore
+    }
+  };
 
   const handleUpdatePrefs = (next: UserHubPrefs) => {
     setPrefs(next);
@@ -454,17 +488,18 @@ export default function App() {
     const cards: HubCardData[] = [];
 
     if (permissions.secteurs) {
+      const b = branding.secteurs;
       cards.push({
         key: 'secteurs',
-        title: getDef('secteurs').label,
-        description: getDef('secteurs').description,
-        image: getDef('secteurs').image,
+        title: b?.title || getDef('secteurs').label,
+        description: b?.description || getDef('secteurs').description,
+        image: b?.imageUrl || getDef('secteurs').image,
         accentColor: getDef('secteurs').accentColor,
         bgLight: getDef('secteurs').bgLight,
         badge: `${stats.chantiersActifs} chantiers`,
         menuLabel: 'Choisir un secteur',
         defaultView: 'secteur_global',
-        icon: Building2,
+        icon: ClipboardCheck,
         items: [
           {
             id: 'secteur_global',
@@ -472,7 +507,7 @@ export default function App() {
             badge: `${stats.tauxSatisfactionGlobal}% sat.`,
             badgeColor: '#0E7042',
             description: `Vue consolidée des 3 secteurs et étoiles (${curYear})`,
-            icon: Building2,
+            icon: ClipboardCheck,
           },
           {
             id: 'secteur_natacha',
@@ -503,11 +538,12 @@ export default function App() {
     }
 
     if (permissions.atelier) {
+      const b = branding.atelier;
       cards.push({
         key: 'atelier',
-        title: getDef('atelier').label,
-        description: getDef('atelier').description,
-        image: getDef('atelier').image,
+        title: b?.title || getDef('atelier').label,
+        description: b?.description || getDef('atelier').description,
+        image: b?.imageUrl || getDef('atelier').image,
         accentColor: getDef('atelier').accentColor,
         bgLight: getDef('atelier').bgLight,
         badge: `${stats.machinesTotal} machines`,
@@ -516,10 +552,10 @@ export default function App() {
         items: [
           {
             id: 'atelier_erp',
-            title: 'ERP Parc Matériel (Christophe)',
+            title: 'Parc Matériels (Christophe)',
             badge: `${stats.machinesTotal} machines`,
             badgeColor: '#3989B7',
-            description: 'Contrôles techniques, compteurs horaires & réparations curatives',
+            description: 'Contrôles techniques, agenda mobile & réparations curatives',
             icon: Wrench,
           },
         ],
@@ -527,11 +563,12 @@ export default function App() {
     }
 
     if (facturationItems.length > 0) {
+      const b = branding.facturation;
       cards.push({
         key: 'facturation',
-        title: 'Facturation & Fournisseurs',
-        description: 'Saisie factures véhicules, imports énergie (Total, Chargemap, Wellborne) et partenaires SAV',
-        image: getDef('facturation').image,
+        title: b?.title || 'Facturation & Fournisseurs',
+        description: b?.description || 'Saisie factures véhicules, imports énergie (Total, Chargemap, Wellborne) et partenaires SAV',
+        image: b?.imageUrl || getDef('facturation').image,
         accentColor: '#1B4565',
         bgLight: '#EBF6FC',
         badge: facturationItems.length > 1 ? '2 espaces' : facturationItems[0].badge,
@@ -543,11 +580,12 @@ export default function App() {
     }
 
     if (clientsItems.length > 0) {
+      const b = branding.commercial;
       cards.push({
         key: 'commercial',
-        title: 'Clients (Commerce & Contacts)',
-        description: 'Portefeuille chantiers, gains/pertes, tranches CA, annuaire clients et exports contacts',
-        image: getDef('commercial').image,
+        title: b?.title || 'Clients (Commerce & Contacts)',
+        description: b?.description || 'Portefeuille chantiers, gains/pertes, tranches CA, annuaire clients et exports contacts',
+        image: b?.imageUrl || getDef('commercial').image,
         accentColor: '#B87414',
         bgLight: '#FEF6E7',
         badge: `${stats.chantiersActifs} chantiers`,
@@ -559,11 +597,12 @@ export default function App() {
     }
 
     if (permissions.direction) {
+      const b = branding.direction;
       cards.push({
         key: 'direction',
-        title: getDef('direction').label,
-        description: getDef('direction').description,
-        image: getDef('direction').image,
+        title: b?.title || getDef('direction').label,
+        description: b?.description || getDef('direction').description,
+        image: b?.imageUrl || getDef('direction').image,
         accentColor: getDef('direction').accentColor,
         bgLight: getDef('direction').bgLight,
         badge: 'Flotte & GPS',
@@ -581,11 +620,12 @@ export default function App() {
     }
 
     if (permissions.finance) {
+      const b = branding.finance;
       cards.push({
         key: 'finance',
-        title: 'Zone Finance & Direction',
-        description: 'Coût de non-qualité, gains financiers, CA / Résultat vs Budget et réunion d’associés',
-        image: getDef('finance').image,
+        title: b?.title || 'Zone Finance & Direction',
+        description: b?.description || 'Coût de non-qualité, gains financiers, CA / Résultat vs Budget et réunion d’associés',
+        image: b?.imageUrl || getDef('finance').image,
         accentColor: '#1B4565',
         bgLight: '#EBF6FC',
         badge: 'CA & Résultat',
@@ -605,11 +645,12 @@ export default function App() {
     }
 
     if (permissions.salaries && canSeeSalariesRh) {
+      const b = branding.salaries;
       cards.push({
         key: 'salaries',
-        title: 'Enchantement Salarié',
-        description: 'Annuaire centralisé Enchantement salarié, dossiers d’accompagnement et préparation groupes WhatsApp',
-        image: getDef('salaries').image,
+        title: b?.title || 'Enchantement Salarié',
+        description: b?.description || 'Annuaire centralisé Enchantement salarié, dossiers d’accompagnement et préparation groupes WhatsApp',
+        image: b?.imageUrl || getDef('salaries').image,
         accentColor: '#0E7042',
         bgLight: '#E6F9F1',
         badge: ENABLE_SALARIES_RH_HUB ? 'Enchantement salarié' : 'Aperçu privé',
@@ -629,7 +670,70 @@ export default function App() {
     }
 
     return cards;
-  }, [stats, curYear, permissions, canSeeSalariesRh]);
+  }, [stats, curYear, permissions, canSeeSalariesRh, branding]);
+
+  const studioSlots: StudioSlotDefault[] = useMemo(() => {
+    const defByKey = new Map(HUB_DEFINITIONS.map((d) => [d.key, d]));
+    const getDef = (k: HubKey) => defByKey.get(k)!;
+    return [
+      {
+        key: 'hero',
+        label: 'Bannière Accueil',
+        defaultTitle: `${greetingText} ☀️`,
+        defaultDescription: 'Accédez en un instant à vos Hubs métiers, vos outils du quotidien et vos demandes d’amélioration.',
+        defaultImage: './images/hero-banner.jpg',
+      },
+      {
+        key: 'secteurs',
+        label: 'R. Secteur',
+        defaultTitle: getDef('secteurs').label,
+        defaultDescription: getDef('secteurs').description,
+        defaultImage: getDef('secteurs').image,
+      },
+      {
+        key: 'atelier',
+        label: 'Matériels',
+        defaultTitle: getDef('atelier').label,
+        defaultDescription: getDef('atelier').description,
+        defaultImage: getDef('atelier').image,
+      },
+      {
+        key: 'facturation',
+        label: 'Facturation & Fourn.',
+        defaultTitle: 'Facturation & Fournisseurs',
+        defaultDescription: 'Saisie factures véhicules, imports énergie (Total, Chargemap, Wellborne) et partenaires SAV',
+        defaultImage: getDef('facturation').image,
+      },
+      {
+        key: 'commercial',
+        label: 'Clients & Contacts',
+        defaultTitle: 'Clients (Commerce & Contacts)',
+        defaultDescription: 'Portefeuille chantiers, gains/pertes, tranches CA, annuaire clients et exports contacts',
+        defaultImage: getDef('commercial').image,
+      },
+      {
+        key: 'direction',
+        label: 'Véhicules',
+        defaultTitle: getDef('direction').label,
+        defaultDescription: getDef('direction').description,
+        defaultImage: getDef('direction').image,
+      },
+      {
+        key: 'finance',
+        label: 'Finance & Direction',
+        defaultTitle: 'Zone Finance & Direction',
+        defaultDescription: 'Coût de non-qualité, gains financiers, CA / Résultat vs Budget et réunion d’associés',
+        defaultImage: getDef('finance').image,
+      },
+      {
+        key: 'salaries',
+        label: 'Salariés',
+        defaultTitle: 'Enchantement Salarié',
+        defaultDescription: 'Annuaire centralisé Enchantement salarié, dossiers d’accompagnement et préparation groupes WhatsApp',
+        defaultImage: getDef('salaries').image,
+      },
+    ];
+  }, [greetingText]);
 
   // Hubs autorisés uniquement (déjà filtrés finement par permission individuelle ci-dessus)
   const authorizedHubCards = allHubCards;
@@ -1009,17 +1113,12 @@ export default function App() {
   // Listeners globaux & pont postMessage iframe Monday SDK
   useEffect(() => {
     loadUserIdentity();
+    // Charger la personnalisation visuelle Studio Communication (bannière + cartes) en direct
+    fetchBranding(monday)
+      .then((b) => setBranding(b))
+      .catch(() => {});
 
-    try {
-      if (monday?.storage?.instance?.getItem) {
-        monday.storage.instance.getItem('hub_global_active_view').then((res: any) => {
-          const v = res?.data?.value as ViewId;
-          if (v && VALID_VIEWS.includes(v)) {
-            setCurrentView(v);
-          }
-        }).catch(() => { });
-      }
-    } catch { }
+    // IMPORTANT : ne JAMAIS utiliser monday.storage.instance pour la vue active (partagé entre tous les utilisateurs !)
 
     const handleBridgeMessage = (event: MessageEvent) => {
       // Vérifie si le message provient d'une des iframes montées (keep-alive)
@@ -1144,11 +1243,7 @@ export default function App() {
       } catch { }
     });
     try {
-      localStorage.setItem('hub_global_active_view', view);
-      sessionStorage.setItem('hub_global_active_view', view);
-      if (monday?.storage?.instance?.setItem) {
-        monday.storage.instance.setItem('hub_global_active_view', view).catch(() => { });
-      }
+      // Navigation strictement locale à l'onglet (jamais stockée dans monday.storage.instance qui est partagé entre utilisateurs)
       if (window.history && window.history.replaceState) {
         window.history.replaceState(null, '', view === 'home' ? window.location.pathname : `#${view}`);
       }
@@ -1363,6 +1458,31 @@ export default function App() {
             <span className="header-btn-label">Idées</span>
           </button>
 
+          {isCommManager && (
+            <button
+              type="button"
+              className="ui-btn"
+              onClick={() => setShowStudioModal(true)}
+              title="Studio Communication — Modifier la bannière, les noms et images des Hubs (Léa & Admins)"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 11px',
+                borderRadius: '9px',
+                border: '1px solid #D66927',
+                backgroundColor: '#FFF4EB',
+                color: '#D66927',
+                fontSize: '12px',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              <Palette size={14} color="#D66927" />
+              <span className="header-btn-label">Studio Comm</span>
+            </button>
+          )}
+
           {isAdmin && (
             <>
               <button
@@ -1420,6 +1540,7 @@ export default function App() {
               setRefreshKey(Date.now());
               loadLiveStats(true);
               void refreshUserPermissions(true);
+              fetchBranding(monday).then(setBranding).catch(() => {});
             }}
             title="Actualiser les données Monday"
             style={{
@@ -1647,7 +1768,7 @@ export default function App() {
                   inset: 0,
                   borderRadius: 'inherit',
                   overflow: 'hidden',
-                  backgroundImage: `linear-gradient(135deg, rgba(16, 43, 66, 0.90) 0%, rgba(27, 69, 101, 0.80) 52%, rgba(57, 137, 183, 0.76) 100%), url('./images/hero-banner.jpg')`,
+                  backgroundImage: `linear-gradient(135deg, rgba(16, 43, 66, 0.90) 0%, rgba(27, 69, 101, 0.80) 52%, rgba(57, 137, 183, 0.76) 100%), url('${branding.hero?.imageUrl || './images/hero-banner.jpg'}')`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   zIndex: 0,
@@ -1699,6 +1820,19 @@ export default function App() {
                   >
                     <Sparkles size={12} />
                     <span>{todayFormatted}</span>
+                    {saintOfDay && (
+                      <span
+                        style={{
+                          paddingLeft: '6px',
+                          borderLeft: '1px solid rgba(255,255,255,0.3)',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          textTransform: 'none',
+                        }}
+                      >
+                        🎉 {saintOfDay}
+                      </span>
+                    )}
                   </div>
 
                   <h1
@@ -1713,10 +1847,10 @@ export default function App() {
                       textShadow: '0 2px 10px rgba(15, 23, 42, 0.25)',
                     }}
                   >
-                    {greetingText} ☀️
+                    {branding.hero?.title || `${greetingText} ☀️`}
                   </h1>
                   <p style={{ margin: 0, fontSize: '13.5px', color: 'rgba(255, 255, 255, 0.90)' }}>
-                    Accédez en un instant à vos Hubs métiers, vos outils du quotidien et vos demandes d’amélioration.
+                    {branding.hero?.description || 'Accédez en un instant à vos Hubs métiers, vos outils du quotidien et vos demandes d’amélioration.'}
                   </p>
                 </div>
 
@@ -1753,7 +1887,21 @@ export default function App() {
                         setHeroSearch(e.target.value);
                         setSearchFocused(true);
                       }}
-                      placeholder={isMobileViewport ? 'Rechercher un Hub, chantier, contact…' : 'Rechercher un Hub, une animatrice, une machine, un contact...'}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && heroSearch.trim()) {
+                          recordRecentSearch(heroSearch.trim());
+                          if (heroSearchResults[0]) {
+                            heroSearchResults[0].onSelect();
+                          }
+                        }
+                      }}
+                      placeholder={
+                        recentSearches[0]
+                          ? `Dernière recherche : ${recentSearches[0]} — ou tapez un Hub…`
+                          : isMobileViewport
+                          ? 'Rechercher un Hub, chantier, contact…'
+                          : 'Rechercher un Hub, R. Secteur, matériels, contact...'
+                      }
                       style={{
                         flex: 1,
                         border: 'none',
@@ -1821,6 +1969,57 @@ export default function App() {
                         color: '#1B4565',
                       }}
                     >
+                      {recentSearches.length > 0 && !heroSearch.trim() && (
+                        <div
+                          style={{
+                            padding: '8px 10px 10px',
+                            marginBottom: '6px',
+                            borderBottom: '1px solid #EBF6FC',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', fontWeight: 800, color: '#3989B7', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              <Clock size={11} />
+                              <span>Dernières recherches</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={clearRecentSearches}
+                              style={{ border: 'none', background: 'none', color: '#94A3B8', fontSize: '10.5px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                            >
+                              Effacer
+                            </button>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {recentSearches.map((term) => (
+                              <button
+                                key={term}
+                                type="button"
+                                onClick={() => {
+                                  setHeroSearch(term);
+                                  heroSearchInputRef.current?.focus();
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '4px 10px',
+                                  borderRadius: '999px',
+                                  border: '1px solid #B7D8EA',
+                                  backgroundColor: '#F4F9FC',
+                                  color: '#1B4565',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <Clock size={11} color="#39A9DC" />
+                                <span>{term}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {heroSearchResults.length === 0 ? (
                         <div style={{ padding: '18px', textAlign: 'center', fontSize: '12.5px', color: '#64748B' }}>
                           Aucun module autorisé trouvé pour « {heroSearch} »
@@ -1833,7 +2032,10 @@ export default function App() {
                               key={res.id}
                               type="button"
                               className="hub-subitem-row"
-                              onClick={res.onSelect}
+                              onClick={() => {
+                                recordRecentSearch(heroSearch.trim() || res.title);
+                                res.onSelect();
+                              }}
                               style={{
                                 width: '100%',
                                 display: 'flex',
@@ -1892,8 +2094,8 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '22px' }}>
                   {[
                     { id: 'all' as const, label: 'Tous' },
-                    { id: 'secteurs' as const, label: 'Secteurs' },
-                    { id: 'atelier' as const, label: 'Atelier & Flotte' },
+                    { id: 'secteurs' as const, label: 'R. Secteur' },
+                    { id: 'atelier' as const, label: 'Matériels & Flotte' },
                     { id: 'outils' as const, label: 'Outils & Direction' },
                   ].map((pill) => {
                     const active = heroFilter === pill.id;
@@ -1930,8 +2132,8 @@ export default function App() {
                   {visibleOrderedHubCards.map((card) => {
                     const Icon = card.icon;
                     const HERO_SHORT_LABELS: Partial<Record<HubKey, string>> = {
-                      secteurs: 'Secteurs',
-                      atelier: 'Atelier',
+                      secteurs: 'R. Secteur',
+                      atelier: 'Matériels',
                       facturation: 'Facturation',
                       commercial: 'Clients',
                       direction: 'Véhicules',
@@ -1939,6 +2141,7 @@ export default function App() {
                       salaries: 'Salariés',
                     };
                     const shortName =
+                      branding[card.key]?.title ||
                       HERO_SHORT_LABELS[card.key] ||
                       HUB_DEFINITIONS.find((d) => d.key === card.key)?.shortLabel ||
                       card.title;
@@ -2010,7 +2213,7 @@ export default function App() {
                 canViewSecteurs={permissions.secteurs}
                 canViewAtelier={permissions.atelier}
                 canViewCommercial={permissions.commercial}
-                canPublishNews={isAdmin || permissions.communication}
+                canPublishNews={isCommManager}
                 onNavigate={handleNavigate}
                 onOpenRoadmap={() => {
                   setRoadmapInitialTab('company_ideas');
@@ -2407,7 +2610,7 @@ export default function App() {
         {currentView === 'news' && (
           <NewsHubView
             monday={monday}
-            canPublishNews={isAdmin || permissions.communication}
+            canPublishNews={isCommManager}
             currentUserName={userName || firstName}
             initialOpenComposer={newsOpenComposer}
             onComposerOpened={() => setNewsOpenComposer(false)}
@@ -2896,8 +3099,28 @@ export default function App() {
           onClose={() => setShowRoadmapModal(false)}
           monday={monday}
           currentUserName={userName}
+          currentUserEmail={userEmail}
+          isAdmin={isAdmin}
           initialTab={roadmapInitialTab}
         />
+
+        {isCommManager && (
+          <CommunicationStudioModal
+            isOpen={showStudioModal}
+            onClose={() => setShowStudioModal(false)}
+            monday={monday}
+            branding={branding}
+            slots={studioSlots}
+            onBrandingUpdated={(next) => {
+              setBranding(next);
+              writeCachedBranding(next);
+            }}
+            onOpenNewsPage={() => {
+              setNewsOpenComposer(false);
+              handleNavigate('news');
+            }}
+          />
+        )}
 
         <CustomizeHubModal
           isOpen={showCustomizeModal}

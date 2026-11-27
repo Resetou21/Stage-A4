@@ -140,7 +140,9 @@ export async function fetchCustomNews(monday: any, force = false): Promise<Custo
     .filter((x: CustomNewsItem) => x.title)
     .sort((a: CustomNewsItem, b: CustomNewsItem) => (b.date || '').localeCompare(a.date || ''));
 
-  writeCachedCustomNews(list);
+  if (list.length > 0) {
+    writeCachedCustomNews(list);
+  }
   return list;
 }
 
@@ -262,5 +264,8 @@ export async function archiveCustomNews(monday: any, itemId: string): Promise<vo
   const mut = `mutation ($itemId: ID!) {
     archive_item(item_id: $itemId) { id }
   }`;
-  await monday.api(mut, { variables: { itemId } });
+  const res: any = await monday.api(mut, { variables: { itemId } });
+  if (res?.errors?.length) {
+    throw new Error(res.errors.map((e: any) => e.message).join(' | '));
+  }
 }

@@ -65,7 +65,8 @@ export default function NewsCarousel({
   useEffect(() => {
     let mounted = true;
 
-    fetchCustomNews(monday, false)
+    // Toujours recharger en direct depuis Monday pour éviter un cache vide/obsolète chez les autres comptes
+    fetchCustomNews(monday, true)
       .then((list) => {
         if (mounted) setCustomNews(list);
       })

@@ -13,6 +13,7 @@ import {
   User,
   Calendar,
   Building2,
+  Globe,
   Wrench,
   Truck,
   FileSpreadsheet,
@@ -31,6 +32,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { isAdminUser } from '../services/permissionsService';
 
 export interface RoadmapComment {
   id: string;
@@ -62,6 +64,8 @@ interface RoadmapModalProps {
   onClose: () => void;
   monday: any;
   currentUserName?: string;
+  currentUserEmail?: string;
+  isAdmin?: boolean;
   initialTab?: 'form' | 'list' | 'my_ideas' | 'company_ideas';
 }
 
@@ -70,8 +74,9 @@ const GROUP_TODO_ID = 'group_mm7y5mjp'; // Tache à faire
 const GROUP_DONE_ID = 'group_mm7y1vv8'; // Tâches effectuées
 
 const POLE_OPTIONS = [
-  { id: 'Animatrices', label: 'Animatrices & Chantiers', icon: Building2, color: '#3989B7', bg: '#EBF6FC' },
-  { id: 'Gros Matos', label: 'Atelier & Gros Matériel', icon: Wrench, color: '#39A9DC', bg: '#EBF6FC' },
+  { id: 'Monday Global', label: 'Monday Global (Intranet)', icon: Globe, color: '#0E7042', bg: '#E6F9F1' },
+  { id: 'Animatrices', label: 'R. Secteur & Chantiers', icon: Building2, color: '#3989B7', bg: '#EBF6FC' },
+  { id: 'Gros Matos', label: 'Matériels & Parc', icon: Wrench, color: '#39A9DC', bg: '#EBF6FC' },
   { id: 'Suivi Vehicules', label: 'Facturation & Véhicules', icon: Truck, color: '#1B4565', bg: '#EBF6FC' },
   { id: 'Enchantement client', label: 'Commercial & Contrats', icon: FileSpreadsheet, color: '#D66927', bg: '#FEF6E7' },
 ];
@@ -97,7 +102,9 @@ export default function RoadmapModal({
   isOpen,
   onClose,
   monday,
-  currentUserName = 'Guillaume Daniel',
+  currentUserName = '',
+  currentUserEmail = '',
+  isAdmin = false,
   initialTab = 'company_ideas',
 }: RoadmapModalProps) {
   const [activeTab, setActiveTab] = useState<'my_ideas' | 'company_ideas' | 'form'>(() => resolveRoadmapTab(initialTab));
@@ -118,11 +125,10 @@ export default function RoadmapModal({
   const [newCommentText, setNewCommentText] = useState<Record<string, string>>({});
   const [submittingCommentItemId, setSubmittingCommentItemId] = useState<string | null>(null);
 
-  // Droits d'administration : Guillaume Daniel & Laurent GUILLOU peuvent valider les demandes livrées
+  // Droits d'administration stricts : uniquement Guillaume Daniel & Laurent GUILLOU
   const isManager = useMemo(() => {
-    const u = (currentUserName || '').toLowerCase();
-    return u.includes('guillaume') || u.includes('daniel') || (u.includes('laurent') && u.includes('guillou'));
-  }, [currentUserName]);
+    return Boolean(isAdmin) || isAdminUser(currentUserName, currentUserEmail);
+  }, [isAdmin, currentUserName, currentUserEmail]);
 
   // Filtres onglet Roadmap
   const [search, setSearch] = useState('');
@@ -520,8 +526,9 @@ export default function RoadmapModal({
     }
   };
 
-  // Supprimer (archiver sur Monday) une idée en cas de mauvaise manip
+  // Supprimer (archiver sur Monday) une idée — strictement réservé à son auteur ou aux Admins
   const handleDeleteItem = async (item: RoadmapItem) => {
+    if (!isManager && !isItemMine(item)) return;
     setDeletingId(item.id);
     setConfirmDeleteId(null);
     const prevItems = items;
@@ -797,24 +804,40 @@ export default function RoadmapModal({
       }, 1500);
     } catch (err) {
       console.error('Erreur enregistrement suggestion:', err);
-      alert("Une erreur s'est produite lors de la transmission à Monday.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Helper d'identification des idées appartenant au collaborateur connecté
+  // Helper strict d'identification des idées appartenant au collaborateur connecté (uniquement colonne Auteur, jamais le texte)
   const isItemMine = (it: RoadmapItem) => {
-    const u = (currentUserName || '').toLowerCase().trim();
-    if (!u || u === 'utilisateur') return false;
-    const firstWord = u.split(/\s+/)[0] || u;
-    const authLow = (it.author || '').toLowerCase();
-    const descLow = (it.description || '').toLowerCase();
-    return (
-      authLow.includes(u) ||
-      (firstWord.length >= 3 && authLow.includes(firstWord)) ||
-      descLow.includes(u)
-    );
+    const norm = (s: string) =>
+      (s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const u = norm(currentUserName);
+    const auth = norm(it.author);
+    if (!u || u === 'utilisateur' || u === 'collaborateur' || !auth) return false;
+    if (auth === u) return true;
+
+    // Match uniquement sur mots complets (évite qu'un prénom court comme "lea" matche un autre mot)
+    const uTokens = u.split(' ').filter((w) => w.length >= 2);
+    const authTokens = auth.split(' ').filter((w) => w.length >= 2);
+    if (uTokens.length === 0 || authTokens.length === 0) return false;
+    // Si l'utilisateur a un prénom + nom, exiger qu'au moins un mot complet corresponde exactement à l'auteur (si auteur mono-mot) ou 2 mots en commun
+    if (authTokens.length === 1) {
+      return uTokens.includes(authTokens[0]);
+    }
+    if (uTokens.length === 1) {
+      return authTokens.includes(uTokens[0]);
+    }
+    const common = uTokens.filter((t) => authTokens.includes(t));
+    return common.length >= 2;
   };
 
   // Statistiques Roadmap (toujours calculées pour Mes idées ET pour Toute l'entreprise)

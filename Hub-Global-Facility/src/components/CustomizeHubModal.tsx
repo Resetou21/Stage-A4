@@ -44,6 +44,8 @@ export default function CustomizeHubModal({
     return permissions[k];
   };
   const CARD_LABEL_OVERRIDE: Partial<Record<HubKey, string>> = {
+    secteurs: 'R. Secteur',
+    atelier: 'Matériels',
     facturation: 'Facturation & Fournisseurs',
     commercial: 'Clients (Commerce & Contacts)',
     finance: 'Zone Finance & Direction',
