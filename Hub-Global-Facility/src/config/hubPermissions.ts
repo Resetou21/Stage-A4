@@ -21,6 +21,7 @@ export type ViewId =
   | 'comm_lea'
   | 'comm_alertes'
   | 'direction_vincent'
+  | 'finance_direction'
   | 'commercial_contrats'
   | 'salaries_rh';
 
@@ -149,6 +150,7 @@ export const VIEW_TO_HUB_KEY: Record<ViewId, HubKey | null> = {
   comm_lea: 'communication',
   comm_alertes: 'communication',
   direction_vincent: 'direction',
+  finance_direction: 'direction',
   commercial_contrats: 'commercial',
   salaries_rh: 'direction',
 };

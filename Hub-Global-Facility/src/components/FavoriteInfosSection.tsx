@@ -182,6 +182,37 @@ export const FAVORITE_WIDGET_CATALOG: FavoriteWidgetDef[] = [
     bgLight: '#E6F9F1',
     description: 'Nombre de salariés actifs suivis dans l’annuaire centralisé.',
   },
+  // Zone Finance & Direction
+  {
+    id: 'kpi_finance_non_qualite',
+    title: 'Coût de non-qualité',
+    category: 'Finance & Direction',
+    requiredHub: 'direction',
+    targetView: 'finance_direction',
+    accentColor: '#DC2626',
+    bgLight: '#FEF2F2',
+    description: 'Suivi annuel des pertes HT et coût de non-qualité par catégorie.',
+  },
+  {
+    id: 'kpi_finance_gains',
+    title: 'Gains financiers',
+    category: 'Finance & Direction',
+    requiredHub: 'direction',
+    targetView: 'finance_direction',
+    accentColor: '#0E7042',
+    bgLight: '#E6F9F1',
+    description: 'Suivi annuel des gains financiers HT réalisés.',
+  },
+  {
+    id: 'kpi_finance_ca_res',
+    title: 'CA & Résultat vs Budget',
+    category: 'Finance & Direction',
+    requiredHub: 'direction',
+    targetView: 'finance_direction',
+    accentColor: '#1B4565',
+    bgLight: '#EBF6FC',
+    description: 'Comparatif mensuel Chiffre d’affaires et Résultat réalisé vs budget.',
+  },
 ];
 
 interface FavoriteInfosSectionProps {
@@ -588,6 +619,18 @@ export const FavoriteInfosSection: React.FC<FavoriteInfosSectionProps> = ({
       value = loadingExtra && !extra.loaded ? '…' : String(extra.salariesActifs);
       sub = `Sur ${extra.salariesTotal} fiches dans Enchantement salarié`;
       IconComp = Users;
+    } else if (w.id === 'kpi_finance_non_qualite') {
+      value = 'Ouvrir →';
+      sub = `Détail pertes HT ${curYear} dans Zone Finance`;
+      IconComp = AlertTriangle;
+    } else if (w.id === 'kpi_finance_gains') {
+      value = 'Ouvrir →';
+      sub = `Détail gains HT ${curYear} dans Zone Finance`;
+      IconComp = TrendingUp;
+    } else if (w.id === 'kpi_finance_ca_res') {
+      value = 'Ouvrir →';
+      sub = `CA & Résultat ${curYear} réalisé vs budget`;
+      IconComp = TrendingUp;
     }
 
     return (

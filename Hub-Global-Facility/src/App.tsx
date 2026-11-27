@@ -64,6 +64,7 @@ import SalariesHubView from './components/SalariesHubView';
 import FavoriteHeartButton from './components/FavoriteHeartButton';
 import FavoriteInfosSection from './components/FavoriteInfosSection';
 import NewsHubView from './components/NewsHubView';
+import FinanceHubView from './components/FinanceHubView';
 import { prefetchCommercialData } from './services/commercialService';
 
 const monday = mondaySdk();
@@ -137,6 +138,7 @@ const VALID_VIEWS: ViewId[] = [
   'atelier_fournisseurs',
   'comm_lea',
   'direction_vincent',
+  'finance_direction',
   'commercial_contrats',
   'salaries_rh',
 ];
@@ -568,7 +570,29 @@ export default function App() {
           {
             id: 'direction_vincent',
             title: 'Hub Véhicules — Flotte & Géolocalisation',
-            description: 'Coûts flotte, géolocalisation GPS, pointages & non-qualité',
+            description: 'Coûts flotte, géolocalisation GPS & pointages',
+            icon: Truck,
+          },
+        ],
+      });
+
+      cards.push({
+        key: 'fournisseurs',
+        title: 'Zone Finance & Direction',
+        description: 'Coût de non-qualité, gains financiers, CA / Résultat vs Budget et réunion d’associés',
+        image: getDef('direction').image,
+        accentColor: '#1B4565',
+        bgLight: '#EBF6FC',
+        badge: 'CA & Résultat',
+        defaultView: 'finance_direction',
+        icon: Landmark,
+        items: [
+          {
+            id: 'finance_direction',
+            title: 'Zone Finance & Direction',
+            badge: 'Direction',
+            badgeColor: '#1B4565',
+            description: 'Coût de non-qualité, gains financiers, CA / Résultat vs Budget & réunion d’associés',
             icon: Landmark,
           },
         ],
@@ -2818,6 +2842,14 @@ export default function App() {
 
         {currentView === 'commercial_contrats' && (
           <CommercialHubView monday={monday} />
+        )}
+
+        {currentView === 'finance_direction' && (
+          <FinanceHubView
+            monday={monday}
+            favoriteWidgets={prefs.favoriteWidgets}
+            onToggleFavorite={handleToggleFavoriteWidget}
+          />
         )}
 
         {canSeeSalariesRh && currentView === 'salaries_rh' && (

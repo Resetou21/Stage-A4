@@ -4,7 +4,6 @@ import { Toaster, toast } from 'sonner';
 import { RotateCw } from 'lucide-react';
 import VehiclesCard from '@generated/components/VehiclesCard';
 import GeolocCard from '@generated/components/GeolocCard';
-import DirectionCard from '@generated/components/DirectionCard';
 import { clearTopCache } from '@generated/components/TopVehicles';
 import { clearVehicleDashboardCache } from '@generated/server/vehicleDashboard';
 import { clearBoardCache } from '@api/mondayApi';
@@ -108,10 +107,6 @@ export default function App() {
 
         <section className="mt-14">
           <GeolocCard key={`geo-${refreshKey}`} />
-        </section>
-
-        <section className="mt-14">
-          <DirectionCard key={`dir-${refreshKey}`} />
         </section>
       </main>
 

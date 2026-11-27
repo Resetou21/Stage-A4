@@ -34,19 +34,21 @@ export default function CustomizeHubModal({
 }: CustomizeHubModalProps) {
   if (!isOpen) return null;
 
-  // Cartes-pôles du menu principal (Facturation+Fournisseurs, Clients = Commerce+Contacts ; Espace Salariés & RH activable via feature flag)
+  // Cartes-pôles du menu principal (Facturation+Fournisseurs, Clients = Commerce+Contacts ; Finance & Direction ; Espace Salariés & RH)
   const GROUPED_DISPLAY_KEYS: HubKey[] = canSeeSalariesRh
-    ? ['secteurs', 'atelier', 'facturation', 'commercial', 'direction', 'communication']
-    : ['secteurs', 'atelier', 'facturation', 'commercial', 'direction'];
+    ? ['secteurs', 'atelier', 'facturation', 'commercial', 'direction', 'fournisseurs', 'communication']
+    : ['secteurs', 'atelier', 'facturation', 'commercial', 'direction', 'fournisseurs'];
   const isCardAllowed = (k: HubKey): boolean => {
     if (k === 'facturation') return permissions.facturation || permissions.fournisseurs;
     if (k === 'commercial') return permissions.commercial || permissions.communication;
+    if (k === 'fournisseurs') return permissions.direction;
     if (k === 'communication') return permissions.direction;
     return permissions[k];
   };
   const CARD_LABEL_OVERRIDE: Partial<Record<HubKey, string>> = {
     facturation: 'Facturation & Fournisseurs',
     commercial: 'Clients (Commerce & Contacts)',
+    fournisseurs: 'Zone Finance & Direction',
     communication: 'Enchantement Salarié',
   };
 
