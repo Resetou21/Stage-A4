@@ -26,6 +26,8 @@ export const createAllAllowedPermissions = (): UserHubPermissions => ({
   communication: true,
   direction: true,
   commercial: true,
+  finance: true,
+  salaries: true,
 });
 
 export const createEmptyPermissions = (): UserHubPermissions => ({
@@ -36,6 +38,8 @@ export const createEmptyPermissions = (): UserHubPermissions => ({
   communication: false,
   direction: false,
   commercial: false,
+  finance: false,
+  salaries: false,
 });
 
 export const isGuillaumeUser = (userName?: string, userEmail?: string): boolean => {
@@ -113,7 +117,9 @@ export const fetchAllPermissionsRows = async (
             "${PERMISSIONS_COLUMN_IDS.fournisseurs}",
             "${PERMISSIONS_COLUMN_IDS.communication}",
             "${PERMISSIONS_COLUMN_IDS.direction}",
-            "${PERMISSIONS_COLUMN_IDS.commercial}"
+            "${PERMISSIONS_COLUMN_IDS.commercial}",
+            "${PERMISSIONS_COLUMN_IDS.finance}",
+            "${PERMISSIONS_COLUMN_IDS.salaries}"
           ]) {
             id
             text
@@ -141,6 +147,8 @@ export const fetchAllPermissionsRows = async (
       communication: parseCheckboxValue(byId.get(PERMISSIONS_COLUMN_IDS.communication)),
       direction: parseCheckboxValue(byId.get(PERMISSIONS_COLUMN_IDS.direction)),
       commercial: parseCheckboxValue(byId.get(PERMISSIONS_COLUMN_IDS.commercial)),
+      finance: parseCheckboxValue(byId.get(PERMISSIONS_COLUMN_IDS.finance)),
+      salaries: parseCheckboxValue(byId.get(PERMISSIONS_COLUMN_IDS.salaries)),
     };
 
     return {

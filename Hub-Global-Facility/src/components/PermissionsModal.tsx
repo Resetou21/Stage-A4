@@ -189,7 +189,7 @@ export default function PermissionsModal({
         onClick={(e) => e.stopPropagation()}
         className="modal-spring-in"
         style={{
-          width: '1040px',
+          width: '1180px',
           maxWidth: '100%',
           maxHeight: '100%',
           backgroundColor: '#FFFFFF',
@@ -362,7 +362,7 @@ export default function PermissionsModal({
                     Collaborateur
                   </th>
                   {HUB_DEFINITIONS.map((h) => (
-                    <th key={h.key} style={{ padding: '12px 8px', color: '#3989B7', fontWeight: 800, textAlign: 'center', minWidth: '95px', backgroundColor: '#F4F9FC' }}>
+                    <th key={h.key} style={{ padding: '12px 6px', color: '#3989B7', fontWeight: 800, textAlign: 'center', minWidth: '80px', backgroundColor: '#F4F9FC' }}>
                       {h.shortLabel}
                     </th>
                   ))}

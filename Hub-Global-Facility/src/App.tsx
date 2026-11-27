@@ -565,7 +565,7 @@ export default function App() {
         bgLight: getDef('direction').bgLight,
         badge: 'Flotte & GPS',
         defaultView: 'direction_vincent',
-        icon: Landmark,
+        icon: Truck,
         items: [
           {
             id: 'direction_vincent',
@@ -575,12 +575,14 @@ export default function App() {
           },
         ],
       });
+    }
 
+    if (permissions.finance) {
       cards.push({
-        key: 'fournisseurs',
+        key: 'finance',
         title: 'Zone Finance & Direction',
         description: 'Coût de non-qualité, gains financiers, CA / Résultat vs Budget et réunion d’associés',
-        image: getDef('direction').image,
+        image: getDef('finance').image,
         accentColor: '#1B4565',
         bgLight: '#EBF6FC',
         badge: 'CA & Résultat',
@@ -597,30 +599,30 @@ export default function App() {
           },
         ],
       });
+    }
 
-      if (canSeeSalariesRh) {
-        cards.push({
-          key: 'communication',
-          title: 'Enchantement Salarié',
-          description: 'Annuaire centralisé Enchantement salarié, dossiers d’accompagnement et préparation groupes WhatsApp',
-          image: getDef('communication').image,
-          accentColor: '#0E7042',
-          bgLight: '#E6F9F1',
-          badge: ENABLE_SALARIES_RH_HUB ? 'Enchantement salarié' : 'Aperçu privé',
-          defaultView: 'salaries_rh',
-          icon: Users,
-          items: [
-            {
-              id: 'salaries_rh',
-              title: 'Enchantement Salarié & Dossiers',
-              badge: ENABLE_SALARIES_RH_HUB ? 'Nouveau' : 'Privé (Guillaume)',
-              badgeColor: '#0E7042',
-              description: 'Annuaire salariés, suivi messages transmis & cadrage groupes diffusion',
-              icon: Users,
-            },
-          ],
-        });
-      }
+    if (permissions.salaries && canSeeSalariesRh) {
+      cards.push({
+        key: 'salaries',
+        title: 'Enchantement Salarié',
+        description: 'Annuaire centralisé Enchantement salarié, dossiers d’accompagnement et préparation groupes WhatsApp',
+        image: getDef('salaries').image,
+        accentColor: '#0E7042',
+        bgLight: '#E6F9F1',
+        badge: ENABLE_SALARIES_RH_HUB ? 'Enchantement salarié' : 'Aperçu privé',
+        defaultView: 'salaries_rh',
+        icon: Users,
+        items: [
+          {
+            id: 'salaries_rh',
+            title: 'Enchantement Salarié & Dossiers',
+            badge: ENABLE_SALARIES_RH_HUB ? 'Nouveau' : 'Privé (Guillaume)',
+            badgeColor: '#0E7042',
+            description: 'Annuaire salariés, suivi messages transmis & cadrage groupes diffusion',
+            icon: Users,
+          },
+        ],
+      });
     }
 
     return cards;

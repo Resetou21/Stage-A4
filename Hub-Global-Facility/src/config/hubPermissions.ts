@@ -5,7 +5,9 @@ export type HubKey =
   | 'fournisseurs'
   | 'communication'
   | 'direction'
-  | 'commercial';
+  | 'commercial'
+  | 'finance'
+  | 'salaries';
 
 export type ViewId =
   | 'home'
@@ -42,6 +44,8 @@ export const PERMISSIONS_COLUMN_IDS = {
   communication: 'boolean_mm9ex2fe',
   direction: 'boolean_mm9e4xk6',
   commercial: 'boolean_mm9ex175',
+  finance: 'boolean_mm9gahq0',
+  salaries: 'boolean_mm9grt24',
 } as const;
 
 export const HUB_DEFINITIONS: Array<{
@@ -132,6 +136,28 @@ export const HUB_DEFINITIONS: Array<{
     description: 'Indicateurs commerciaux, portefeuille chantiers, gains/pertes, CA & provenance',
     defaultView: 'commercial_contrats',
   },
+  {
+    key: 'finance',
+    label: 'Zone Finance & Direction',
+    shortLabel: 'Finance',
+    columnId: PERMISSIONS_COLUMN_IDS.finance,
+    image: './images/hub-direction.jpg',
+    accentColor: '#1B4565',
+    bgLight: '#EBF6FC',
+    description: 'Coût de non-qualité, gains financiers, CA / Résultat vs Budget & réunion d’associés',
+    defaultView: 'finance_direction',
+  },
+  {
+    key: 'salaries',
+    label: 'Enchantement Salarié',
+    shortLabel: 'Salariés',
+    columnId: PERMISSIONS_COLUMN_IDS.salaries,
+    image: './images/hub-communication.jpg',
+    accentColor: '#0E7042',
+    bgLight: '#E6F9F1',
+    description: 'Annuaire centralisé Enchantement salarié, dossiers d’accompagnement et groupes WhatsApp',
+    defaultView: 'salaries_rh',
+  },
 ];
 
 export const ALL_HUB_KEYS: HubKey[] = HUB_DEFINITIONS.map((h) => h.key);
@@ -150,7 +176,7 @@ export const VIEW_TO_HUB_KEY: Record<ViewId, HubKey | null> = {
   comm_lea: 'communication',
   comm_alertes: 'communication',
   direction_vincent: 'direction',
-  finance_direction: 'direction',
+  finance_direction: 'finance',
   commercial_contrats: 'commercial',
-  salaries_rh: 'direction',
+  salaries_rh: 'salaries',
 };
