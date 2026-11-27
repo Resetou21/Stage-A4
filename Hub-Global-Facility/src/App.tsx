@@ -1933,6 +1933,8 @@ export default function App() {
                 canViewSecteurs={permissions.secteurs}
                 canViewAtelier={permissions.atelier}
                 canViewCommercial={permissions.commercial}
+                canPublishNews={isAdmin || permissions.communication}
+                currentUserName={userName || firstName}
                 onNavigate={handleNavigate}
                 onOpenRoadmap={() => {
                   setRoadmapInitialTab('company_ideas');

@@ -50,6 +50,7 @@ export interface RoadmapItem {
   author: string;
   workspace: string; // 'Animatrices', 'Gros Matos', 'Suivi Vehicules', 'Enchantement client'
   date: string;
+  doneAt?: string;
   timeline: string;
   fileUrl?: string;
   fileName?: string;
@@ -372,9 +373,21 @@ export default function RoadmapModal({
         const valMap = new Map<string, string>();
         let fileUrl = '';
         let fileName = '';
+        let statusChangedAt = '';
 
         it.column_values?.forEach((cv: any) => {
           if (cv.id && cv.text) valMap.set(cv.id, cv.text);
+          if (cv.id === 'status' && cv.value) {
+            try {
+              const stParsed = JSON.parse(cv.value);
+              if (typeof stParsed?.changed_at === 'string' && stParsed.changed_at) {
+                const d = new Date(stParsed.changed_at);
+                if (!Number.isNaN(d.getTime())) {
+                  statusChangedAt = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                }
+              }
+            } catch {}
+          }
           if (cv.id === 'file_mm7wtnz1') {
             if (cv.files && cv.files.length > 0) {
               const f = cv.files[0];
@@ -420,17 +433,21 @@ export default function RoadmapModal({
           }));
         }
 
+        const stVal = valMap.get('status') || 'En cours';
+        const isDoneItem = /effectu|fait/i.test(it.group?.title || '') || stVal === 'Fait';
+
         return {
           id: it.id,
           name: it.name || 'Sans titre',
           groupTitle: it.group?.title || 'Tache à faire',
           groupId: it.group?.id || '',
           priority: (valMap.get('color_mm7yntfh') as any) || '2 (Normal)',
-          status: valMap.get('status') || 'En cours',
+          status: stVal,
           description: cleanDesc,
           author: author,
           workspace: valMap.get('multi_selectp70jvoio') || 'Général',
           date: valMap.get('date_mm7yphvc') || '',
+          doneAt: isDoneItem ? statusChangedAt : '',
           timeline: valMap.get('timerange_mm7wqn4x') || '',
           fileUrl,
           fileName,
@@ -458,6 +475,7 @@ export default function RoadmapModal({
     setUpdatingId(item.id);
 
     // Mise à jour optimiste instantanée dans l'UI
+    const todayFr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     setItems((prev) =>
       prev.map((it) =>
         it.id === item.id
@@ -466,6 +484,7 @@ export default function RoadmapModal({
               status: newStatus,
               groupId: newGroupId,
               groupTitle: newGroupTitle,
+              doneAt: newStatus === 'Fait' ? todayFr : '',
             }
           : it
       )
@@ -2508,6 +2527,23 @@ export default function RoadmapModal({
                           {item.date && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                               <Clock size={11} /> Enregistré le {item.date}
+                            </span>
+                          )}
+
+                          {isDone && item.doneAt && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#0E7042',
+                                backgroundColor: '#E6F9F1',
+                                padding: '1px 7px',
+                                borderRadius: '999px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              <CheckCircle2 size={11} /> Livrée le {item.doneAt}
                             </span>
                           )}
 
