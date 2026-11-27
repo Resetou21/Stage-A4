@@ -1458,31 +1458,6 @@ export default function App() {
             <span className="header-btn-label">Idées</span>
           </button>
 
-          {isCommManager && (
-            <button
-              type="button"
-              className="ui-btn"
-              onClick={() => setShowStudioModal(true)}
-              title="Studio Communication — Modifier la bannière, les noms et images des Hubs (Léa & Admins)"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 11px',
-                borderRadius: '9px',
-                border: '1px solid #D66927',
-                backgroundColor: '#FFF4EB',
-                color: '#D66927',
-                fontSize: '12px',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              <Palette size={14} color="#D66927" />
-              <span className="header-btn-label">Studio Comm</span>
-            </button>
-          )}
-
           {isAdmin && (
             <>
               <button
