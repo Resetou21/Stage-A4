@@ -669,8 +669,41 @@ export default function App() {
       });
     }
 
+    if (isCommManager) {
+      cards.push({
+        key: 'communication',
+        title: 'Communication & Intranet',
+        description: 'Gérer les actualités entreprise, la photo de fond de l’accueil, les noms et visuels des Hubs',
+        image: './images/hub-communication.jpg',
+        accentColor: '#D66927',
+        bgLight: '#FFF4EB',
+        badge: 'Léa & Admins',
+        menuLabel: 'Studio ou Actualités',
+        defaultView: 'comm_studio',
+        icon: Palette,
+        items: [
+          {
+            id: 'comm_studio',
+            title: 'Studio Communication (Accueil & Visuels)',
+            badge: 'Personnalisation',
+            badgeColor: '#D66927',
+            description: 'Modifier la bannière d’accueil, les titres, textes et photos des Hubs',
+            icon: Palette,
+          },
+          {
+            id: 'news',
+            title: 'Journal & Actualités Entreprise',
+            badge: 'Publier / Éditer',
+            badgeColor: '#3989B7',
+            description: 'Créer, modifier, masquer ou supprimer les annonces du carrousel',
+            icon: Sparkles,
+          },
+        ],
+      });
+    }
+
     return cards;
-  }, [stats, curYear, permissions, canSeeSalariesRh, branding]);
+  }, [stats, curYear, permissions, canSeeSalariesRh, branding, isCommManager]);
 
   const studioSlots: StudioSlotDefault[] = useMemo(() => {
     const defByKey = new Map(HUB_DEFINITIONS.map((d) => [d.key, d]));
@@ -1226,6 +1259,13 @@ export default function App() {
   }, [currentView, permissionsLoaded, permissions]);
 
   const handleNavigate = (view: ViewId) => {
+    if (view === 'comm_studio') {
+      if (isCommManager) {
+        setSearchFocused(false);
+        setShowStudioModal(true);
+      }
+      return;
+    }
     const reqHub = VIEW_TO_HUB_KEY[view];
     if (reqHub && (!permissionsLoaded || !permissions[reqHub])) {
       return;
@@ -2111,6 +2151,7 @@ export default function App() {
                       atelier: 'Matériels',
                       facturation: 'Facturation',
                       commercial: 'Clients',
+                      communication: 'Comm.',
                       direction: 'Véhicules',
                       finance: 'Finance',
                       salaries: 'Salariés',
