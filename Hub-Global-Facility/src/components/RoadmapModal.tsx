@@ -41,6 +41,13 @@ export interface RoadmapComment {
   createdAt: string;
 }
 
+export interface RoadmapSubitem {
+  id: string;
+  name: string;
+  done: boolean;
+  status: string;
+}
+
 export interface RoadmapItem {
   id: string;
   name: string;
@@ -57,6 +64,7 @@ export interface RoadmapItem {
   fileUrl?: string;
   fileName?: string;
   updatesCount?: number;
+  subitems: RoadmapSubitem[];
 }
 
 interface RoadmapModalProps {
@@ -70,6 +78,8 @@ interface RoadmapModalProps {
 }
 
 const BOARD_ROADMAP_ID = 5105479748;
+const BOARD_ROADMAP_SUBITEMS_ID = 5105480039;
+const SUBITEM_STATUS_COL_ID = 'color_mm7y3ada';
 const GROUP_TODO_ID = 'group_mm7y5mjp'; // Tache à faire
 const GROUP_DONE_ID = 'group_mm7y1vv8'; // Tâches effectuées
 
@@ -124,6 +134,12 @@ export default function RoadmapModal({
   const [loadingCommentsItemId, setLoadingCommentsItemId] = useState<string | null>(null);
   const [newCommentText, setNewCommentText] = useState<Record<string, string>>({});
   const [submittingCommentItemId, setSubmittingCommentItemId] = useState<string | null>(null);
+
+  // Sous-tâches (sous-éléments Monday 5105480039) + barre de progression %
+  const [expandedSubitemsIds, setExpandedSubitemsIds] = useState<Record<string, boolean>>({});
+  const [newSubitemText, setNewSubitemText] = useState<Record<string, string>>({});
+  const [addingSubitemParentId, setAddingSubitemParentId] = useState<string | null>(null);
+  const [togglingSubitemId, setTogglingSubitemId] = useState<string | null>(null);
 
   // Droits d'administration stricts : uniquement Guillaume Daniel & Laurent GUILLOU
   const isManager = useMemo(() => {
@@ -342,6 +358,14 @@ export default function RoadmapModal({
                   name
                 }
               }
+              subitems {
+                id
+                name
+                column_values(ids: ["${SUBITEM_STATUS_COL_ID}"]) {
+                  id
+                  text
+                }
+              }
               column_values(ids: [
                 "file_mm7wtnz1",
                 "dropdown_mm978xpa",
@@ -442,6 +466,19 @@ export default function RoadmapModal({
         const stVal = valMap.get('status') || 'En cours';
         const isDoneItem = /effectu|fait/i.test(it.group?.title || '') || stVal === 'Fait';
 
+        const parsedSubitems: RoadmapSubitem[] = Array.isArray(it.subitems)
+          ? it.subitems.map((sub: any) => {
+              const subStatus =
+                sub.column_values?.find((c: any) => c.id === SUBITEM_STATUS_COL_ID)?.text || 'En cours';
+              return {
+                id: String(sub.id),
+                name: String(sub.name || '').trim(),
+                status: subStatus,
+                done: /fait|done|termin|livr/i.test(subStatus),
+              };
+            })
+          : [];
+
         return {
           id: it.id,
           name: it.name || 'Sans titre',
@@ -458,6 +495,7 @@ export default function RoadmapModal({
           fileUrl,
           fileName,
           updatesCount: (it.updates || []).length,
+          subitems: parsedSubitems,
         };
       });
 
@@ -550,6 +588,111 @@ export default function RoadmapModal({
       setItems(prevItems);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Sous-tâches : ajouter, cocher Fait/En cours, supprimer
+  const handleAddSubitem = async (parentItem: RoadmapItem) => {
+    const label = (newSubitemText[parentItem.id] || '').trim();
+    if (!label) return;
+    if (!isManager && !isItemMine(parentItem)) return;
+
+    setAddingSubitemParentId(parentItem.id);
+    try {
+      const colVals = JSON.stringify({ [SUBITEM_STATUS_COL_ID]: { label: 'En cours' } });
+      const mut = `mutation ($parentId: ID!, $name: String!, $vals: JSON!) {
+        create_subitem(parent_item_id: $parentId, item_name: $name, column_values: $vals) {
+          id
+          name
+        }
+      }`;
+      const res: any = await monday.api(mut, {
+        variables: { parentId: parentItem.id, name: label, vals: colVals },
+      });
+      const created = res?.data?.create_subitem;
+      if (created?.id) {
+        const newSub: RoadmapSubitem = {
+          id: String(created.id),
+          name: String(created.name || label),
+          status: 'En cours',
+          done: false,
+        };
+        setItems((prev) =>
+          prev.map((it) =>
+            it.id === parentItem.id ? { ...it, subitems: [...(it.subitems || []), newSub] } : it
+          )
+        );
+        setNewSubitemText((prev) => ({ ...prev, [parentItem.id]: '' }));
+        roadmapCache = null;
+      }
+    } catch (err) {
+      console.error('Erreur création sous-tâche Roadmap:', err);
+    } finally {
+      setAddingSubitemParentId(null);
+    }
+  };
+
+  const handleToggleSubitem = async (parentItem: RoadmapItem, sub: RoadmapSubitem) => {
+    if (!isManager) return;
+    const nextDone = !sub.done;
+    const nextStatus = nextDone ? 'Fait' : 'En cours';
+    setTogglingSubitemId(sub.id);
+
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === parentItem.id
+          ? {
+              ...it,
+              subitems: (it.subitems || []).map((s) =>
+                s.id === sub.id ? { ...s, done: nextDone, status: nextStatus } : s
+              ),
+            }
+          : it
+      )
+    );
+
+    try {
+      const mut = `mutation ($subId: ID!) {
+        change_simple_column_value(
+          board_id: ${BOARD_ROADMAP_SUBITEMS_ID},
+          item_id: $subId,
+          column_id: "${SUBITEM_STATUS_COL_ID}",
+          value: "${nextStatus}"
+        ) {
+          id
+        }
+      }`;
+      await monday.api(mut, { variables: { subId: sub.id } });
+      roadmapCache = null;
+    } catch (err) {
+      console.error('Erreur mise à jour sous-tâche:', err);
+      await loadRoadmap(true);
+    } finally {
+      setTogglingSubitemId(null);
+    }
+  };
+
+  const handleArchiveSubitem = async (parentItem: RoadmapItem, sub: RoadmapSubitem) => {
+    if (!isManager && !isItemMine(parentItem)) return;
+    setTogglingSubitemId(sub.id);
+    const prevItems = items;
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === parentItem.id
+          ? { ...it, subitems: (it.subitems || []).filter((s) => s.id !== sub.id) }
+          : it
+      )
+    );
+    try {
+      await monday.api(`mutation ($subId: ID!) { archive_item(item_id: $subId) { id } }`, {
+        variables: { subId: sub.id },
+      });
+      roadmapCache = null;
+    } catch (err) {
+      console.error('Erreur archivage sous-tâche:', err);
+      setItems(prevItems);
+    } finally {
+      setTogglingSubitemId(null);
     }
   };
 
@@ -2641,6 +2784,60 @@ export default function RoadmapModal({
                             </a>
                           )}
 
+                          {/* Bouton sous-tâches + % avancement */}
+                          {((item.subitems?.length || 0) > 0 || isManager || isItemMine(item)) && (() => {
+                            const subs = item.subitems || [];
+                            const doneSubs = subs.filter((s) => s.done).length;
+                            const pctSubs = subs.length > 0 ? Math.round((doneSubs / subs.length) * 100) : 0;
+                            const isSubOpen = Boolean(expandedSubitemsIds[item.id]);
+                            return (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedSubitemsIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                                }
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  border: isSubOpen
+                                    ? '1px solid #39A9DC'
+                                    : subs.length > 0 && pctSubs === 100
+                                    ? '1px solid #10B981'
+                                    : '1px solid #CBD5E1',
+                                  backgroundColor:
+                                    subs.length > 0 && pctSubs === 100
+                                      ? '#E6F9F1'
+                                      : isSubOpen
+                                      ? '#EBF6FC'
+                                      : '#FFFFFF',
+                                  color:
+                                    subs.length > 0 && pctSubs === 100
+                                      ? '#0E7042'
+                                      : isSubOpen
+                                      ? '#1B4565'
+                                      : '#475569',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                                title="Afficher ou ajouter des sous-tâches"
+                              >
+                                <ListTodo size={11} />
+                                {subs.length > 0 ? (
+                                  <span>
+                                    Sous-tâches {doneSubs}/{subs.length} ({pctSubs}%)
+                                  </span>
+                                ) : (
+                                  <span>+ Sous-tâches</span>
+                                )}
+                                {isSubOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                              </button>
+                            );
+                          })()}
+
                           {/* Bouton pour ouvrir / fermer la discussion de la demande */}
                           <button
                             type="button"
@@ -2671,6 +2868,218 @@ export default function RoadmapModal({
                             {isCommentsOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                           </button>
                         </div>
+
+                        {/* PANNEAU SOUS-TÂCHES + BARRE DE PROGRESSION % */}
+                        {Boolean(expandedSubitemsIds[item.id]) && (() => {
+                          const subs = item.subitems || [];
+                          const doneSubs = subs.filter((s) => s.done).length;
+                          const pctSubs = subs.length > 0 ? Math.round((doneSubs / subs.length) * 100) : 0;
+                          const canManageSubs = isManager || isItemMine(item);
+                          return (
+                            <div
+                              style={{
+                                margin: '8px 0 4px 34px',
+                                padding: '12px 14px',
+                                borderRadius: '12px',
+                                backgroundColor: '#F4F9FC',
+                                border: '1px solid #D7EAF5',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '9px',
+                              }}
+                            >
+                              {/* Barre de progression % */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '180px' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#1B4565', whiteSpace: 'nowrap' }}>
+                                    Avancement : {pctSubs}%
+                                  </span>
+                                  <div style={{ flex: 1, height: '7px', borderRadius: '999px', backgroundColor: '#DCEBF5', overflow: 'hidden' }}>
+                                    <div
+                                      style={{
+                                        width: `${pctSubs}%`,
+                                        height: '100%',
+                                        borderRadius: '999px',
+                                        backgroundColor: pctSubs === 100 ? '#10B981' : '#39A9DC',
+                                        transition: 'width 0.25s ease',
+                                      }}
+                                    />
+                                  </div>
+                                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', whiteSpace: 'nowrap' }}>
+                                    {doneSubs}/{subs.length}
+                                  </span>
+                                </div>
+                                {isManager && subs.length > 0 && pctSubs === 100 && !isDone && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleItemStatus(item)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      padding: '3px 10px',
+                                      borderRadius: '999px',
+                                      border: 'none',
+                                      backgroundColor: '#10B981',
+                                      color: '#FFFFFF',
+                                      fontSize: '10.5px',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Check size={11} strokeWidth={3} />
+                                    <span>Tout est fait — Marquer Livrée</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Liste des sous-points */}
+                              {subs.length === 0 ? (
+                                <div style={{ fontSize: '11.5px', color: '#64748B', fontStyle: 'italic' }}>
+                                  Aucun sous-point pour le moment.
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                  {subs.map((sub) => (
+                                    <div
+                                      key={sub.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        padding: '6px 9px',
+                                        borderRadius: '8px',
+                                        backgroundColor: '#FFFFFF',
+                                        border: sub.done ? '1px solid #A7F3D0' : '1px solid #E2E8F0',
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        disabled={!isManager || togglingSubitemId === sub.id}
+                                        onClick={() => handleToggleSubitem(item, sub)}
+                                        title={isManager ? 'Cliquer pour cocher / décocher ce sous-point' : sub.status}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '8px',
+                                          flex: 1,
+                                          minWidth: 0,
+                                          border: 'none',
+                                          background: 'none',
+                                          padding: 0,
+                                          textAlign: 'left',
+                                          cursor: isManager ? 'pointer' : 'default',
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            width: '18px',
+                                            height: '18px',
+                                            borderRadius: '5px',
+                                            border: sub.done ? '1.5px solid #10B981' : '1.5px solid #CBD5E1',
+                                            backgroundColor: sub.done ? '#10B981' : '#FFFFFF',
+                                            color: '#FFFFFF',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexShrink: 0,
+                                          }}
+                                        >
+                                          {sub.done && <Check size={11} strokeWidth={3} />}
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '12px',
+                                            fontWeight: 600,
+                                            color: sub.done ? '#64748B' : '#1B4565',
+                                            textDecoration: sub.done ? 'line-through' : 'none',
+                                            wordBreak: 'break-word',
+                                          }}
+                                        >
+                                          {sub.name}
+                                        </span>
+                                      </button>
+                                      {canManageSubs && (
+                                        <button
+                                          type="button"
+                                          disabled={togglingSubitemId === sub.id}
+                                          onClick={() => handleArchiveSubitem(item, sub)}
+                                          title="Retirer ce sous-point"
+                                          style={{
+                                            border: 'none',
+                                            background: 'none',
+                                            color: '#94A3B8',
+                                            cursor: 'pointer',
+                                            padding: '2px',
+                                            display: 'inline-flex',
+                                          }}
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Ajout d'un sous-point */}
+                              {canManageSubs && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <input
+                                    type="text"
+                                    value={newSubitemText[item.id] || ''}
+                                    onChange={(e) =>
+                                      setNewSubitemText((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                    }
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        void handleAddSubitem(item);
+                                      }
+                                    }}
+                                    placeholder="Ajouter un sous-point / étape…"
+                                    style={{
+                                      flex: 1,
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #CBD5E1',
+                                      backgroundColor: '#FFFFFF',
+                                      fontSize: '12px',
+                                      color: '#1B4565',
+                                      outline: 'none',
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      addingSubitemParentId === item.id ||
+                                      !(newSubitemText[item.id] || '').trim()
+                                    }
+                                    onClick={() => void handleAddSubitem(item)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      padding: '6px 11px',
+                                      borderRadius: '8px',
+                                      border: 'none',
+                                      backgroundColor: '#1B4565',
+                                      color: '#FFFFFF',
+                                      fontSize: '11.5px',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      opacity: !(newSubitemText[item.id] || '').trim() ? 0.5 : 1,
+                                    }}
+                                  >
+                                    <PlusCircle size={12} />
+                                    <span>{addingSubitemParentId === item.id ? '...' : 'Ajouter'}</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* SECTION DISCUSSION / COMMENTAIRES DÉPLIANTE */}
                         {isCommentsOpen && (

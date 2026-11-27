@@ -248,6 +248,7 @@ export default function App() {
   const iframeRefsMap = useRef<Partial<Record<ViewId, HTMLIFrameElement | null>>>({});
   const pendingBridgeSources = useRef<Map<string, Window>>(new Map());
   const loadingStatsRef = useRef<boolean>(false);
+  const hasRestoredUserViewRef = useRef<boolean>(false);
 
   const IFRAME_VIEWS: ViewId[] = useMemo(
     () => [
@@ -1232,6 +1233,52 @@ export default function App() {
     }
   }, [currentView]);
 
+  // Restaurer la dernière vue PROPRE à chaque utilisateur (strictement isolée par userKey — jamais partagée entre utilisateurs !)
+  useEffect(() => {
+    if (!userIdentified || !permissionsLoaded || !userKey || userKey === 'default' || hasRestoredUserViewRef.current) {
+      return;
+    }
+    hasRestoredUserViewRef.current = true;
+    // Si une vue explicite est déjà passée dans l'URL (?view= ou #hash), on la respecte
+    const params = new URLSearchParams(window.location.search);
+    const hasExplicitUrlView = Boolean(params.get('view') || window.location.hash.replace('#', ''));
+    if (hasExplicitUrlView) return;
+
+    const perUserKey = `hub_global_view_v2_${userKey}`;
+    const applyIfAllowed = (candidate: string | null | undefined) => {
+      if (!candidate || candidate === 'home') return;
+      const v = candidate as ViewId;
+      if (!VALID_VIEWS.includes(v)) return;
+      const reqHub = VIEW_TO_HUB_KEY[v];
+      if (reqHub && !permissions[reqHub]) return;
+      setCurrentView(v);
+    };
+
+    try {
+      const localSaved = localStorage.getItem(perUserKey);
+      if (localSaved) {
+        applyIfAllowed(localSaved);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (monday?.storage?.instance?.getItem) {
+        monday.storage.instance
+          .getItem(perUserKey)
+          .then((res: any) => {
+            const v = res?.data?.value;
+            if (typeof v === 'string') applyIfAllowed(v);
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
+  }, [userIdentified, permissionsLoaded, userKey, permissions]);
+
   // Garde-fou autorisations : empêche d'ouvrir ou rester sur un Hub non autorisé
   useEffect(() => {
     if (!permissionsLoaded || currentView === 'home') return;
@@ -1283,7 +1330,16 @@ export default function App() {
       } catch { }
     });
     try {
-      // Navigation strictement locale à l'onglet (jamais stockée dans monday.storage.instance qui est partagé entre utilisateurs)
+      // Sauvegarde strictement isolée par utilisateur (jamais partagée entre Guillaume, Léa, Christophe...)
+      if (userKey && userKey !== 'default') {
+        const perUserKey = `hub_global_view_v2_${userKey}`;
+        try {
+          localStorage.setItem(perUserKey, view);
+        } catch { }
+        if (monday?.storage?.instance?.setItem) {
+          monday.storage.instance.setItem(perUserKey, view).catch(() => { });
+        }
+      }
       if (window.history && window.history.replaceState) {
         window.history.replaceState(null, '', view === 'home' ? window.location.pathname : `#${view}`);
       }
