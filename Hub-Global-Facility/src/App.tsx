@@ -1220,9 +1220,10 @@ export default function App() {
           <img
             src="https://files-public.monday.com/euc1/4853404b-84ea-4006-aab2-0e6de2c4dfdb/Facility-logo_couleur01.svg"
             alt="Groupe Facility"
+            className="header-brand-logo"
             style={{ height: '32px', width: 'auto', objectFit: 'contain' }}
           />
-          <div style={{ borderLeft: '1.5px solid #D7EAF5', paddingLeft: '10px' }}>
+          <div className="header-brand-text" style={{ borderLeft: '1.5px solid #D7EAF5', paddingLeft: '10px' }}>
             <div
               style={{
                 fontFamily: "'Ruda', sans-serif",
@@ -1240,7 +1241,7 @@ export default function App() {
         </div>
 
         {/* Actions rapides épurées à droite */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="header-actions-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {currentView !== 'home' && (
             <button
               type="button"
@@ -1379,7 +1380,7 @@ export default function App() {
 
               <button
                 type="button"
-                className="ui-btn"
+                className="desktop-only ui-btn"
                 onClick={() => setShowDataRulesModal(true)}
                 title="Référentiel Admin — Filtres, tableaux sources & règles de calcul de tous les Hubs"
                 aria-label="Référentiel des filtres et règles de calcul (Admin)"
@@ -1738,7 +1739,7 @@ export default function App() {
                         setHeroSearch(e.target.value);
                         setSearchFocused(true);
                       }}
-                      placeholder="Rechercher un Hub, une animatrice, une machine, un contact..."
+                      placeholder={isMobileViewport ? 'Rechercher un Hub, chantier, contact…' : 'Rechercher un Hub, une animatrice, une machine, un contact...'}
                       style={{
                         flex: 1,
                         border: 'none',
@@ -1914,7 +1915,19 @@ export default function App() {
                 <div className="hero-shortcuts-row">
                   {visibleOrderedHubCards.map((card) => {
                     const Icon = card.icon;
-                    const shortName = HUB_DEFINITIONS.find((d) => d.key === card.key)?.shortLabel || card.title;
+                    const HERO_SHORT_LABELS: Partial<Record<HubKey, string>> = {
+                      secteurs: 'Secteurs',
+                      atelier: 'Atelier',
+                      facturation: 'Facturation',
+                      commercial: 'Clients',
+                      direction: 'Véhicules',
+                      finance: 'Finance',
+                      salaries: 'Salariés',
+                    };
+                    const shortName =
+                      HERO_SHORT_LABELS[card.key] ||
+                      HUB_DEFINITIONS.find((d) => d.key === card.key)?.shortLabel ||
+                      card.title;
                     return (
                       <button
                         key={`sc-${card.key}`}
