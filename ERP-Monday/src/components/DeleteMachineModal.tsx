@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, DoorOpen, Loader2, Trash2, X } from 'lucide-react';
 import type { Machine } from '../types';
 import { MachineSelect } from './MachineSelect';
+import { FacilitySelect } from './FacilitySelect';
 import {
   archiveMachineFromParc,
   findMachineForTicket,
@@ -354,26 +355,21 @@ export const DeleteMachineModal: React.FC<DeleteMachineModalProps> = ({
                 <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#3989B7', marginBottom: '4px' }}>
                   Motif de sortie
                 </label>
-                <select
+                <FacilitySelect
+                  ariaLabel="Motif de sortie"
+                  fullWidth
                   value={exitReason}
-                  onChange={(e) => setExitReason(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #C8DCE8',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    color: '#1B4565',
-                    backgroundColor: '#FFFFFF',
-                  }}
-                >
-                  {EXIT_REASONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setExitReason(val)}
+                  options={[
+                    { value: 'Hors service / Panne irréparable', label: 'Hors service / Panne irréparable', dotColor: '#DC2626' },
+                    { value: 'Mise au rebut / Détruite', label: 'Mise au rebut / Détruite', dotColor: '#991B1B' },
+                    { value: 'Vendue', label: 'Vendue', dotColor: '#0E7042' },
+                    { value: 'Volée / Perdue', label: 'Volée / Perdue', dotColor: '#D97706' },
+                    { value: 'Restituée / Fin de location', label: 'Restituée / Fin de location', dotColor: '#3989B7' },
+                    { value: 'Remplacée par une machine neuve', label: 'Remplacée par une machine neuve', dotColor: '#00C875' },
+                    { value: 'Autre', label: 'Autre', dotColor: '#64748B' },
+                  ]}
+                />
               </div>
 
               <div>
