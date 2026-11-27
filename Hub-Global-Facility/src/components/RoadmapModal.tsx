@@ -1899,10 +1899,13 @@ export default function RoadmapModal({
           {/* ------------------------------------------------------------ */}
           {(activeTab === 'my_ideas' || activeTab === 'company_ideas') && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Barre de filtres & recherche */}
+              {/* Barre de filtres & recherche (sticky en haut au scroll) */}
               <div
                 className="roadmap-filter-bar"
                 style={{
+                  position: 'sticky',
+                  top: '-18px',
+                  zIndex: 15,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1911,7 +1914,8 @@ export default function RoadmapModal({
                   padding: '10px 14px',
                   borderRadius: '12px',
                   backgroundColor: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
+                  border: '1px solid #CBD5E1',
+                  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.06)',
                 }}
               >
                 {/* Recherche */}
@@ -2767,6 +2771,9 @@ export default function RoadmapModal({
                                 <span>{submittingCommentItemId === item.id ? '...' : 'Envoyer'}</span>
                               </button>
                             </div>
+                            <p style={{ margin: '6px 0 0 0', fontSize: '10.5px', color: '#94A3B8' }}>
+                              ℹ️ Les messages envoyés ici créent une mise à jour Monday (notifie par email les abonnés de la demande).
+                            </p>
                           </div>
                         )}
                       </div>
