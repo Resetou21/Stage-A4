@@ -5,7 +5,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  ImagePlus,
   Loader2,
   Megaphone,
   Newspaper,
@@ -61,12 +60,9 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>(NEWS_CATEGORIES[0].id);
   const [content, setContent] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const composerFormRef = useRef<HTMLFormElement>(null);
 
   const resetComposer = () => {
@@ -74,12 +70,6 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
     setTitle('');
     setCategory(NEWS_CATEGORIES[0].id);
     setContent('');
-    setImageFile(null);
-    if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreviewUrl);
-    }
-    setImagePreviewUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
     setErrorMsg(null);
   };
 
@@ -88,9 +78,6 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
     setTitle(article.title);
     setCategory(article.category || NEWS_CATEGORIES[0].id);
     setContent(article.content);
-    setImageFile(null);
-    setImagePreviewUrl(article.imageUrl || null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
     setErrorMsg(null);
     setSelectedArticle(null);
     setShowComposer(true);
@@ -122,26 +109,6 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
     loadNews(true);
   }, [monday]);
 
-  const handleSelectImage = (file: File | null) => {
-    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
-    if (!file) {
-      setImageFile(null);
-      setImagePreviewUrl(null);
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      setErrorMsg('Veuillez sélectionner une image (JPG, PNG, WebP).');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMsg('L’image dépasse 10 Mo. Choisissez un fichier plus léger.');
-      return;
-    }
-    setErrorMsg(null);
-    setImageFile(file);
-    setImagePreviewUrl(URL.createObjectURL(file));
-  };
-
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) {
@@ -156,47 +123,29 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
           title,
           content,
           category,
-          imageFile,
           existingImageUrl: editingArticle.imageUrl,
         });
-        const nextImageUrl = updated.imageUrl || (imageFile ? imagePreviewUrl || undefined : editingArticle.imageUrl);
         const next = items.map((n) =>
           n.id === editingArticle.id
-            ? { ...n, title: updated.title, content: updated.content, category: updated.category, imageUrl: nextImageUrl }
+            ? { ...n, title: updated.title, content: updated.content, category: updated.category }
             : n
         );
         setItems(next);
         writeCachedCustomNews(next);
-        const hadNewImage = Boolean(imageFile);
         resetComposer();
         setShowComposer(false);
-        if (hadNewImage) {
-          setTimeout(() => loadNews(true), 1500);
-        }
       } else {
         const created = await createCustomNews(monday, {
           title,
           content,
           category,
           author: currentUserName,
-          imageFile,
         });
-        // Si l'upload photo a réussi, on affiche soit l'URL Monday soit l'aperçu local en attendant le refresh
-        const createdWithPreview: CustomNewsItem = {
-          ...created,
-          imageUrl: created.imageUrl || imagePreviewUrl || undefined,
-        };
-        const next = [createdWithPreview, ...items];
+        const next = [created, ...items];
         setItems(next);
         writeCachedCustomNews(next);
-
-        const hadImage = Boolean(imageFile);
         resetComposer();
         setShowComposer(false);
-        // Rafraîchit en arrière-plan pour récupérer l'URL publique signée Monday si besoin
-        if (hadImage) {
-          setTimeout(() => loadNews(true), 1500);
-        }
       }
     } catch (err: any) {
       setErrorMsg(err?.message || (editingArticle ? 'Impossible de modifier cet article.' : 'Impossible de publier cet article.'));
@@ -260,7 +209,7 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
           </h1>
           <div style={{ marginTop: '8px', height: '3.5px', width: '80px', borderRadius: '2px', background: 'linear-gradient(90deg, #F7AC37, #39A9DC)' }} />
           <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#64748B', maxWidth: '720px', lineHeight: 1.5 }}>
-            Toutes les annonces, photos, arrivées, chantiers remarquables et nouveautés partagées par l’équipe — synchronisées en direct avec le carrousel d’accueil.
+            Toutes les annonces, arrivées, chantiers remarquables et informations partagées pour tous les salariés — synchronisées en direct avec l’accueil.
           </p>
         </div>
 
@@ -375,8 +324,7 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '18px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#1B4565', marginBottom: '6px' }}>
                   Catégorie
@@ -453,90 +401,13 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
                   }}
                 />
               </div>
-            </div>
-
-            {/* Zone Upload Photo */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 800, color: '#1B4565' }}>
-                Photo de couverture (optionnelle)
-              </label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={(e) => handleSelectImage(e.target.files?.[0] || null)}
-              />
-
-              {imagePreviewUrl ? (
-                <div style={{ position: 'relative', borderRadius: '14px', overflow: 'hidden', border: '1.5px solid #B7D8EA', height: '210px', backgroundColor: '#F8FAFC' }}>
-                  <img src={imagePreviewUrl} alt="Aperçu" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <button
-                    type="button"
-                    onClick={() => handleSelectImage(null)}
-                    style={{
-                      position: 'absolute',
-                      top: '10px',
-                      right: '10px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '5px 10px',
-                      borderRadius: '999px',
-                      border: 'none',
-                      backgroundColor: 'rgba(15, 23, 42, 0.78)',
-                      color: '#FFFFFF',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <X size={13} /> Retirer
-                  </button>
-                </div>
-              ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const f = e.dataTransfer.files?.[0];
-                    if (f) handleSelectImage(f);
-                  }}
-                  style={{
-                    height: '210px',
-                    borderRadius: '14px',
-                    border: '2px dashed #B7D8EA',
-                    backgroundColor: '#F4F9FC',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    padding: '16px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#FFFFFF', color: '#39A9DC', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(27,69,101,0.08)' }}>
-                    <ImagePlus size={22} />
-                  </div>
-                  <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#1B4565' }}>
-                    Cliquez ou glissez une photo ici
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748B' }}>
-                    JPG, PNG ou WebP (max 10 Mo) — stockée dans Monday
-                  </div>
-                </div>
-              )}
-
               {errorMsg && (
                 <div style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: '#FEF2F2', color: '#B91C1C', fontSize: '12px', fontWeight: 700 }}>
                   {errorMsg}
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 'auto', paddingTop: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -585,7 +456,6 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
                   </span>
                 </button>
               </div>
-            </div>
           </div>
         </form>
       )}
