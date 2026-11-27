@@ -2,15 +2,23 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { getChantierAlerts } from '@generated/server/alerts';
 import { getInventoryActions, getInventoryDue } from '@generated/server/inventory';
-import { archiveCommunication, getChantierQuality, getCommunications, markCommunicationSeen } from '@generated/server/visits';
+import {
+  archiveCommunication,
+  getChantierQuality,
+  getCommunications,
+  markCommunicationSeen,
+  markFinContratVu,
+} from '@generated/server/visits';
 
 type Quality = Awaited<ReturnType<typeof getChantierQuality>>;
 export type Message = Awaited<ReturnType<typeof getCommunications>>['messages'][number];
 export type QualityRow = Quality['insatisfaits'][number];
+export type FinContratAlert = Quality['finContratMateriel'][number];
 export type VisitAlert = Awaited<ReturnType<typeof getChantierAlerts>>['alerts'][number];
 
 export type AlertsData = {
   messages: Message[];
+  finContratMateriel: FinContratAlert[];
   insatisfaits: QualityRow[];
   controle2Mois: QualityRow[];
   nonVus11Mois: QualityRow[];
@@ -22,7 +30,17 @@ export type AlertsData = {
 
 export function totalAlerts(d: AlertsData | null) {
   if (!d) return 0;
-  return d.messages.length + d.insatisfaits.length + d.controle2Mois.length + d.nonVus11Mois.length + d.visites2Mois.length + d.due + d.recup + d.avenants;
+  return (
+    d.messages.length +
+    d.finContratMateriel.length +
+    d.insatisfaits.length +
+    d.controle2Mois.length +
+    d.nonVus11Mois.length +
+    d.visites2Mois.length +
+    d.due +
+    d.recup +
+    d.avenants
+  );
 }
 
 export function useAlerts(firstName: string) {
@@ -41,6 +59,7 @@ export function useAlerts(firstName: string) {
       const qual = q.status === 'fulfilled' ? q.value : null;
       setData((prev) => ({
         messages: m.status === 'fulfilled' ? m.value?.messages ?? [] : (prev?.messages ?? []),
+        finContratMateriel: qual?.finContratMateriel ?? (prev?.finContratMateriel ?? []),
         insatisfaits: qual?.insatisfaits ?? (prev?.insatisfaits ?? []),
         controle2Mois: qual?.controle2Mois ?? (prev?.controle2Mois ?? []),
         nonVus11Mois: qual?.nonVus11Mois ?? (prev?.nonVus11Mois ?? []),
@@ -116,5 +135,19 @@ export function useAlerts(firstName: string) {
     }
   }, [firstName]);
 
-  return { data, markSeen, archiveMessage, refreshMessages };
+  // Case « ✅ Vu » sur alerte fin de contrat / récupération matériel
+  const markFinContratSeen = useCallback(async (item: FinContratAlert) => {
+    const prev = data;
+    setData((d) => (d ? { ...d, finContratMateriel: d.finContratMateriel.filter((x) => x.id !== item.id) } : d));
+    try {
+      await markFinContratVu({ data: { itemId: item.id, vu: true } });
+      toast.success(`Récupération matériel validée (« Vu ») pour ${item.chantier}.`);
+    } catch (e) {
+      console.error(e);
+      setData(prev);
+      toast.error('Impossible de cocher « Vu ». Réessayez.');
+    }
+  }, [data]);
+
+  return { data, markSeen, markFinContratSeen, archiveMessage, refreshMessages };
 }

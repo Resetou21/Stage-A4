@@ -46,6 +46,8 @@ export const COLUMN_MAP: Record<string, Record<string, ColumnMeta>> = {
     heuresMois: { id: 'numeric_mkxwwma1', title: 'H  par mois', type: 'numbers' },
     activite: { id: 'color_mm0v1k6a', title: 'Activité', type: 'status' },
     sensible: { id: 'boolean_mm0v3fg', title: 'Sensible ?', type: 'checkbox' },
+    dateFinContrat: { id: 'date_mkx4kna3', title: '➖chantiers', type: 'date' },
+    materielRecupereVu: { id: 'boolean_mm1cmkmj', title: '✔', type: 'checkbox' },
   },
 
   [BOARD_IDS.VISITES_CLIENTS]: {

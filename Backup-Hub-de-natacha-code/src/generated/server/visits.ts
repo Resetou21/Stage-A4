@@ -465,16 +465,20 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
     const promise = (async () => {
       type Q = { id: string; chantier: string; date: string | null; resultat: string | null };
       type Alert = { id: string; texte: string; date: string | null };
+      type FinContratAlert = { id: string; chantier: string; dateFin: string; daysRemaining: number };
       const out = {
         stars: { s3: 0, s2: 0, s1: 0, s0: 0 },
         insatisfaits: [] as Q[],
         controle2Mois: [] as Q[],
         nonVus11Mois: [] as Q[],
         alerts: [] as Alert[],
+        finContratMateriel: [] as FinContratAlert[],
       };
       const label = labelOf(data.firstName);
       if (!label) return out;
       const elevenMonthsAgo = new Date(); elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
       const board = new TableauCompletChantierBoard();
       let cur: string | null | undefined = undefined;
       let itemsFound = 0;
@@ -487,6 +491,7 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
               'c1', 'c2', 'c3', 'rsultatDernierContrle', 'dernierContrle', 'dernierContrle1',
               'column3', 'column2', 'column1', 'column', 'alerte2', 'alerte3',
               'texteDalerteAnimatrice1', 'datePrvRdvDes2Mois', 'rdv2Mois',
+              'dateFinContrat', 'materielRecupereVu',
             ])
             .where({ animateur: label, group: 'topics' })
             .orderBy({ column: 'name', direction: 'asc' })
@@ -500,6 +505,23 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
             if (texte && it.rdv2Mois !== true) {
               const d2 = it.datePrvRdvDes2Mois ? new Date(it.datePrvRdvDes2Mois) : null;
               out.alerts.push({ id: it.id, texte, date: d2 && !Number.isNaN(d2.getTime()) ? d2.toISOString() : null });
+            }
+
+            // Alerte récupération matériel & produits : 15 jours avant la date de fin de contrat (avec case Vu)
+            if (it.dateFinContrat && it.materielRecupereVu !== true) {
+              const dFin = new Date(it.dateFinContrat);
+              if (!Number.isNaN(dFin.getTime())) {
+                dFin.setHours(0, 0, 0, 0);
+                const daysRemaining = Math.round((dFin.getTime() - todayMidnight.getTime()) / DAY);
+                if (daysRemaining <= 15 && daysRemaining >= -60) {
+                  out.finContratMateriel.push({
+                    id: it.id,
+                    chantier: it.name,
+                    dateFin: dFin.toISOString(),
+                    daysRemaining,
+                  });
+                }
+              }
             }
 
             const raw = it.dernierContrle ?? it.dernierContrle1 ?? null;
@@ -627,6 +649,7 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
       }
 
       out.alerts.sort((a, b) => (a.date ?? '9').localeCompare(b.date ?? '9'));
+      out.finContratMateriel.sort((a, b) => a.dateFin.localeCompare(b.dateFin));
       chantierQualityCache.set(k, { timestamp: Date.now(), data: out });
       return out;
     })();
@@ -637,6 +660,21 @@ export const getChantierQuality = createServerFn({ method: 'GET' })
     } finally {
       inFlightChantierQuality.delete(k);
     }
+  });
+
+export const markFinContratVu = createServerFn({ method: 'POST' })
+  .validator(z.object({ itemId: z.string().min(1), vu: z.boolean().default(true) }))
+  .handler(async ({ data }) => {
+    const val = data.vu ? JSON.stringify({ checked: 'true' }) : JSON.stringify({});
+    await callMondayApi(
+      `mutation ($itemId: ID!, $val: JSON!) {
+        change_column_value(board_id: 1976599627, item_id: $itemId, column_id: "boolean_mm1cmkmj", value: $val) { id }
+      }`,
+      { variables: { itemId: data.itemId, val } }
+    );
+    clearBoardCache('1976599627');
+    chantierQualityCache.clear();
+    return { ok: true };
   });
 
 /* ---------- Communication via les animatrices ---------- */

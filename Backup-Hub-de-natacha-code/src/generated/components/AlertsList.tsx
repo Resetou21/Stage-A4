@@ -10,7 +10,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
-import type { AlertsData, Message } from '@generated/hooks/useAlerts';
+import type { AlertsData, FinContratAlert, Message } from '@generated/hooks/useAlerts';
 import { cn } from '@lib/utils';
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -50,7 +50,15 @@ function formatAlertTextDatesJJMM(text: string): string {
     .replace(RE_ISO_DATE, (_m, mm, dd) => `${dd}/${mm}`);
 }
 
-type Line = { id: string; text: string; sub?: string; date?: string | null; dateFormat?: 'jjmm'; msg?: Message };
+type Line = {
+  id: string;
+  text: string;
+  sub?: string;
+  date?: string | null;
+  dateFormat?: 'jjmm';
+  msg?: Message;
+  finContrat?: FinContratAlert;
+};
 type Category = { key: string; icon: LucideIcon; title: string; tone: 'orange' | 'red' | 'blue'; count: number; lines?: Line[] };
 
 export function buildCategories(d: AlertsData): Category[] {
@@ -61,7 +69,27 @@ export function buildCategories(d: AlertsData): Category[] {
   const atelierMsgs = d.messages.filter(isAtelierMsg);
   const generalMsgs = d.messages.filter((m) => !isAtelierMsg(m));
 
+  const formatFinContratSub = (f: FinContratAlert) => {
+    if (f.daysRemaining > 0) return `Fin de contrat dans ${f.daysRemaining} j. — récupérer matériel & produits`;
+    if (f.daysRemaining === 0) return `Fin de contrat aujourd'hui — récupérer matériel & produits`;
+    return `Contrat terminé depuis ${Math.abs(f.daysRemaining)} j. — vérifier récupération matériel & produits`;
+  };
+
   const cats: Category[] = [
+    {
+      key: 'fin_contrat',
+      icon: PackageOpen,
+      title: 'Fin de contrat (J-15) — Matériel & produits à récupérer',
+      tone: 'red',
+      count: d.finContratMateriel.length,
+      lines: d.finContratMateriel.map((f) => ({
+        id: f.id,
+        text: f.chantier,
+        sub: formatFinContratSub(f),
+        date: f.dateFin,
+        finContrat: f,
+      })),
+    },
     { key: 'atelier', icon: Wrench, title: 'Messages Atelier / Christophe (Parc Machines)', tone: 'blue', count: atelierMsgs.length,
       lines: atelierMsgs.map((m) => ({ id: m.id, text: m.texte, sub: m.client, date: m.date, msg: m })) },
     { key: 'com', icon: Megaphone, title: 'Alertes / rappels', tone: 'orange', count: generalMsgs.length,
@@ -91,10 +119,12 @@ const toneCls = {
 export default function AlertsList({
   data,
   onSeen,
+  onFinContratSeen,
   compact,
 }: {
   data: AlertsData;
   onSeen: (m: Message) => void;
+  onFinContratSeen?: (f: FinContratAlert) => void;
   onArchive?: (m: Message) => void;
   compact?: boolean;
 }) {
@@ -112,10 +142,18 @@ export default function AlertsList({
             <ul className={cn('divide-y divide-border border-t border-border bg-card/50', compact && 'max-h-56 overflow-y-auto')}>
               {c.lines.map((l) => (
                 <li key={l.id} className="flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-muted/30 transition-colors">
-                  {l.msg && (
+                  {(l.msg || l.finContrat) && (
                     <div className="flex shrink-0 items-center gap-2">
                       <label className="flex min-h-6 cursor-pointer items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                        <input type="checkbox" className="h-4 w-4 rounded accent-[hsl(var(--primary))]" onChange={() => l.msg && onSeen(l.msg)} aria-label="Marquer comme vu" />
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded accent-[hsl(var(--primary))]"
+                          onChange={() => {
+                            if (l.msg) onSeen(l.msg);
+                            else if (l.finContrat && onFinContratSeen) onFinContratSeen(l.finContrat);
+                          }}
+                          aria-label="Marquer comme vu"
+                        />
                         Vu
                       </label>
                     </div>

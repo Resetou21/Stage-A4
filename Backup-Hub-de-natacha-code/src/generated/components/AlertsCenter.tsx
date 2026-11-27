@@ -14,7 +14,7 @@ const NAV = [
 ];
 
 export default function AlertsCenter({ firstName }: { firstName: string }) {
-  const { data, markSeen, archiveMessage, refreshMessages } = useAlerts(firstName);
+  const { data, markSeen, markFinContratSeen, archiveMessage, refreshMessages } = useAlerts(firstName);
   const [open, setOpen] = useState(false);
   const [zoneOpen, setZoneOpen] = useState(false);
   const [refreshingMsgs, setRefreshingMsgs] = useState(false);
@@ -172,7 +172,7 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
               ))}
               <ChevronDown className={cn('ml-auto h-5 w-5 text-primary transition-transform', zoneOpen && 'rotate-180')} aria-label={zoneOpen ? 'Replier' : 'Déplier'} />
             </button>
-            {zoneOpen && <div className="border-t border-border p-3"><AlertsList data={data} onSeen={markSeen} onArchive={archiveMessage} compact /></div>}
+            {zoneOpen && <div className="border-t border-border p-3"><AlertsList data={data} onSeen={markSeen} onFinContratSeen={markFinContratSeen} onArchive={archiveMessage} compact /></div>}
           </div>
         </div>
       )}
@@ -221,7 +221,7 @@ export default function AlertsCenter({ firstName }: { firstName: string }) {
                 <div className="h-16 animate-pulse rounded-xl bg-muted/60" />
               </div>
             ) : total > 0 ? (
-              <AlertsList data={data} onSeen={markSeen} onArchive={archiveMessage} />
+              <AlertsList data={data} onSeen={markSeen} onFinContratSeen={markFinContratSeen} onArchive={archiveMessage} />
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">Aucune alerte en cours.</p>
             )}
