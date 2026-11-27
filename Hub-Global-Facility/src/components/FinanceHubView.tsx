@@ -72,6 +72,30 @@ function exportItemsCsv(items: FinanceImpactItem[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function computeNiceAxis(minVal: number, maxVal: number): { min: number; max: number; ticks: number[] } {
+  const low = Math.min(0, minVal);
+  const high = Math.max(0, maxVal);
+  const span = Math.max(high - low, 1);
+  const rawStep = span / 4;
+  const pow10 = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const norm = rawStep / pow10;
+  let niceNorm = 1;
+  if (norm <= 1) niceNorm = 1;
+  else if (norm <= 2) niceNorm = 2;
+  else if (norm <= 2.5) niceNorm = 2.5;
+  else if (norm <= 5) niceNorm = 5;
+  else niceNorm = 10;
+  const step = niceNorm * pow10;
+
+  const niceMin = Math.floor(low / step) * step;
+  const niceMax = Math.ceil(high / step) * step;
+  const ticks: number[] = [];
+  for (let v = niceMin; v <= niceMax + step * 0.001; v += step) {
+    ticks.push(Math.round(v));
+  }
+  return { min: niceMin, max: niceMax === niceMin ? niceMin + step : niceMax, ticks };
+}
+
 function MonthlyComparisonChart({
   months,
   metric,
@@ -81,6 +105,8 @@ function MonthlyComparisonChart({
   metric: 'ca' | 'res';
   year: number;
 }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
   const rows = useMemo(
     () =>
       months.map((m) => {
@@ -101,13 +127,20 @@ function MonthlyComparisonChart({
   const totR = rows.reduce((s, r) => s + (r.realise ?? 0), 0);
   const diff = totR - totB;
 
-  const maxAbs = useMemo(() => {
-    let m = 1;
+  const axis = useMemo(() => {
+    let minV = 0;
+    let maxV = 0;
     for (const r of rows) {
-      if (r.budget != null) m = Math.max(m, Math.abs(r.budget));
-      if (r.realise != null) m = Math.max(m, Math.abs(r.realise));
+      if (r.budget != null) {
+        minV = Math.min(minV, r.budget);
+        maxV = Math.max(maxV, r.budget);
+      }
+      if (r.realise != null) {
+        minV = Math.min(minV, r.realise);
+        maxV = Math.max(maxV, r.realise);
+      }
     }
-    return m;
+    return computeNiceAxis(minV, maxV);
   }, [rows]);
 
   if (rows.length === 0) {
@@ -127,6 +160,25 @@ function MonthlyComparisonChart({
       </div>
     );
   }
+
+  // Dimensions SVG responsive via viewBox
+  const svgW = 880;
+  const svgH = 290;
+  const padL = 74;
+  const padR = 18;
+  const padT = 18;
+  const padB = 34;
+  const plotW = svgW - padL - padR;
+  const plotH = svgH - padT - padB;
+  const range = axis.max - axis.min;
+  const yOf = (val: number) => padT + ((axis.max - val) / range) * plotH;
+  const zeroY = yOf(0);
+  const slotW = plotW / Math.max(rows.length, 1);
+  const barW = Math.min(20, Math.max(10, slotW * 0.28));
+  const barGap = 4;
+
+  const hoveredRow = hoveredIdx != null ? rows[hoveredIdx] : null;
+  const posColor = metric === 'ca' ? '#3989B7' : '#2589BD';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -171,95 +223,204 @@ function MonthlyComparisonChart({
           {eur(diff)}
         </span>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11.5px', color: '#64748B' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11.5px', color: '#64748B' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
             <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#CBD5E1', display: 'inline-block' }} />
             Budget
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#1B4565', display: 'inline-block' }} />
-            Réalisé
+            <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: posColor, display: 'inline-block' }} />
+            Réalisé (+)
           </span>
+          {axis.min < 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#DC2626', display: 'inline-block' }} />
+              Réalisé (−)
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Graphique barres mensuelles responsive */}
+      {/* Graphique SVG avec axe Y gradué, ligne zéro et barres positives/négatives */}
       <div
         style={{
-          backgroundColor: '#F8FBFD',
+          position: 'relative',
+          backgroundColor: '#FFFFFF',
           borderRadius: '14px',
           border: '1px solid #D7EAF5',
-          padding: '18px 14px 12px',
-          overflowX: 'auto',
+          padding: '12px 10px 8px',
         }}
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${rows.length}, minmax(52px, 1fr))`,
-            gap: '10px',
-            alignItems: 'end',
-            minHeight: '210px',
-            paddingTop: '16px',
-          }}
-        >
-          {rows.map((r) => {
-            const hBudget = r.budget != null ? Math.max(4, Math.round((Math.abs(r.budget) / maxAbs) * 165)) : 0;
-            const hReal = r.realise != null ? Math.max(4, Math.round((Math.abs(r.realise) / maxAbs) * 165)) : 0;
-            const isNegReal = (r.realise ?? 0) < 0;
-
-            return (
+        {hoveredRow && hoveredIdx != null && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '14px',
+              right: '18px',
+              zIndex: 10,
+              pointerEvents: 'none',
+              backgroundColor: 'rgba(255, 255, 255, 0.96)',
+              border: '1px solid #B7D8EA',
+              borderRadius: '10px',
+              padding: '8px 12px',
+              boxShadow: '0 8px 20px rgba(27, 69, 101, 0.12)',
+              fontSize: '12px',
+              minWidth: '165px',
+            }}
+          >
+            <div style={{ fontWeight: 800, color: '#1B4565', textTransform: 'capitalize', marginBottom: '4px' }}>
+              {hoveredRow.mois} {year}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', color: '#64748B' }}>
+              <span>Budget :</span>
+              <strong style={{ color: '#475569' }}>{hoveredRow.budget != null ? eur(hoveredRow.budget) : '—'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', color: '#1B4565', marginTop: '2px' }}>
+              <span>Réalisé :</span>
+              <strong style={{ color: (hoveredRow.realise ?? 0) < 0 ? '#DC2626' : posColor }}>
+                {hoveredRow.realise != null ? eur(hoveredRow.realise) : '—'}
+              </strong>
+            </div>
+            {hoveredRow.ecart != null && (
               <div
-                key={r.mois}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
-                title={`${r.mois} — Budget : ${r.budget != null ? eur(r.budget) : '—'} | Réalisé : ${r.realise != null ? eur(r.realise) : '—'}`}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  marginTop: '4px',
+                  paddingTop: '4px',
+                  borderTop: '1px solid #EBF6FC',
+                  fontWeight: 800,
+                  color: hoveredRow.ecart >= 0 ? '#0E7042' : '#DC2626',
+                }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '170px' }}>
-                  <div
-                    style={{
-                      width: '16px',
-                      height: `${hBudget}px`,
-                      backgroundColor: '#CBD5E1',
-                      borderRadius: '5px 5px 0 0',
-                      transition: 'height 0.25s ease',
-                    }}
-                  />
-                  <div
-                    style={{
-                      width: '16px',
-                      height: `${hReal}px`,
-                      backgroundColor: isNegReal ? '#DC2626' : metric === 'ca' ? '#3989B7' : '#1B4565',
-                      borderRadius: '5px 5px 0 0',
-                      transition: 'height 0.25s ease',
-                    }}
-                  />
-                </div>
-                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', textTransform: 'capitalize' }}>
-                  {r.mois}
+                <span>Écart :</span>
+                <span>
+                  {hoveredRow.ecart >= 0 ? '+' : ''}
+                  {eur(hoveredRow.ecart)}
                 </span>
               </div>
+            )}
+          </div>
+        )}
+
+        <svg
+          viewBox={`0 0 ${svgW} ${svgH}`}
+          style={{ width: '100%', height: 'auto', minHeight: '230px', maxHeight: '320px', display: 'block' }}
+          role="img"
+          aria-label={`Graphique ${metric === 'ca' ? "Chiffre d'affaires" : 'Résultat'} ${year} réalisé vs budget`}
+        >
+          {/* Grille horizontale + graduations axe Y */}
+          {axis.ticks.map((t) => {
+            const y = yOf(t);
+            const isZero = t === 0;
+            return (
+              <g key={t}>
+                <line
+                  x1={padL}
+                  x2={svgW - padR}
+                  y1={y}
+                  y2={y}
+                  stroke={isZero ? '#94A3B8' : '#E2EEF5'}
+                  strokeWidth={isZero ? 1.5 : 1}
+                  strokeDasharray={isZero ? undefined : '3 3'}
+                />
+                <text
+                  x={padL - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  fontSize="11"
+                  fontWeight={isZero ? 700 : 500}
+                  fill={isZero ? '#475569' : '#64748B'}
+                >
+                  {fmtNum(t)}
+                </text>
+              </g>
             );
           })}
-        </div>
+
+          {/* Barres mensuelles */}
+          {rows.map((r, i) => {
+            const cx = padL + i * slotW + slotW / 2;
+            const isHovered = hoveredIdx === i;
+
+            const renderBar = (val: number | null, x: number, fill: string) => {
+              if (val == null || val === 0) return null;
+              const yVal = yOf(val);
+              const top = Math.min(zeroY, yVal);
+              const h = Math.max(2, Math.abs(zeroY - yVal));
+              return (
+                <rect
+                  x={x}
+                  y={top}
+                  width={barW}
+                  height={h}
+                  rx={3.5}
+                  fill={fill}
+                  opacity={hoveredIdx == null || isHovered ? 1 : 0.65}
+                  style={{ transition: 'opacity 0.15s ease' }}
+                />
+              );
+            };
+
+            return (
+              <g
+                key={r.mois}
+                onMouseEnter={() => setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                style={{ cursor: 'pointer' }}
+              >
+                {/* Zone de survol complète */}
+                <rect
+                  x={padL + i * slotW + 2}
+                  y={padT}
+                  width={Math.max(4, slotW - 4)}
+                  height={plotH}
+                  rx={6}
+                  fill={isHovered ? '#EBF6FC' : 'transparent'}
+                  opacity={isHovered ? 0.55 : 0}
+                />
+
+                {renderBar(r.budget, cx - barW - barGap / 2, '#CBD5E1')}
+                {renderBar(r.realise, cx + barGap / 2, (r.realise ?? 0) < 0 ? '#DC2626' : posColor)}
+
+                <text
+                  x={cx}
+                  y={svgH - 10}
+                  textAnchor="middle"
+                  fontSize="11.5"
+                  fontWeight={isHovered ? 800 : 600}
+                  fill={isHovered ? '#1B4565' : '#64748B'}
+                  style={{ textTransform: 'capitalize' }}
+                >
+                  {r.mois}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
       </div>
 
       {/* Vignettes écart par mois */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))',
           gap: '8px',
         }}
       >
-        {rows.map((r) => (
+        {rows.map((r, i) => (
           <div
             key={r.mois}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
             style={{
               padding: '8px 10px',
               borderRadius: '10px',
-              border: '1px solid #D7EAF5',
-              backgroundColor: '#FFFFFF',
+              border: hoveredIdx === i ? '1.5px solid #3989B7' : '1px solid #D7EAF5',
+              backgroundColor: hoveredIdx === i ? '#F4F9FC' : '#FFFFFF',
               textAlign: 'center',
+              transition: 'border-color 0.15s, background-color 0.15s',
             }}
           >
             <div style={{ fontSize: '11px', color: '#64748B', textTransform: 'capitalize', fontWeight: 600 }}>{r.mois}</div>
@@ -484,9 +645,9 @@ export default function FinanceHubView({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 265px), 1fr))',
-          gap: '16px',
-          marginBottom: '24px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+          gap: '14px',
+          marginBottom: '22px',
         }}
       >
         {/* Tuile 1 : Coût de non-qualité */}
