@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ClipboardList, Frown, Sun } from 'lucide-react';
+import { ClipboardList, Frown, Heart, Sun } from 'lucide-react';
+import { cn } from '@lib/utils';
 import { getChantierQuality, getVisitsOverview, getVisitsPlans } from '@generated/server/visits';
 import { Gauge, MonthlyChart } from '@generated/components/VisitsCharts';
 import VisitsTable, { PlansTable } from '@generated/components/VisitsTables';
@@ -15,6 +16,45 @@ const Panel = ({ title, children, className = '' }: { title: ReactNode; children
     {children}
   </div>
 );
+
+function SubHubHeart({ widgetId, label }: { widgetId: string; label: string }) {
+  const [fav, setFav] = useState(false);
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type === 'FACILITY_FAVORITES_SYNC' && Array.isArray(e.data.favoriteWidgets)) {
+        setFav(e.data.favoriteWidgets.includes(widgetId));
+      }
+    };
+    window.addEventListener('message', onMsg);
+    try {
+      window.parent?.postMessage({ type: 'FACILITY_REQUEST_FAVORITES' }, '*');
+    } catch {}
+    return () => window.removeEventListener('message', onMsg);
+  }, [widgetId]);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setFav((v) => !v);
+        try {
+          window.parent?.postMessage({ type: 'FACILITY_TOGGLE_FAVORITE_INFO', widgetId }, '*');
+        } catch {}
+      }}
+      title={fav ? `Retirer « ${label} » de Mes informations préférées` : `Ajouter « ${label} » à Mes informations préférées`}
+      className={cn(
+        'inline-flex items-center justify-center rounded-full border p-1 transition hover:scale-110 cursor-pointer',
+        fav
+          ? 'border-rose-300 bg-rose-50 text-rose-600'
+          : 'border-border bg-background text-muted-foreground hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600'
+      )}
+    >
+      <Heart className="h-3.5 w-3.5" fill={fav ? 'currentColor' : 'none'} />
+    </button>
+  );
+}
 
 export default function VisitsSection({ firstName }: { firstName: string }) {
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -92,7 +132,14 @@ export default function VisitsSection({ firstName }: { firstName: string }) {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Panel title="Satisfaction des visites">
+        <Panel
+          title={
+            <div className="flex items-center justify-between gap-2 w-full">
+              <span>Satisfaction des visites</span>
+              <SubHubHeart widgetId="kpi_satisfaction_globale" label="Satisfaction Visites Clients" />
+            </div>
+          }
+        >
           <div className="grid grid-cols-2 gap-4">
             <Gauge value={overview?.satTotal ?? null} label="Total" />
             <Gauge value={overview?.satMonth ?? null} label="Mois" />
@@ -100,12 +147,15 @@ export default function VisitsSection({ firstName }: { firstName: string }) {
         </Panel>
         <Panel
           title={
-            <div className="flex items-center gap-1.5">
-              <span>Niveau des clients (3 derniers contrôles)</span>
-              <InfoTip
-                label="Niveau de qualité des chantiers"
-                text="Évaluation de la qualité sur les 3 derniers contrôles réalisés sur les chantiers en cours. Survolez chaque carte pour voir la règle précise."
-              />
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="flex items-center gap-1.5">
+                <span>Niveau des clients (3 derniers contrôles)</span>
+                <InfoTip
+                  label="Niveau de qualité des chantiers"
+                  text="Évaluation de la qualité sur les 3 derniers contrôles réalisés sur les chantiers en cours. Survolez chaque carte pour voir la règle précise."
+                />
+              </div>
+              <SubHubHeart widgetId="card_repartition_etoiles" label="Répartition Qualité C1/C2/C3" />
             </div>
           }
         >

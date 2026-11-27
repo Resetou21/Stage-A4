@@ -28,6 +28,7 @@ import {
   Archive,
   Cloud,
   CloudUpload,
+  Heart,
   Home,
   UserCheck,
 } from 'lucide-react';
@@ -199,6 +200,20 @@ export default function GeolocCard() {
   const [pendingImportWorkbook, setPendingImportWorkbook] = useState<GeoWorkbookResult | null>(null);
   const [confirmRemoveWeek, setConfirmRemoveWeek] = useState<{ weekId: string; label: string } | null>(null);
   const [removingWeek, setRemovingWeek] = useState(false);
+  const [isGeolocFavorite, setIsGeolocFavorite] = useState(false);
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type === 'FACILITY_FAVORITES_SYNC' && Array.isArray(e.data.favoriteWidgets)) {
+        setIsGeolocFavorite(e.data.favoriteWidgets.includes('kpi_geoloc_semaine'));
+      }
+    };
+    window.addEventListener('message', onMsg);
+    try {
+      window.parent?.postMessage({ type: 'FACILITY_REQUEST_FAVORITES' }, '*');
+    } catch {}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
 
   const refreshCommuteRecords = useCallback(async () => {
     setCommuteLoading(true);
@@ -1227,6 +1242,24 @@ export default function GeolocCard() {
           02
         </span>
         <h2 className="text-xl font-bold">Géolocalisation &amp; Horaires</h2>
+        <button
+          type="button"
+          onClick={() => {
+            setIsGeolocFavorite((v) => !v);
+            try {
+              window.parent?.postMessage({ type: 'FACILITY_TOGGLE_FAVORITE_INFO', widgetId: 'kpi_geoloc_semaine' }, '*');
+            } catch {}
+          }}
+          title={isGeolocFavorite ? 'Retirer de Mes informations préférées' : 'Ajouter à Mes informations préférées'}
+          className={cn(
+            'inline-flex items-center justify-center rounded-full border p-1 transition hover:scale-110 cursor-pointer',
+            isGeolocFavorite
+              ? 'border-rose-300 bg-rose-50 text-rose-600'
+              : 'border-border bg-card text-muted-foreground hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600'
+          )}
+        >
+          <Heart className="h-3.5 w-3.5" fill={isGeolocFavorite ? 'currentColor' : 'none'} />
+        </button>
       </div>
 
       {/* Overlay glisser-déposer */}

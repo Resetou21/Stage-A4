@@ -16,8 +16,12 @@ import {
   Users,
 } from 'lucide-react';
 
+import FavoriteHeartButton from './FavoriteHeartButton';
+
 interface SalariesHubViewProps {
   monday: any;
+  favoriteWidgets?: string[];
+  onToggleFavorite?: (widgetId: string) => void;
 }
 
 interface RhSalarie {
@@ -51,7 +55,11 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 type SubTab = 'annuaire' | 'dossier' | 'groupes';
 
-export default function SalariesHubView({ monday }: SalariesHubViewProps) {
+export default function SalariesHubView({
+  monday,
+  favoriteWidgets = [],
+  onToggleFavorite,
+}: SalariesHubViewProps) {
   const [activeTab, setActiveTab] = useState<SubTab>('annuaire');
   const [salaries, setSalaries] = useState<RhSalarie[]>([]);
   const [messages, setMessages] = useState<AccompagnementLog[]>([]);
@@ -359,8 +367,18 @@ export default function SalariesHubView({ monday }: SalariesHubViewProps) {
                 padding: '14px 16px',
               }}
             >
-              <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748B' }}>
-                {kpi.label}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748B' }}>
+                  {kpi.label}
+                </div>
+                {kpi.label === 'Salariés actifs' && onToggleFavorite && (
+                  <FavoriteHeartButton
+                    isFavorite={favoriteWidgets.includes('kpi_salaries_actifs')}
+                    onToggle={() => onToggleFavorite('kpi_salaries_actifs')}
+                    label="Effectif Enchantement Salarié"
+                    compact
+                  />
+                )}
               </div>
               <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '26px', fontWeight: 900, color: kpi.color, marginTop: '4px' }}>
                 {loading ? '—' : kpi.val}

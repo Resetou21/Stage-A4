@@ -365,11 +365,32 @@ export default function App() {
           void saveUserPrefs(monday, userKey, next);
           return next;
         });
+      } else if (e.data && e.data.type === 'FACILITY_REQUEST_FAVORITES') {
+        Object.values(iframeRefsMap.current).forEach((iframe) => {
+          try {
+            iframe?.contentWindow?.postMessage(
+              { type: 'FACILITY_FAVORITES_SYNC', favoriteWidgets: prefs.favoriteWidgets },
+              '*'
+            );
+          } catch {}
+        });
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [userKey]);
+  }, [userKey, prefs.favoriteWidgets]);
+
+  // Synchronise la liste des favoris ❤️ vers toutes les iframes ouvertes
+  useEffect(() => {
+    Object.values(iframeRefsMap.current).forEach((iframe) => {
+      try {
+        iframe?.contentWindow?.postMessage(
+          { type: 'FACILITY_FAVORITES_SYNC', favoriteWidgets: prefs.favoriteWidgets },
+          '*'
+        );
+      } catch {}
+    });
+  }, [prefs.favoriteWidgets, visitedIframeViews]);
 
   // Visibilité Espace Salariés & RH : publique si ENABLE_SALARIES_RH_HUB, sinon aperçu privé Guillaume uniquement
   const canSeeSalariesRh =
@@ -2734,6 +2755,14 @@ export default function App() {
                   iframeRefsMap.current[viewId] = el;
                   if (isVisible) activeIframeRef.current = el;
                 }}
+                onLoad={(e) => {
+                  try {
+                    e.currentTarget.contentWindow?.postMessage(
+                      { type: 'FACILITY_FAVORITES_SYNC', favoriteWidgets: prefs.favoriteWidgets },
+                      '*'
+                    );
+                  } catch {}
+                }}
                 src={src}
                 title={title}
                 style={{ flex: 1, width: '100%', height: '100%', border: 'none' }}
@@ -2792,7 +2821,11 @@ export default function App() {
         )}
 
         {canSeeSalariesRh && currentView === 'salaries_rh' && (
-          <SalariesHubView monday={monday} />
+          <SalariesHubView
+            monday={monday}
+            favoriteWidgets={prefs.favoriteWidgets}
+            onToggleFavorite={handleToggleFavoriteWidget}
+          />
         )}
 
         {/* Modales */}
