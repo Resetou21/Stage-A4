@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeft,
   Calendar,
   ExternalLink,
   Eye,
@@ -34,6 +35,7 @@ interface NewsHubViewProps {
   currentUserName: string;
   initialOpenComposer?: boolean;
   onComposerOpened?: () => void;
+  onBack?: () => void;
 }
 
 export const NewsHubView: React.FC<NewsHubViewProps> = ({
@@ -42,6 +44,7 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
   currentUserName,
   initialOpenComposer = false,
   onComposerOpened,
+  onBack,
 }) => {
   const [items, setItems] = useState<CustomNewsItem[]>(() => readCachedCustomNews());
   const [loading, setLoading] = useState(false);
@@ -206,6 +209,28 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 14px',
+                borderRadius: '10px',
+                border: '1.5px solid #B7D8EA',
+                backgroundColor: '#EBF6FC',
+                color: '#1B4565',
+                fontSize: '12px',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowLeft size={14} color="#39A9DC" />
+              <span>Retour au Hub Global</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => loadNews(true)}

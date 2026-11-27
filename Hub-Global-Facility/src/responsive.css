@@ -484,7 +484,10 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .hub-subbar {
-    height: 44px !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 60 !important;
+    height: 46px !important;
     padding: 0 10px !important;
     flex-wrap: nowrap !important;
     overflow: hidden !important;
@@ -498,8 +501,8 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .subbar-back-btn {
-    padding: 5px 9px !important;
-    font-size: 11px !important;
+    padding: 6px 11px !important;
+    font-size: 12px !important;
     flex-shrink: 0 !important;
   }
 

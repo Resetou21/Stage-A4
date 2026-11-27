@@ -129,6 +129,8 @@ const URL_VINCENT_HUB = 'https://veb2db5fe34ecc3e1c1519f91c8d97c5a.cdn2.monday.a
 
 const VALID_VIEWS: ViewId[] = [
   'home',
+  'favorites',
+  'news',
   'secteur_global',
   'secteur_natacha',
   'secteur_ketty',
@@ -230,6 +232,7 @@ export default function App() {
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const heroSearchInputRef = useRef<HTMLInputElement>(null);
+  const mainContentRef = useRef<HTMLElement>(null);
   const activeIframeRef = useRef<HTMLIFrameElement>(null);
   const iframeRefsMap = useRef<Partial<Record<ViewId, HTMLIFrameElement | null>>>({});
   const pendingBridgeSources = useRef<Map<string, Window>>(new Map());
@@ -1133,6 +1136,13 @@ export default function App() {
     if (view === currentView) return;
 
     setCurrentView(view);
+    // Remonter en haut de page à chaque changement de vue (indispensable sur mobile)
+    requestAnimationFrame(() => {
+      try {
+        mainContentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+        window.scrollTo(0, 0);
+      } catch { }
+    });
     try {
       localStorage.setItem('hub_global_active_view', view);
       sessionStorage.setItem('hub_global_active_view', view);
@@ -1485,6 +1495,9 @@ export default function App() {
             padding: '0 18px',
             flexShrink: 0,
             boxShadow: '0 1px 2px rgba(27,69,101,0.03)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 60,
           }}
         >
           <div className="subbar-left" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
@@ -1588,6 +1601,7 @@ export default function App() {
       {/* 3. CONTENU PRINCIPAL                                           */}
       {/* ============================================================== */}
       <main
+        ref={mainContentRef}
         className="hub-main-content"
         style={{
           flex: 1,
@@ -2397,6 +2411,7 @@ export default function App() {
             currentUserName={userName || firstName}
             initialOpenComposer={newsOpenComposer}
             onComposerOpened={() => setNewsOpenComposer(false)}
+            onBack={() => handleNavigate('home')}
           />
         )}
 
