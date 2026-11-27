@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Calendar,
+  ExternalLink,
   Eye,
   EyeOff,
   ImagePlus,
@@ -10,10 +11,12 @@ import {
   Plus,
   RefreshCw,
   Send,
+  Trash2,
   User,
   X,
 } from 'lucide-react';
 import {
+  archiveCustomNews,
   createCustomNews,
   CustomNewsItem,
   fetchCustomNews,
@@ -153,6 +156,22 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
       writeCachedCustomNews(next);
     } catch (err) {
       console.error('[Journal Actualités] Erreur toggle:', err);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleDeleteNews = async (item: CustomNewsItem) => {
+    if (!window.confirm(`Supprimer définitivement l’actualité « ${item.title} » du Journal ?`)) return;
+    setTogglingId(item.id);
+    try {
+      await archiveCustomNews(monday, item.id);
+      const next = items.filter((n) => n.id !== item.id);
+      setItems(next);
+      writeCachedCustomNews(next);
+      if (selectedArticle?.id === item.id) setSelectedArticle(null);
+    } catch (err) {
+      console.error('[Journal Actualités] Erreur suppression:', err);
     } finally {
       setTogglingId(null);
     }
@@ -560,17 +579,17 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
                 }}
               >
                 {article.imageUrl ? (
-                  <div style={{ height: '190px', width: '100%', overflow: 'hidden', backgroundColor: '#F1F5F9', position: 'relative' }}>
+                  <div style={{ height: '215px', width: '100%', overflow: 'hidden', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2EFF7', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px' }}>
                     <img
                       src={article.imageUrl}
                       alt={article.title}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }}
                     />
                     <span
                       style={{
                         position: 'absolute',
-                        top: '12px',
-                        left: '12px',
+                        top: '10px',
+                        left: '10px',
                         padding: '3px 10px',
                         borderRadius: '999px',
                         backgroundColor: st.tagBg,
@@ -647,30 +666,54 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
                     </div>
 
                     {canPublishNews && (
-                      <button
-                        type="button"
-                        disabled={togglingId === article.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleActive(article);
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '4px 9px',
-                          borderRadius: '7px',
-                          border: '1px solid #CBD5E1',
-                          backgroundColor: '#F8FAFC',
-                          color: article.active ? '#D66927' : '#0E7042',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {article.active ? <EyeOff size={12} /> : <Eye size={12} />}
-                        <span>{article.active ? 'Masquer' : 'Réafficher'}</span>
-                      </button>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          disabled={togglingId === article.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleActive(article);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 9px',
+                            borderRadius: '7px',
+                            border: '1px solid #CBD5E1',
+                            backgroundColor: '#F8FAFC',
+                            color: article.active ? '#D66927' : '#0E7042',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {article.active ? <EyeOff size={12} /> : <Eye size={12} />}
+                          <span>{article.active ? 'Masquer' : 'Réafficher'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={togglingId === article.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteNews(article);
+                          }}
+                          title="Supprimer cette actualité"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '4px 7px',
+                            borderRadius: '7px',
+                            border: '1px solid #FECACA',
+                            backgroundColor: '#FEF2F2',
+                            color: '#DC2626',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -711,12 +754,35 @@ export const NewsHubView: React.FC<NewsHubViewProps> = ({
             }}
           >
             {selectedArticle.imageUrl && (
-              <div style={{ maxHeight: '320px', overflow: 'hidden', backgroundColor: '#0F172A' }}>
+              <div style={{ position: 'relative', maxHeight: '55vh', overflow: 'hidden', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2EFF7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }}>
                 <img
                   src={selectedArticle.imageUrl}
                   alt={selectedArticle.title}
-                  style={{ width: '100%', maxHeight: '320px', objectFit: 'cover', display: 'block' }}
+                  style={{ maxWidth: '100%', maxHeight: '52vh', objectFit: 'contain', display: 'block', borderRadius: '10px' }}
                 />
+                <a
+                  href={selectedArticle.imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: 'absolute',
+                    bottom: '12px',
+                    right: '12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '5px 10px',
+                    borderRadius: '999px',
+                    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                  }}
+                >
+                  <ExternalLink size={12} /> Ouvrir l’image
+                </a>
               </div>
             )}
             <div style={{ padding: '22px 26px', maxHeight: '55vh', overflowY: 'auto' }}>

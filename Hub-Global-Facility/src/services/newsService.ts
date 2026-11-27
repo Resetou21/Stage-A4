@@ -219,3 +219,10 @@ export async function toggleCustomNewsActive(monday: any, itemId: string, nextAc
   }`;
   await monday.api(mut, { variables: { itemId, val } });
 }
+
+export async function archiveCustomNews(monday: any, itemId: string): Promise<void> {
+  const mut = `mutation ($itemId: ID!) {
+    archive_item(item_id: $itemId) { id }
+  }`;
+  await monday.api(mut, { variables: { itemId } });
+}
