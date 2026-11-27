@@ -30,6 +30,18 @@ interface PermissionsModalProps {
   onPermissionsChanged: () => void;
 }
 
+const PERMISSION_COLUMN_META: Record<HubKey, { title: string; subtitle: string }> = {
+  secteurs: { title: 'Resp. Secteur', subtitle: 'Animatrices' },
+  atelier: { title: 'Parc Machines', subtitle: 'Atelier · Christophe' },
+  facturation: { title: 'Fact. Véhicules', subtitle: 'Énergie · Christine' },
+  fournisseurs: { title: 'Fournisseurs', subtitle: 'SAV & Partenaires' },
+  communication: { title: 'Contacts Clients', subtitle: 'Annuaire · Léa' },
+  direction: { title: 'Véhicules', subtitle: 'Flotte & GPS · Vincent' },
+  commercial: { title: 'Commercial', subtitle: 'Portefeuille & CA' },
+  finance: { title: 'Finance', subtitle: 'Direction & CA' },
+  salaries: { title: 'Salariés', subtitle: 'Enchantement RH' },
+};
+
 export default function PermissionsModal({
   isOpen,
   onClose,
@@ -189,7 +201,7 @@ export default function PermissionsModal({
         onClick={(e) => e.stopPropagation()}
         className="modal-spring-in"
         style={{
-          width: '1180px',
+          width: '1260px',
           maxWidth: '100%',
           maxHeight: '100%',
           backgroundColor: '#FFFFFF',
@@ -361,11 +373,30 @@ export default function PermissionsModal({
                   <th style={{ padding: '12px 12px', color: '#1B4565', fontWeight: 800, minWidth: '180px', backgroundColor: '#F4F9FC' }}>
                     Collaborateur
                   </th>
-                  {HUB_DEFINITIONS.map((h) => (
-                    <th key={h.key} style={{ padding: '12px 6px', color: '#3989B7', fontWeight: 800, textAlign: 'center', minWidth: '80px', backgroundColor: '#F4F9FC' }}>
-                      {h.shortLabel}
-                    </th>
-                  ))}
+                  {HUB_DEFINITIONS.map((h) => {
+                    const meta = PERMISSION_COLUMN_META[h.key];
+                    return (
+                      <th
+                        key={h.key}
+                        title={`${h.label} — ${h.description}`}
+                        style={{
+                          padding: '10px 6px',
+                          textAlign: 'center',
+                          minWidth: '94px',
+                          backgroundColor: '#F4F9FC',
+                          verticalAlign: 'middle',
+                          cursor: 'help',
+                        }}
+                      >
+                        <div style={{ color: '#1B4565', fontWeight: 800, fontSize: '11.5px', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                          {meta.title}
+                        </div>
+                        <div style={{ color: '#3989B7', fontWeight: 700, fontSize: '9.5px', lineHeight: 1.2, marginTop: '2px', whiteSpace: 'nowrap' }}>
+                          {meta.subtitle}
+                        </div>
+                      </th>
+                    );
+                  })}
                   <th style={{ padding: '12px 8px', color: '#64748B', fontWeight: 800, textAlign: 'center', width: '76px', backgroundColor: '#F4F9FC' }}>
                     Retirer
                   </th>
