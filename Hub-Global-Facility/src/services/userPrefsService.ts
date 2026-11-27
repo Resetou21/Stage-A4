@@ -7,6 +7,7 @@ export interface UserHubPrefs {
   showStatsSection: boolean;
   viewMode: 'carousel' | 'grid';
   mobileViewMode: 'carousel' | 'grid';
+  favoriteWidgets: string[];
 }
 
 const PREFS_STORAGE_PREFIX = 'facility_hub_prefs_v1_';
@@ -18,6 +19,7 @@ export const getDefaultUserPrefs = (): UserHubPrefs => ({
   showStatsSection: true,
   viewMode: 'carousel',
   mobileViewMode: 'grid',
+  favoriteWidgets: [],
 });
 
 export const normalizeUserKey = (userEmail?: string, userName?: string): string => {
@@ -55,6 +57,10 @@ export const sanitizeUserPrefs = (raw: Partial<UserHubPrefs> | null | undefined)
     }
   });
 
+  const favoriteWidgets = Array.isArray(raw.favoriteWidgets)
+    ? Array.from(new Set(raw.favoriteWidgets.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)))
+    : [];
+
   return {
     hiddenHubs,
     hubOrder,
@@ -62,6 +68,7 @@ export const sanitizeUserPrefs = (raw: Partial<UserHubPrefs> | null | undefined)
     showStatsSection: typeof raw.showStatsSection === 'boolean' ? raw.showStatsSection : true,
     viewMode: raw.viewMode === 'grid' ? 'grid' : 'carousel',
     mobileViewMode: raw.mobileViewMode === 'carousel' ? 'carousel' : 'grid',
+    favoriteWidgets,
   };
 };
 

@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Clock,
   FileSpreadsheet,
+  Heart,
   Home,
   Landmark,
   Lightbulb,
@@ -60,6 +61,8 @@ import DataRulesAuditModal from './components/DataRulesAuditModal';
 import RoadmapModal from './components/RoadmapModal';
 import CommercialHubView from './components/CommercialHubView';
 import SalariesHubView from './components/SalariesHubView';
+import FavoriteHeartButton from './components/FavoriteHeartButton';
+import FavoriteInfosSection from './components/FavoriteInfosSection';
 import { prefetchCommercialData } from './services/commercialService';
 
 const monday = mondaySdk();
@@ -338,6 +341,33 @@ export default function App() {
     setPrefs(next);
     void saveUserPrefs(monday, userKey, next);
   };
+
+  const handleToggleFavoriteWidget = (widgetId: string) => {
+    const exists = prefs.favoriteWidgets.includes(widgetId);
+    const nextWidgets = exists
+      ? prefs.favoriteWidgets.filter((id) => id !== widgetId)
+      : [...prefs.favoriteWidgets, widgetId];
+    handleUpdatePrefs({ ...prefs, favoriteWidgets: nextWidgets });
+  };
+
+  // Écoute les événements postMessage des sous-hubs iframes pour épingler/retirer un indicateur ❤️
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'FACILITY_TOGGLE_FAVORITE_INFO' && typeof e.data.widgetId === 'string') {
+        setPrefs((prev) => {
+          const exists = prev.favoriteWidgets.includes(e.data.widgetId);
+          const nextWidgets = exists
+            ? prev.favoriteWidgets.filter((id) => id !== e.data.widgetId)
+            : [...prev.favoriteWidgets, e.data.widgetId];
+          const next = { ...prev, favoriteWidgets: nextWidgets };
+          void saveUserPrefs(monday, userKey, next);
+          return next;
+        });
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [userKey]);
 
   // Visibilité Espace Salariés & RH : publique si ENABLE_SALARIES_RH_HUB, sinon aperçu privé Guillaume uniquement
   const canSeeSalariesRh =
@@ -1075,6 +1105,7 @@ export default function App() {
   };
 
   const activeSubTitle = useMemo(() => {
+    if (currentView === 'favorites') return 'Mes informations préférées';
     for (const card of allHubCards) {
       const found = card.items.find((it) => it.id === currentView);
       if (found) return found.title;
@@ -1184,6 +1215,43 @@ export default function App() {
               <span className="header-btn-label">Accueil</span>
             </button>
           )}
+
+          <button
+            type="button"
+            className="ui-btn"
+            onClick={() => handleNavigate('favorites')}
+            title="Mes informations préférées"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 11px',
+              borderRadius: '9px',
+              border: currentView === 'favorites' ? '1.5px solid #E11D48' : '1px solid #FECDD3',
+              backgroundColor: currentView === 'favorites' ? '#E11D48' : '#FFF1F2',
+              color: currentView === 'favorites' ? '#FFFFFF' : '#BE123C',
+              fontSize: '12px',
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            <Heart size={14} fill={currentView === 'favorites' ? '#FFFFFF' : '#E11D48'} />
+            <span className="header-btn-label">Préférées</span>
+            {prefs.favoriteWidgets.length > 0 && (
+              <span
+                style={{
+                  padding: '0 6px',
+                  borderRadius: '999px',
+                  backgroundColor: currentView === 'favorites' ? 'rgba(255,255,255,0.25)' : '#FFE4E6',
+                  color: currentView === 'favorites' ? '#FFFFFF' : '#BE123C',
+                  fontSize: '10.5px',
+                  fontWeight: 900,
+                }}
+              >
+                {prefs.favoriteWidgets.length}
+              </span>
+            )}
+          </button>
 
           <button
             type="button"
@@ -1816,6 +1884,26 @@ export default function App() {
                   <button
                     type="button"
                     className="hero-shortcut-btn"
+                    onClick={() => handleNavigate('favorites')}
+                    title="Ouvrir Mes informations préférées"
+                  >
+                    <div
+                      className="hero-shortcut-circle"
+                      style={{
+                        background: 'rgba(225, 29, 72, 0.28)',
+                        borderColor: 'rgba(253, 164, 175, 0.85)',
+                      }}
+                    >
+                      <Heart size={20} color="#FDA4AF" fill="#E11D48" />
+                    </div>
+                    <span className="hero-shortcut-label">
+                      Préférées{prefs.favoriteWidgets.length > 0 ? ` (${prefs.favoriteWidgets.length})` : ''}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="hero-shortcut-btn"
                     onClick={() => {
                       setRoadmapInitialTab('my_ideas');
                       setShowRoadmapModal(true);
@@ -1852,6 +1940,18 @@ export default function App() {
                 }}
               />
             )}
+
+            {/* 2 bis. MES INFORMATIONS PRÉFÉRÉES ❤️ */}
+            <FavoriteInfosSection
+              mode="home"
+              monday={monday}
+              stats={stats}
+              curYear={curYear}
+              permissions={permissions}
+              favoriteWidgets={prefs.favoriteWidgets}
+              onToggleFavorite={handleToggleFavoriteWidget}
+              onNavigate={handleNavigate}
+            />
 
             {/* 3. CARROUSEL / GRILLE DES HUBS (GRILLE PAR DÉFAUT MOBILE, CARROUSEL SUR PC) */}
             <HubsCarousel
@@ -2089,7 +2189,15 @@ export default function App() {
                             cursor: 'pointer',
                           }}
                         >
-                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#3989B7' }}>Chantiers en Contrat</div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#3989B7' }}>Chantiers en Contrat</div>
+                            <FavoriteHeartButton
+                              isFavorite={prefs.favoriteWidgets.includes('kpi_chantiers_actifs')}
+                              onToggle={() => handleToggleFavoriteWidget('kpi_chantiers_actifs')}
+                              label="Chantiers en cours"
+                              compact
+                            />
+                          </div>
                           <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#1B4565', marginTop: '6px' }}>
                             {stats.chantiersActifs}
                           </div>
@@ -2110,7 +2218,15 @@ export default function App() {
                             cursor: 'pointer',
                           }}
                         >
-                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#0E7042' }}>Satisfaction Clients</div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0E7042' }}>Satisfaction Clients</div>
+                            <FavoriteHeartButton
+                              isFavorite={prefs.favoriteWidgets.includes('kpi_satisfaction_globale')}
+                              onToggle={() => handleToggleFavoriteWidget('kpi_satisfaction_globale')}
+                              label="Satisfaction Visites Clients"
+                              compact
+                            />
+                          </div>
                           <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#0E7042', marginTop: '6px' }}>
                             {stats.tauxSatisfactionGlobal}%
                           </div>
@@ -2131,7 +2247,15 @@ export default function App() {
                             cursor: 'pointer',
                           }}
                         >
-                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#B87414' }}>Clients 3 Étoiles 🌟</div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#B87414' }}>Clients 3 Étoiles 🌟</div>
+                            <FavoriteHeartButton
+                              isFavorite={prefs.favoriteWidgets.includes('kpi_clients_3_etoiles')}
+                              onToggle={() => handleToggleFavoriteWidget('kpi_clients_3_etoiles')}
+                              label="Clients 3 Étoiles"
+                              compact
+                            />
+                          </div>
                           <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#B87414', marginTop: '6px' }}>
                             {stats.etoiles.Global.s3}
                           </div>
@@ -2155,7 +2279,15 @@ export default function App() {
                           cursor: 'pointer',
                         }}
                       >
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#D66927' }}>Parc Machines Atelier</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#D66927' }}>Parc Machines Atelier</div>
+                          <FavoriteHeartButton
+                            isFavorite={prefs.favoriteWidgets.includes('kpi_parc_machines')}
+                            onToggle={() => handleToggleFavoriteWidget('kpi_parc_machines')}
+                            label="Parc Machines Atelier"
+                            compact
+                          />
+                        </div>
                         <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '28px', fontWeight: 900, color: '#1B4565', marginTop: '6px' }}>
                           {stats.machinesTotal}
                         </div>
@@ -2169,6 +2301,22 @@ export default function App() {
               </section>
             )}
           </div>
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 1 bis : MES INFORMATIONS PRÉFÉRÉES ❤️                    */}
+        {/* ------------------------------------------------------------ */}
+        {currentView === 'favorites' && (
+          <FavoriteInfosSection
+            mode="full"
+            monday={monday}
+            stats={stats}
+            curYear={curYear}
+            permissions={permissions}
+            favoriteWidgets={prefs.favoriteWidgets}
+            onToggleFavorite={handleToggleFavoriteWidget}
+            onNavigate={handleNavigate}
+          />
         )}
 
         {/* ------------------------------------------------------------ */}
@@ -2217,9 +2365,12 @@ export default function App() {
             {/* 4 KPIs Supervision */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px', marginBottom: '28px' }}>
               <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #39A9DC' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#3989B7', textTransform: 'uppercase' }}>Chantiers en cours</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#3989B7', backgroundColor: '#EBF6FC', padding: '2px 8px', borderRadius: '12px' }}>100% assignés</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#3989B7', backgroundColor: '#EBF6FC', padding: '2px 8px', borderRadius: '12px' }}>100% assignés</span>
+                    <FavoriteHeartButton isFavorite={prefs.favoriteWidgets.includes('kpi_chantiers_actifs')} onToggle={() => handleToggleFavoriteWidget('kpi_chantiers_actifs')} label="Chantiers en cours" compact />
+                  </div>
                 </div>
                 <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#1B4565', marginTop: '6px' }}>
                   {stats.chantiersActifs}
@@ -2230,9 +2381,12 @@ export default function App() {
               </div>
 
               <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #00C875' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#0E7042', textTransform: 'uppercase' }}>Satisfaction Visites</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#0E7042', backgroundColor: '#E6F9F1', padding: '2px 8px', borderRadius: '12px' }}>Année {curYear}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#0E7042', backgroundColor: '#E6F9F1', padding: '2px 8px', borderRadius: '12px' }}>Année {curYear}</span>
+                    <FavoriteHeartButton isFavorite={prefs.favoriteWidgets.includes('kpi_satisfaction_globale')} onToggle={() => handleToggleFavoriteWidget('kpi_satisfaction_globale')} label="Satisfaction Visites" compact />
+                  </div>
                 </div>
                 <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#0E7042', marginTop: '6px' }}>
                   {stats.tauxSatisfactionGlobal}%
@@ -2243,9 +2397,12 @@ export default function App() {
               </div>
 
               <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #F7AC37' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#B87414', textTransform: 'uppercase' }}>Clients 3 Étoiles 🌟</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#B87414', backgroundColor: '#FEF6E7', padding: '2px 8px', borderRadius: '12px' }}>Niveau Max</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#B87414', backgroundColor: '#FEF6E7', padding: '2px 8px', borderRadius: '12px' }}>Niveau Max</span>
+                    <FavoriteHeartButton isFavorite={prefs.favoriteWidgets.includes('kpi_clients_3_etoiles')} onToggle={() => handleToggleFavoriteWidget('kpi_clients_3_etoiles')} label="Clients 3 Étoiles" compact />
+                  </div>
                 </div>
                 <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#B87414', marginTop: '6px' }}>
                   {stats.etoiles.Global.s3}
@@ -2256,9 +2413,12 @@ export default function App() {
               </div>
 
               <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', border: '1.5px solid #D7EAF5', borderLeft: '4px solid #D66927' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#D66927', textTransform: 'uppercase' }}>Clients Insatisfaits 🙁</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#D66927', backgroundColor: '#FFF4EB', padding: '2px 8px', borderRadius: '12px' }}>Priorité Qualité</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#D66927', backgroundColor: '#FFF4EB', padding: '2px 8px', borderRadius: '12px' }}>Priorité Qualité</span>
+                    <FavoriteHeartButton isFavorite={prefs.favoriteWidgets.includes('kpi_clients_insatisfaits')} onToggle={() => handleToggleFavoriteWidget('kpi_clients_insatisfaits')} label="Clients Insatisfaits" compact />
+                  </div>
                 </div>
                 <div style={{ fontFamily: "'Ruda', sans-serif", fontSize: '34px', fontWeight: 900, color: '#D66927', marginTop: '6px' }}>
                   {stats.etoiles.Global.bad}
@@ -2280,9 +2440,16 @@ export default function App() {
                     Ventilation consolidée des chantiers en cours, satisfaction certifiée des visites et niveaux d’étoiles.
                   </p>
                 </div>
-                <span style={{ fontSize: '11px', color: '#3989B7', backgroundColor: '#EBF6FC', padding: '3px 10px', borderRadius: '12px', fontWeight: 700 }}>
-                  ● En direct Monday.com
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: '#3989B7', backgroundColor: '#EBF6FC', padding: '3px 10px', borderRadius: '12px', fontWeight: 700 }}>
+                    ● En direct Monday.com
+                  </span>
+                  <FavoriteHeartButton
+                    isFavorite={prefs.favoriteWidgets.includes('table_comparatif_secteurs')}
+                    onToggle={() => handleToggleFavoriteWidget('table_comparatif_secteurs')}
+                    label="Tableau Comparatif par Secteur"
+                  />
+                </div>
               </div>
 
               <div className="desktop-table-container" style={{ overflowX: 'auto' }}>
@@ -2423,13 +2590,20 @@ export default function App() {
 
             {/* Étoiles Qualité */}
             <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #D7EAF5', padding: '24px' }}>
-              <div style={{ marginBottom: '18px' }}>
-                <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#1B4565' }}>
-                  Répartition Qualité Globale des Chantiers (Contrôles C1, C2, C3)
-                </h3>
-                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748B' }}>
-                  Conformité stricte de l’historique qualité sur les contrôles réalisés par les animatrices.
-                </p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '18px', flexWrap: 'wrap' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontFamily: "'Ruda', sans-serif", fontSize: '17px', fontWeight: 800, color: '#1B4565' }}>
+                    Répartition Qualité Globale des Chantiers (Contrôles C1, C2, C3)
+                  </h3>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                    Conformité stricte de l’historique qualité sur les contrôles réalisés par les animatrices.
+                  </p>
+                </div>
+                <FavoriteHeartButton
+                  isFavorite={prefs.favoriteWidgets.includes('card_repartition_etoiles')}
+                  onToggle={() => handleToggleFavoriteWidget('card_repartition_etoiles')}
+                  label="Répartition Qualité C1/C2/C3"
+                />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px' }}>
                 <div style={{ backgroundColor: '#FEF9C3', padding: '18px', borderRadius: '14px', border: '1.5px solid #F7AC37' }}>

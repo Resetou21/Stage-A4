@@ -9,6 +9,7 @@ export type HubKey =
 
 export type ViewId =
   | 'home'
+  | 'favorites'
   | 'secteur_global'
   | 'secteur_natacha'
   | 'secteur_ketty'
@@ -25,9 +26,9 @@ export type ViewId =
 export const PERMISSIONS_BOARD_ID = 5108553085;
 export const PERMISSIONS_BOARD_URL = `https://groupefacility.monday.com/boards/${PERMISSIONS_BOARD_ID}`;
 
-// Feature flag : passer à true dès que l'on souhaite afficher l'Espace Salariés & RH à la Direction / RH
-export const ENABLE_SALARIES_RH_HUB = false;
-// Aperçu privé uniquement pour le compte Guillaume Daniel (invisible pour Laurent & les autres utilisateurs)
+// Feature flag : activé pour afficher l'espace Enchantement Salarié dans le Hub Global
+export const ENABLE_SALARIES_RH_HUB = true;
+// Aperçu privé uniquement pour le compte Guillaume Daniel (si ENABLE_SALARIES_RH_HUB est false)
 export const ENABLE_SALARIES_RH_PREVIEW_GUILLAUME = true;
 
 export const PERMISSIONS_COLUMN_IDS = {
@@ -135,6 +136,7 @@ export const ALL_HUB_KEYS: HubKey[] = HUB_DEFINITIONS.map((h) => h.key);
 
 export const VIEW_TO_HUB_KEY: Record<ViewId, HubKey | null> = {
   home: null,
+  favorites: null,
   secteur_global: 'secteurs',
   secteur_natacha: 'secteurs',
   secteur_ketty: 'secteurs',
