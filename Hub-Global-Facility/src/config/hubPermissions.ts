@@ -10,6 +10,7 @@ export type HubKey =
 export type ViewId =
   | 'home'
   | 'favorites'
+  | 'news'
   | 'secteur_global'
   | 'secteur_natacha'
   | 'secteur_ketty'
@@ -137,6 +138,7 @@ export const ALL_HUB_KEYS: HubKey[] = HUB_DEFINITIONS.map((h) => h.key);
 export const VIEW_TO_HUB_KEY: Record<ViewId, HubKey | null> = {
   home: null,
   favorites: null,
+  news: null,
   secteur_global: 'secteurs',
   secteur_natacha: 'secteurs',
   secteur_ketty: 'secteurs',

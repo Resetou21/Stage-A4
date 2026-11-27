@@ -63,6 +63,7 @@ import CommercialHubView from './components/CommercialHubView';
 import SalariesHubView from './components/SalariesHubView';
 import FavoriteHeartButton from './components/FavoriteHeartButton';
 import FavoriteInfosSection from './components/FavoriteInfosSection';
+import NewsHubView from './components/NewsHubView';
 import { prefetchCommercialData } from './services/commercialService';
 
 const monday = mondaySdk();
@@ -202,6 +203,7 @@ export default function App() {
   const [statsExpanded, setStatsExpanded] = useState<boolean>(false);
 
   const [showRoadmapModal, setShowRoadmapModal] = useState<boolean>(false);
+  const [newsOpenComposer, setNewsOpenComposer] = useState<boolean>(false);
   const [roadmapInitialTab, setRoadmapInitialTab] = useState<'form' | 'list' | 'my_ideas' | 'company_ideas'>('company_ideas');
   const [showCustomizeModal, setShowCustomizeModal] = useState<boolean>(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState<boolean>(false);
@@ -1106,6 +1108,7 @@ export default function App() {
 
   const activeSubTitle = useMemo(() => {
     if (currentView === 'favorites') return 'Mes informations préférées';
+    if (currentView === 'news') return 'Journal & Actualités';
     for (const card of allHubCards) {
       const found = card.items.find((it) => it.id === currentView);
       if (found) return found.title;
@@ -1934,11 +1937,14 @@ export default function App() {
                 canViewAtelier={permissions.atelier}
                 canViewCommercial={permissions.commercial}
                 canPublishNews={isAdmin || permissions.communication}
-                currentUserName={userName || firstName}
                 onNavigate={handleNavigate}
                 onOpenRoadmap={() => {
                   setRoadmapInitialTab('company_ideas');
                   setShowRoadmapModal(true);
+                }}
+                onOpenNewsPage={(openComposer = false) => {
+                  setNewsOpenComposer(openComposer);
+                  handleNavigate('news');
                 }}
               />
             )}
@@ -2318,6 +2324,19 @@ export default function App() {
             favoriteWidgets={prefs.favoriteWidgets}
             onToggleFavorite={handleToggleFavoriteWidget}
             onNavigate={handleNavigate}
+          />
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* VUE 1 ter : JOURNAL & ACTUALITÉS ENTREPRISE (AVEC PHOTOS)    */}
+        {/* ------------------------------------------------------------ */}
+        {currentView === 'news' && (
+          <NewsHubView
+            monday={monday}
+            canPublishNews={isAdmin || permissions.communication}
+            currentUserName={userName || firstName}
+            initialOpenComposer={newsOpenComposer}
+            onComposerOpened={() => setNewsOpenComposer(false)}
           />
         )}
 
