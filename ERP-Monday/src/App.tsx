@@ -260,7 +260,19 @@ export const App = () => {
   const [revisiteSoundOn, setRevisiteSoundOn] = useState<boolean>(() => isRevisiteSoundEnabled());
   const [dismissedRevisiteIds, setDismissedRevisiteIds] = useState<string[]>([]);
   const [revisiteBusyId, setRevisiteBusyId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const chimePlayedRef = useRef<boolean>(false);
+
+  // Identifier l'utilisateur connecté sur Monday (évite de pinguer Christophe quand Guillaume teste !)
+  useEffect(() => {
+    (monday as any)
+      .api('query { me { id email name } }')
+      .then((res: any) => {
+        const uid = Number(res?.data?.me?.id);
+        if (uid && !Number.isNaN(uid)) setCurrentUserId(uid);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -981,6 +993,7 @@ export const App = () => {
   }, [activeParcMachines, realisedControles, dismissedRevisiteIds]);
 
   // Déclenchement automatique du carillon doux + notification Monday 1x/jour si revisite due aujourd'hui ou en retard
+  // (Envoie uniquement à l'utilisateur connecté s'il s'agit de Christophe, ou en test manuel sur son propre compte)
   useEffect(() => {
     const urgentRevisites = dueRevisites.filter((r) => r.diffDays <= 0);
     if (urgentRevisites.length === 0) return;
@@ -990,15 +1003,17 @@ export const App = () => {
       playRevisiteChime();
     }
 
-    urgentRevisites.forEach((r) => {
-      void sendMondayNativeNotification({
-        userId: MONDAY_USER_IDS.CHRISTOPHE,
-        targetItemId: r.machineId,
-        dedupeKey: `rev_${r.machineId}_${r.date}`,
-        text: `🔔 Rappel revisite technique : ${r.machineName}${r.site && r.site !== '—' ? ` (${r.site})` : ''} prévue le ${formatDateFR(r.date)}.`,
+    if (currentUserId === MONDAY_USER_IDS.CHRISTOPHE) {
+      urgentRevisites.forEach((r) => {
+        void sendMondayNativeNotification({
+          userId: MONDAY_USER_IDS.CHRISTOPHE,
+          targetItemId: r.machineId,
+          dedupeKey: `rev_${r.machineId}_${r.date}`,
+          text: `🔔 Rappel revisite technique : ${r.machineName}${r.site && r.site !== '—' ? ` (${r.site})` : ''} prévue le ${formatDateFR(r.date)}.`,
+        });
       });
-    });
-  }, [dueRevisites, revisiteSoundOn]);
+    }
+  }, [dueRevisites, revisiteSoundOn, currentUserId]);
 
   // Secteurs / Communes disponibles pour regrouper les passages et tournées
   const availableSectors = useMemo(() => {
@@ -1684,6 +1699,36 @@ export const App = () => {
                       }}
                     >
                       📅 Outlook (.ics)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const targetUid = currentUserId || MONDAY_USER_IDS.GUILLAUME;
+                        const ok = await sendMondayNativeNotification({
+                          userId: targetUid,
+                          targetItemId: rev.machineId,
+                          text: `🔔 Rappel revisite technique : ${rev.machineName}${rev.site && rev.site !== '—' ? ` (${rev.site})` : ''} prévue le ${formatDateFR(rev.date)}.`,
+                        });
+                        setSuccessMessage(
+                          ok
+                            ? `Notification Monday envoyée sur votre cloche (sans pinguer Christophe) !`
+                            : `Impossible d'envoyer la notification Monday.`
+                        );
+                      }}
+                      title="Tester l'envoi d'une notification dans votre cloche Monday"
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #BAE6FD',
+                        backgroundColor: '#F0F9FF',
+                        color: '#0369A1',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🔔 Notif (moi)
                     </button>
 
                     <button

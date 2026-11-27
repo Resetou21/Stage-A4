@@ -4567,7 +4567,11 @@ export async function sendSalarieRuleAlert(params: {
   message: string;
   date: string; // YYYY-MM-DD
   file?: File | null;
+  recipientMode?: 'vincent' | 'guillaume_test';
 }): Promise<{ success: boolean; accompagnementId?: string; commId?: string; error?: string }> {
+  const isTestMode = params.recipientMode === 'guillaume_test';
+  const targetUserId = isTestMode ? '118562356' : '102108076'; // Guillaume Daniel (Test) vs Vincent RIVIERE
+  const targetLabel = isTestMode ? 'Guillaume Daniel (Test)' : 'Vincent RIVIERE';
   const salName = params.salarieName.trim() || 'Salarié non précisé';
   const sender = params.technicienName?.trim() || 'Christophe';
   const site = params.machineSite?.trim() || 'Non précisé';
@@ -4623,11 +4627,11 @@ export async function sendSalarieRuleAlert(params: {
     console.warn('Erreur création trace Accompagnements Salarié:', err);
   }
 
-  // 2. Alerte dans Communication animatrices (5044808167) à destination de Vincent RIVIERE
+  // 2. Alerte dans Communication animatrices (5044808167) à destination de Vincent RIVIERE (ou Guillaume en mode Test)
   try {
-    const commTitle = `[Alerte Salarié → Vincent] ${salName} (${params.machineName}) — ${params.message.trim() || 'Non-respect règles matériel'}`.slice(0, 240);
+    const commTitle = `${isTestMode ? '[TEST Alerte Salarié → Guillaume]' : '[Alerte Salarié → Vincent]'} ${salName} (${params.machineName}) — ${params.message.trim() || 'Non-respect règles matériel'}`.slice(0, 240);
     const commCols: Record<string, any> = {
-      color_mkzat86a: { label: 'Vincent RIVIERE' },
+      color_mkzat86a: { label: targetLabel },
       date_mkwrkqy5: { date: params.date },
     };
     const r2: any = await (monday as any).api(
@@ -4659,7 +4663,7 @@ export async function sendSalarieRuleAlert(params: {
     console.warn('Erreur création alerte Communication Vincent:', err);
   }
 
-  // 3. Notification native Monday (cloche PC + mobile) directement pour Vincent RIVIERE (102108076)
+  // 3. Notification native Monday (cloche PC + mobile) directement pour Vincent RIVIERE (ou Guillaume en mode Test)
   const targetId = accompagnementId || commId;
   if (targetId) {
     try {
@@ -4671,14 +4675,14 @@ export async function sendSalarieRuleAlert(params: {
         }`,
         {
           variables: {
-            userId: '102108076', // Vincent RIVIERE
+            userId: targetUserId,
             targetId,
-            text: `⚠️ Alerte Atelier (${sender}) — ${salName} ne respecte pas les règles sur ${params.machineName} (${site}) : ${(params.message || 'Voir détail & pièce jointe').slice(0, 120)}`,
+            text: `${isTestMode ? '🧪 [TEST] ' : ''}⚠️ Alerte Atelier (${sender}) — ${salName} ne respecte pas les règles sur ${params.machineName} (${site}) : ${(params.message || 'Voir détail & pièce jointe').slice(0, 120)}`,
           },
         }
       );
     } catch (nErr) {
-      console.warn('Erreur notification native Vincent:', nErr);
+      console.warn('Erreur notification native:', nErr);
     }
   }
 

@@ -155,6 +155,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
   // Alerte Non-Respect des Règles (Salarié -> Vincent) avec liste Enchantement Salarié + Image/PDF
   const [salarieAlertEnabled, setSalarieAlertEnabled] = useState(false);
+  const [salarieAlertRecipient, setSalarieAlertRecipient] = useState<'vincent' | 'guillaume_test'>('vincent');
   const [salariesList, setSalariesList] = useState<SalarieOption[]>([]);
   const [selectedSalarieLabel, setSelectedSalarieLabel] = useState('');
   const [customSalarieName, setCustomSalarieName] = useState('');
@@ -463,6 +464,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
           message: salarieAlertText.trim() || trimmedNote || 'Règles d’entretien ou d’utilisation matériel non respectées.',
           date: inspectionDate,
           file: salarieAlertFile || photoFile || null,
+          recipientMode: salarieAlertRecipient,
         });
       } catch (salErr) {
         console.warn('Erreur envoi alerte salarié Vincent:', salErr);
@@ -3091,6 +3093,43 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({
 
               {salarieAlertEnabled && (
                 <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #FECACA', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Choix destinataire (Vincent en prod ou Guillaume en mode Test sans pinguer Vincent) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#991B1B' }}>Destinataire notification :</span>
+                    <button
+                      type="button"
+                      onClick={() => setSalarieAlertRecipient('vincent')}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '8px',
+                        border: salarieAlertRecipient === 'vincent' ? '1.5px solid #DC2626' : '1px solid #FCA5A5',
+                        backgroundColor: salarieAlertRecipient === 'vincent' ? '#DC2626' : '#FFFFFF',
+                        color: salarieAlertRecipient === 'vincent' ? '#FFFFFF' : '#991B1B',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Vincent RIVIERE (Direction)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalarieAlertRecipient('guillaume_test')}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '8px',
+                        border: salarieAlertRecipient === 'guillaume_test' ? '1.5px solid #0284C7' : '1px solid #BAE6FD',
+                        backgroundColor: salarieAlertRecipient === 'guillaume_test' ? '#0284C7' : '#F0F9FF',
+                        color: salarieAlertRecipient === 'guillaume_test' ? '#FFFFFF' : '#0369A1',
+                        fontSize: '11.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🧪 Guillaume Daniel (Test — ne ping pas Vincent)
+                    </button>
+                  </div>
+
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#991B1B', marginBottom: '6px' }}>
                       👤 Salarié concerné (liste issue d’Enchantement Salarié — {salariesList.length} actif{salariesList.length > 1 ? 's' : ''}) :
